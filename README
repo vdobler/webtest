@@ -1,0 +1,9 @@
+README
+======
+
+This project shall provide reliable, easy to use and fast
+methods and tools to check websites.
+Current ideas:
+ - Implement CheckTag in Go
+ - Provide text flattening for html
+
