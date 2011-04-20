@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"html"
+	// "html"
 	_ "strings"
 	"./tag"
 )
@@ -17,7 +17,7 @@ var html1 = `<html>
   <div>
     <p>
 	  Some Text
-	  <a href="index.html" class="ext int special">My first Link</a>
+	  <a href="index.html" class="ext int special" target="blank">My first Link</a>
 	</p>
 	<p>
 	  <img src="bild.jpg" alt="i &lt; i+1" >
@@ -27,42 +27,37 @@ var html1 = `<html>
 			<span class="code" title="V&amp;S">Go!</span> Rules
 		</p>
 	  </div>
+	  <p id="myId" class="ext"> Some <i>Text</i> </p>
 	</p>
   </div>
 </body>
 </html>`
 
 
+func test(doc *tag.Node, spec string) {
+	ts := tag.ParseTagSpec(spec)
+	fmt.Printf("\n\n---------------------\nTagSpec:\n%s\n", ts.String())
+	node := tag.FindTag(ts, doc)
+	if node != nil {
+		fmt.Printf("Found!\n%s\n", node.HtmlRep(0))
+	} else {
+		fmt.Printf("NOT FOUND!\n")
+	}
+	fmt.Printf("-----------------------\n")
+}
+
 
 func main() {
 	doc := tag.ParseHtml(html1)
 
-	ts := tag.TagSpec{Name: "a", 
-					  Content:  "My * Link",
-					  Classes:  []string{"ext", "int"},
-					  XClasses: []string{"wrong"},
-					  XAttr:    []html.Attribute{html.Attribute{Key: "target", Val:tag.IGNORED}}}
+	test(doc, "a class=ext class=int !class=wrong target !title == My * Link") 
 
-	fmt.Printf("\nTagSpec:\n%s\n", ts.String())
-	tag.FindTag(&ts, doc)
-	
-	fmt.Printf("\nTagSpec:\n%s\n", ts.String())
-	ts = tag.TagSpec{Name: "div", 
-					 Attr: []html.Attribute{html.Attribute{Key: "id", Val: "theDiv"}}}
-	if div := tag.FindTag(&ts, doc); div != nil {
-		fmt.Printf("%s\n", div.Html(0))
-	}
+	test(doc, "div id=theDiv")
 
-	tsp := tag.ParseSimpleTagSpec("p class=ext !style id=myId !lang=en =D= Some Text")
-	fmt.Printf("\n%s\n", tsp.String())
+	test(doc, "p class=ext !style id=myId !lang=en =D= Some Text")
 	
-	tsp = tag.ParseTagSpec("p\ndiv id=theDiv")
-	if node := tag.FindTag(tsp, doc); node!= nil {
-		fmt.Printf("%s\n", node.Html(0))
-	}
+	test(doc, "p\n  div id=theDiv")
 	
-	fmt.Printf("\n%s\n", tsp.String())
-	
-	fmt.Printf("\n%s\n", doc.RealHtml())
-	
+	test(doc, "div\n  p\n    img\n    div\n      h2\n      p\n    p\n    h2\n      span")
+	  
 }

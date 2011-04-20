@@ -88,7 +88,7 @@ func trim(s string) string {
 
 
 func ParseSimpleTagSpec(spec string) (ts *TagSpec) {
-	fmt.Printf("Parsing: " + spec)
+	// fmt.Printf("Parsing: " + spec)
 	ts = new(TagSpec)
 	spec = trim(spec)
 
@@ -141,13 +141,34 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec) {
 	return
 }
 
+// Returns the number of leading spaces in s.
+func indentDepth(s string) (d int) {
+	d = 0
+	for i:=0; i<len(s); i++ { 
+		if s[i] == ' ' {
+			d++
+		} else if s[i] == '\t' {
+			d += 4
+		}
+	}
+	return
+}
 
 func ParseTagSpec(spec string) (ts *TagSpec) {
-	// TODO: Implement correct behaviour
+	debug("\nParseTagSpec:\n%s\n", spec)
 	lines := strings.Split(spec, "\n", -1)
 	ts = ParseSimpleTagSpec(lines[0])
-	for i := 1; i < len(lines); i++ {
-		ts.Sub = append(ts.Sub, ParseSimpleTagSpec(lines[i]))
+	if len(lines) > 1 {
+		ind := indentDepth(lines[1])
+		// fmt.Printf("Have subs: indent >= %d\n", ind)
+		for i:=1; i<len(lines); {
+			ss := lines[i]
+			i++
+			for ; i<len(lines) && indentDepth(lines[i])>ind; i++ {
+				ss += "\n" + lines[i]
+			}
+			ts.Sub = append(ts.Sub, ParseTagSpec(ss))
+		}
 	}
 	return
 }
