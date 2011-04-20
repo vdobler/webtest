@@ -1,0 +1,4 @@
+# Ignore compiled and executable files
+*.8
+*.exe
+
