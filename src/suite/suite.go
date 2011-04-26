@@ -85,8 +85,8 @@ type Test struct {
 	Method string
 	Url    string
 	Header map[string] string
-	RespCond []*Condition
-	BodyCond []*Condition
+	RespCond []Condition
+	BodyCond []Condition
 	Pre  []string
 	MaxTime int // -1: unset, 0=no limit, >0: limit in ms
 	Sleep int   // -1: unset, >=0: sleep after in ms
@@ -100,35 +100,27 @@ type Test struct {
 	Passed bool
 }
 
-func condCopy(src []*Condition) (dest []*Condition) {
-	trace("Copying %d conditions", len(src))
-	dest = make([]*Condition, len(src))
-	for i, c := range src { 
-		dest[i] = c.Copy() 
-	}  
-	return
-}
-
-func mapCopy(src map[string] string) (dest map[string] string) {
-	dest = make(map[string] string, len(src))
-	for k, v := range src { 
-		dest[k] = v 
+func (t *Test) String() (s string) {
+	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
+	s += t.Method + " " + t.Url + "\n"
+	if len(t.Header) > 0 {
+		s += "HEADER:\n"
+		for k, v := range t.Header {
+			s += "\t" + k + ": " + v + "\n"
+		}
 	}
-	return
-}
-
-func (src *Test) Copy() (dest *Test) {
-	trace("Copying test '%s'", src.Title)
-	dest = new(Test)
-	dest.Title = src.Title
-	dest.Method = src.Method
-	dest.Url = src.Url
-	dest.Pre = src.Pre
-	dest.MaxTime = src.MaxTime
-	dest.Repeat = src.Repeat
-	dest.Param = mapCopy(src.Param)
-	dest.RespCond = condCopy(src.RespCond)
-	dest.BodyCond = condCopy(src.BodyCond)
+	if len(t.RespCond) > 0 {
+		s += "RESPONSE:\n"
+		for _, cond := range t.RespCond {
+			s += "\t" + cond.String() + "\n"
+		}
+	}
+	if len(t.BodyCond) > 0 {
+		s += "Body:\n"
+		for _, cond := range t.BodyCond {
+			s += "\t" + cond.String() + "\n"
+		}
+	}
 	return
 }
 
@@ -149,7 +141,7 @@ type Suite struct {
 	Const  map[string] string
 	Random map[string] string
 	Sequenz map[string] string
-	Test []*Test
+	Test []Test
 	Result  map[string] int  // 0: not run jet, 1: pass, 2: fail, 3: err
 }
 
@@ -186,10 +178,6 @@ func addHeaders(req *http.Request, t *Test) {
 func testHeader(resp *http.Response, t *Test) (err os.Error) {
 	info("Testing Header")
 	for i, c := range t.RespCond {
-		if c == nil {
-			trace("Skipping nil response condition %d.", i)
-			continue
-		}
 		trace("Response condition %d: %s", i, c.String())
 		v := resp.Header.Get(c.Key)
 		if !c.Fullfilled(v) {
@@ -296,7 +284,7 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 	return
 }
 
-func addMissingCond(test, global []*Condition) []*Condition {
+func addMissingCond(test, global []Condition) []Condition {
 	a := len(test)
 	for _, cond := range global {
 		found := false
@@ -307,17 +295,17 @@ func addMissingCond(test, global []*Condition) []*Condition {
 			}
 		}
 		if found { continue }  // do not overwrite
-		test = append(test, cond.Copy())
+		test = append(test, cond)
 		trace("Adding response condition '%s'", cond.String())
 	}
 	trace("Len(test) == %d.", len(test))
 	return test
 }
 
-func addAllCond(test, global []*Condition) []*Condition { 
+func addAllCond(test, global []Condition) []Condition { 
 	for _, cond := range global	{
 		trace("Adding body condition '%s'", cond.String())
-		test = append(test, cond.Copy())
+		test = append(test, cond)
 	}
 	trace("Len(test) == %d.", len(test))
 	return test
@@ -334,7 +322,9 @@ func usedVars(str string) (vars []string) {
 			a := i+2
 			for i=a; i<m && isLetter(str[i]); i++ { } 
 			// debug("Start %d, End %d, Name %s", a, i, str[a:i])
-			vars = append(vars, str[a:i])
+			if str[i] == '}' {
+				vars = append(vars, str[a:i])
+			}
 		}
 	}
 	return
@@ -361,12 +351,21 @@ func nextVar(list []string, v string, t *Test) (val string) {
 }
 
 func varValue(v string, test, global *Test) (value string) {
-	if val, ok := test.Const[v]; ok {  value = val }
-	if val, ok := global.Const[v]; ok {  value = val }
-	if rnd, ok := test.Rand[v]; ok {  value = randomVar(rnd) }
-	if rnd, ok := global.Rand[v]; ok {  value = randomVar(rnd) }
-	if rnd, ok := test.Seq[v]; ok {  value = nextVar(rnd, v, test) }
-	
+	if val, ok := test.Const[v]; ok {  
+		value = val 
+	} else if val, ok := global.Const[v]; ok {  
+		value = val 
+	} else if rnd, ok := test.Rand[v]; ok {  
+		value = randomVar(rnd) 
+	} else if rnd, ok := global.Rand[v]; ok {  
+		value = randomVar(rnd) 
+	} else if rnd, ok := test.Seq[v]; ok {  
+		value = nextVar(rnd, v, test) 
+	} else if rnd, ok := global.Seq[v]; ok {  
+		value = nextVar(rnd, v, test) 
+	} else {
+		error("Cannot find value for variable '%s'!", v)
+	}
 	// debug("Replaced var %s with '%s'.", v, value)
 	
 	return 
@@ -374,6 +373,7 @@ func varValue(v string, test, global *Test) (value string) {
 
 
 func substitute(str string, test, global *Test) string {
+	trace("Substitute '%s'", str)
 	used := usedVars(str)
 	for _, v := range used {
 		val := varValue(v, test, global)
@@ -390,22 +390,29 @@ func substituteVariables(test, global *Test) {
 	for k, v := range test.Header {
 		test.Header[k] = substitute(v, test, global)
 	}
-	for _, c := range test.RespCond {
-		c.Val = substitute(c.Val, test, global)
+	for i, c := range test.RespCond {
+		test.RespCond[i].Val = substitute(c.Val, test, global)
+	}
+	for i, c := range test.BodyCond {
+		test.BodyCond[i].Val = substitute(c.Val, test, global)
 	}
 }
 
 
 // Prepare the test: Add new stuff from global
-func prepareTest(s *Suite, n int) (test *Test) {
+func prepareTest(s *Suite, n int) (*Test) {
 	trace("Preparing test no %d.", n)
-	test = s.Test[n].Copy()
+	test := s.Test[n]
+	fmt.Printf("Copy of Test %d = \n%s\n", n, test.String())
 	global := s.Test[0]
 	test.RespCond = addMissingCond(test.RespCond, global.RespCond)
+	fmt.Printf("Filled RespCond = \n%s\n", test.String())
 	test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
-	info("#Headers: %d, #RespCond: %d, #BodyCond: %d", len(test.Header), len(test.RespCond), len(test.BodyCond))
-	substituteVariables(test, global)
-	return
+	fmt.Printf("Filled BodyCond = \n%s\n", test.String())
+	// info("#Headers: %d, #RespCond: %d, #BodyCond: %d", len(test.Header), len(test.RespCond), len(test.BodyCond))
+	substituteVariables(&test, &global)
+	fmt.Printf("Variable Substitutions = \n%s\n", test.String())
+	return &test
 }
 
 func parsableBody(resp *http.Response) bool {
