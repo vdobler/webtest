@@ -1,0 +1,95 @@
+#
+#  Demo webtest to show features
+# ===============================
+#
+# Different sections are introduced by a headline: Headlines are recognized
+# by their over- and underlining.  Two sections are sepcial: "Variables" 
+# and "Global" all other section are considered tests.
+#
+
+-------------------------------
+VARIABLES
+-------------------------------
+CONST
+  BaseUrl = "http://www.unic.com"			// Use like ${BaseUrl}
+RAND
+  Name = "Anna" "Berta" "Cecil" "Doris"	// ${Name} is one of them
+SEQ
+  Num = "12" "24" "36" "48"				// ${Num} will cycle through
+  
+-------------------------------  
+GLOBAL
+-------------------------------
+HEADER:
+  Basic-Auth: "User:Passwd"			// Added to all following requests
+  Cookie:     "Some cookie string"	// Same for cookie
+RETURN:
+  StatusCode == 200					// Required for all test if not overwritten
+PARAM:
+  wcmmode=edit	
+SETTING:
+  Repeat: 3							// Repeat each test 3 times
+  
+
+---------------------------------
+Wichtiger Test
+---------------------------------
+# Some description what and why this test
+# is the way it is.
+GET http://unic.com							// Method and Url
+HEADER
+  Accept-Language: "de,fr,en"				// Add/Overwrite Global Header
+RESPONSE
+  StatusCode   == "200"						// == Equals
+  Content-Type ~= "text/html"				// ~= Contains
+  StrangeField /= "(hunde?|^katzen?) .+$"   // /= Regexp
+  Url          == "http://www.unic.com/de.html"	// Final Url after redirect
+  ContentLength > 500						// > for numeric args
+  Other-Header _= "StartPrefix"				// _= StartsWith
+  Something    =_ "EndPrefix"				// =_ EndsWith
+  !Forbidden 								// Forbidden: Fail if true
+BODY
+  Text ~= "Hallo Welt"					// Contained text
+  Bin _= 0xA3FE0256B781					// Starts with hex values
+  Tag h1 == Startseite					// Look for Tag
+  Tag   								// Complex (Nested TagSpec)
+	div id=main					
+		h2 == Wilkommen!
+  !Tag  span == Ganz Falsch			// Forbidden Tag
+  
+
+
+------------------------------------
+Zweiter Test
+------------------------------------
+# Description goes here
+POST http://www.unic.com/kontakt.htm
+SETTINGS
+  Pre       "Wichtiger T..."				// Test will not run if pre test has failed
+  Max-Time  800								// fail if longer than 800 ms
+  Sleep     2000							// sleep for 2 sek before running next test
+PARAM
+   name     "Volker Dobler "				// Parameters to post
+   addresse "Bergmattenweg 3"
+   file     testdata/file.txt				// just add filename
+RESPONSE
+  Url       "http://www.unic.com/kontakt.thanks.htm"  	// did redirect
+BODY
+  Tag=5     li class=eingabe				// 5 occurens of li tag with given class
+
+  
+------------------------------------
+Login
+------------------------------------
+# Description goes here
+POST http://fake.com/login
+SETTINGS
+  Keep-Cookies  true					// Keep returned cookie and resend on subsequent requests
+PARAM
+   name     "volker.dobler"				// Parameters to post
+   passed   "supergeheim"
+RESPONSE
+  Url       "http://www.unic.com/kontakt.thanks.htm"  	// did redirect
+BODY
+  Tag       h2 == Welcome Volker Dobler		// Login Worked
+  
