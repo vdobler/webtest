@@ -14,7 +14,7 @@ import (
 	"rand"
 )
 
-var logLevel int = 5   // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var logLevel int = 3   // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 
 func error(f string, m... interface{}) { if logLevel >= 1 { log.Print("*ERROR* " + fmt.Sprintf(f, m...)) } }
 func warn(f string, m... interface{})  { if logLevel >= 2 { log.Print("*WARN * " + fmt.Sprintf(f, m...)) } }
@@ -96,6 +96,7 @@ type Test struct {
 	Rand map[string] []string
 	Seq map[string] []string
 	SeqCnt map[string] int
+	Vars map[string] string
 	Run bool
 	Passed bool
 }
@@ -336,12 +337,14 @@ func randomVar(list []string) string {
 }
 
 func nextVar(list []string, v string, t *Test) (val string) {
+	/*
 	if t.SeqCnt == nil {
 		t.SeqCnt = make(map[string] int, len(t.Seq))
 		for k, _ := range t.Seq {
 			t.SeqCnt[k] = 0
 		}
 	}
+	*/
 	i, _ := t.SeqCnt[v]; 
 	val = list[i]
 	i++
@@ -350,8 +353,11 @@ func nextVar(list []string, v string, t *Test) (val string) {
 	return
 }
 
-func varValue(v string, test, global *Test) (value string) {
-	if val, ok := test.Const[v]; ok {  
+func varValue(v string, test, global, orig *Test) (value string) {
+	if val, ok := orig.Vars[v]; ok {
+		value = val
+		trace("Reusing '%s' for var '%s'.", val, v)
+	} else 	if val, ok := test.Const[v]; ok {  
 		value = val 
 	} else if val, ok := global.Const[v]; ok {  
 		value = val 
@@ -359,24 +365,26 @@ func varValue(v string, test, global *Test) (value string) {
 		value = randomVar(rnd) 
 	} else if rnd, ok := global.Rand[v]; ok {  
 		value = randomVar(rnd) 
-	} else if rnd, ok := test.Seq[v]; ok {  
-		value = nextVar(rnd, v, test) 
-	} else if rnd, ok := global.Seq[v]; ok {  
-		value = nextVar(rnd, v, test) 
+	} else if seq, ok := test.Seq[v]; ok {  
+		value = nextVar(seq, v, orig) 
+	} else if seq, ok := global.Seq[v]; ok {  
+		value = nextVar(seq, v, orig) 
 	} else {
 		error("Cannot find value for variable '%s'!", v)
 	}
-	// debug("Replaced var %s with '%s'.", v, value)
+	
+	// Save value
+	orig.Vars[v] = value
 	
 	return 
 }
 
 
-func substitute(str string, test, global *Test) string {
+func substitute(str string, test, global, orig *Test) string {
 	trace("Substitute '%s'", str)
 	used := usedVars(str)
 	for _, v := range used {
-		val := varValue(v, test, global)
+		val := varValue(v, test, global, orig)
 		trace("Will use '%s' as value for var %s.", val, v)
 		str = strings.Replace(str, "${" + v + "}", val, 1)
 		trace("str now '%s'", str)
@@ -385,33 +393,38 @@ func substitute(str string, test, global *Test) string {
 	return str
 }
 
-func substituteVariables(test, global *Test) {
-	test.Url = substitute(test.Url, test, global)
+func substituteVariables(test, global, orig *Test) {
+	test.Url = substitute(test.Url, test, global, orig)
 	for k, v := range test.Header {
-		test.Header[k] = substitute(v, test, global)
+		test.Header[k] = substitute(v, test, global, orig)
 	}
 	for i, c := range test.RespCond {
-		test.RespCond[i].Val = substitute(c.Val, test, global)
+		test.RespCond[i].Val = substitute(c.Val, test, global, orig)
 	}
 	for i, c := range test.BodyCond {
-		test.BodyCond[i].Val = substitute(c.Val, test, global)
+		test.BodyCond[i].Val = substitute(c.Val, test, global, orig)
 	}
 }
 
 
 // Prepare the test: Add new stuff from global
 func prepareTest(s *Suite, n int) (*Test) {
-	trace("Preparing test no %d.", n)
+	info("Preparing test no %d.", n)
+
+	// Clear map of variable values: new run, new values (overkill for consts)
+	for k, _ := range s.Test[n].Vars {
+		s.Test[n].Vars[k] = "", false
+	}
+	
 	test := s.Test[n]
-	fmt.Printf("Copy of Test %d = \n%s\n", n, test.String())
 	global := s.Test[0]
 	test.RespCond = addMissingCond(test.RespCond, global.RespCond)
-	fmt.Printf("Filled RespCond = \n%s\n", test.String())
 	test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
-	fmt.Printf("Filled BodyCond = \n%s\n", test.String())
 	// info("#Headers: %d, #RespCond: %d, #BodyCond: %d", len(test.Header), len(test.RespCond), len(test.BodyCond))
-	substituteVariables(&test, &global)
-	fmt.Printf("Variable Substitutions = \n%s\n", test.String())
+	
+	
+	substituteVariables(&test, &global, &s.Test[n])
+	info("Test to execute = \n%s", test.String())
 	return &test
 }
 
@@ -427,10 +440,36 @@ func parsableBody(resp *http.Response) bool {
 
 func (s *Suite) RunTest(n int) (err os.Error) {
 	
+	tt := &s.Test[n]
+	// Initialize sequenze count
+	if tt.SeqCnt == nil {
+		tt.SeqCnt = make(map[string] int, len(tt.Seq))
+		for k, _ := range tt.Seq {
+			tt.SeqCnt[k] = 0
+		}
+	}
+	
+	// Initialize storage for current value of vars
+	if s.Test[n].Vars == nil {
+		cnt := len(tt.Seq)+len(tt.Rand)+len(tt.Const)
+		tt.Vars = make(map[string] string, cnt)
+	}
+
+	if tt.Repeat == 0 {
+		info("Test no %d '%s' is disabled.", n, tt.Title)
+	} else {
+		for i:=1; i<=tt.Repeat; i++ {
+			info("Test %d '%s': Round %d of %d.", n, tt.Title, i, tt.Repeat)
+			s.RunSingleRound(n)
+		}
+	}
+	return
+}
+
+func (s *Suite) RunSingleRound(n int) (err os.Error) {
+
 	t := prepareTest(s, n)
 	info("Running test %d: '%s'", n, t.Title)
-	
-	
 	
 	if t.Method != "GET" {
 		error("Post not jet implemented")
