@@ -11,6 +11,7 @@ import (
 	"./../tag/tag"
 	"io"
 	"bytes"
+	"rand"
 )
 
 var logLevel int = 5   // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -20,6 +21,12 @@ func warn(f string, m... interface{})  { if logLevel >= 2 { log.Print("*WARN * "
 func info(f string, m... interface{})  { if logLevel >= 3 { log.Print("*INFO * " + fmt.Sprintf(f, m...)) } }
 func debug(f string, m... interface{}) { if logLevel >= 4 { log.Print("*DEBUG* " + fmt.Sprintf(f, m...)) } }
 func trace(f string, m... interface{}) { if logLevel >= 5 { log.Print("*TRACE* " + fmt.Sprintf(f, m...)) } }
+
+var Random *rand.Rand
+
+func init() {
+	Random = rand.New(rand.NewSource(12345))
+}
 
 // Represent a condition like "!Content-Type ~= "text/html" where Key="Content-Type"
 // Op="~=", Val="text/html" and Neg=true.  For tags Op contains the number of
@@ -85,12 +92,12 @@ type Test struct {
 	Sleep int   // -1: unset, >=0: sleep after in ms
 	Repeat int  // -1: unset, 0=disabled, >0: count
 	Param map[string] string
-	Const  map[string] []string
-	Random map[string] []string
+	Const  map[string] string
+	Rand map[string] []string
 	Seq map[string] []string
-	SeqCnt map[string] []int
-	run bool
-	passed bool
+	SeqCnt map[string] int
+	Run bool
+	Passed bool
 }
 
 func condCopy(src []*Condition) (dest []*Condition) {
@@ -289,46 +296,115 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 	return
 }
 
-func fillRespCond(src, dest []*Condition) {
-	a := len(dest)
-	for _, cond := range src {
-		f := false
+func addMissingCond(test, global []*Condition) []*Condition {
+	a := len(test)
+	for _, cond := range global {
+		found := false
 		for i:=0; i<a; i++ {
-			if dest[i].Key == cond.Key { 
-				dest[i] = cond.Copy() true
-				f = true
-				trace("Overwriting global response condition '%s' with '%s'", dest[i].String(), cond.String())
+			if cond.Key == test[i].Key { 
+				found = true
 				break
 			}
 		}
-		if !f {
-			dest = append(dest, cond.Copy())
-			trace("Adding response condition '%s'", cond.String())
+		if found { continue }  // do not overwrite
+		test = append(test, cond.Copy())
+		trace("Adding response condition '%s'", cond.String())
+	}
+	trace("Len(test) == %d.", len(test))
+	return test
+}
+
+func addAllCond(test, global []*Condition) []*Condition { 
+	for _, cond := range global	{
+		trace("Adding body condition '%s'", cond.String())
+		test = append(test, cond.Copy())
+	}
+	trace("Len(test) == %d.", len(test))
+	return test
+}
+
+func isLetter(x uint8) bool {
+	return (x >= 'a' && x <= 'z') || (x >= 'A' && x <= 'Z')
+}
+
+func usedVars(str string) (vars []string) {
+	m := len(str)-1
+	for i:=0; i<m; i++ {
+		if str[i] == '$' && str[i+1] == '{' {
+			a := i+2
+			for i=a; i<m && isLetter(str[i]); i++ { } 
+			// debug("Start %d, End %d, Name %s", a, i, str[a:i])
+			vars = append(vars, str[a:i])
 		}
 	}
+	return
 }
 
-func fillBodyCond(src, dest []*Condition) { 
-	// TODO: how to delete a test inherited from global?
-	for _, c := range src {
-		trace("Adding body condition '%s'", c.String())
-		dest = append(dest, c.Copy())
+func randomVar(list []string) string {
+	n := len(list)
+	return list[Random.Intn(n)]
+}
+
+func nextVar(list []string, v string, t *Test) (val string) {
+	if t.SeqCnt == nil {
+		t.SeqCnt = make(map[string] int, len(t.Seq))
+		for k, _ := range t.Seq {
+			t.SeqCnt[k] = 0
+		}
+	}
+	i, _ := t.SeqCnt[v]; 
+	val = list[i]
+	i++
+	i = i % len(list)
+	t.SeqCnt[v] = i
+	return
+}
+
+func varValue(v string, test, global *Test) (value string) {
+	if val, ok := test.Const[v]; ok {  value = val }
+	if val, ok := global.Const[v]; ok {  value = val }
+	if rnd, ok := test.Rand[v]; ok {  value = randomVar(rnd) }
+	if rnd, ok := global.Rand[v]; ok {  value = randomVar(rnd) }
+	if rnd, ok := test.Seq[v]; ok {  value = nextVar(rnd, v, test) }
+	
+	// debug("Replaced var %s with '%s'.", v, value)
+	
+	return 
+}
+
+
+func substitute(str string, test, global *Test) string {
+	used := usedVars(str)
+	for _, v := range used {
+		val := varValue(v, test, global)
+		trace("Will use '%s' as value for var %s.", val, v)
+		str = strings.Replace(str, "${" + v + "}", val, 1)
+		trace("str now '%s'", str)
+	}
+	info("Substituted %d variables: '%s'.", len(used), str)
+	return str
+}
+
+func substituteVariables(test, global *Test) {
+	test.Url = substitute(test.Url, test, global)
+	for k, v := range test.Header {
+		test.Header[k] = substitute(v, test, global)
+	}
+	for _, c := range test.RespCond {
+		c.Val = substitute(c.Val, test, global)
 	}
 }
 
-// Prepare the test: Use global as template and overwrite everiting set
-// TODO: Method and Url might be set in global?
+
+// Prepare the test: Add new stuff from global
 func prepareTest(s *Suite, n int) (test *Test) {
 	trace("Preparing test no %d.", n)
-	src := s.Test[n]
-	test = s.Test[0].Copy()  // Use Global-Test (index 0) as template
-	test.Title, test.Method, test.Url = src.Title, src.Method, src.Url
-	if src.MaxTime >=0 { test.MaxTime = src.MaxTime }
-	if src.Sleep >=0 { test.Sleep = src.Sleep }
-	if src.Repeat >= 0 { test.Repeat = src.Repeat }
-	fillRespCond(src.RespCond, test.RespCond)
-	fillBodyCond(src.BodyCond, test.BodyCond)
-	substituteVariables(test, 
+	test = s.Test[n].Copy()
+	global := s.Test[0]
+	test.RespCond = addMissingCond(test.RespCond, global.RespCond)
+	test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
+	info("#Headers: %d, #RespCond: %d, #BodyCond: %d", len(test.Header), len(test.RespCond), len(test.BodyCond))
+	substituteVariables(test, global)
 	return
 }
 
