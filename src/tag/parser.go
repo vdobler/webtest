@@ -198,7 +198,7 @@ func parse(tok html.Token, z *html.Tokenizer, parent *Node) (node *Node) {
 	prepareClasses(node)
 	
 	// debug("Made Node: " + node.String() + "\n")
-	fmt.Printf("Made node: %s\n", node.String())
+	// fmt.Printf("Made node: %s\n", node.String())
 	return
 }
 
