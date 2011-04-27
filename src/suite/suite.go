@@ -9,11 +9,11 @@ import (
 	"strings"
 	// "strconv"
 	"./../tag/tag"
+	"encoding/hex"
 )
 
 var logLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 
-const MaxConditionLen = 40
 
 func error(f string, m ...interface{}) {
 	if logLevel >= 1 {
@@ -50,9 +50,9 @@ type Test struct {
 	RespCond []Condition
 	BodyCond []Condition
 	Pre      []string
-	MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
-	Sleep    int // -1: unset, >=0: sleep after in ms
-	Repeat   int // -1: unset, 0=disabled, >0: count
+	// MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
+	// Sleep    int // -1: unset, >=0: sleep after in ms
+	// Repeat   int // -1: unset, 0=disabled, >0: count
 	Param    map[string]string
 	Const    map[string]string
 	Rand     map[string][]string
@@ -61,6 +61,24 @@ type Test struct {
 	Vars     map[string]string
 	Run      bool
 	Passed   bool
+}
+
+func NewTest(title string) *Test {
+	t := Test{Title: title}
+	
+	t.Header = make(map[string]string, 3)
+	t.Param = make(map[string]string, 3)
+	t.Const = make(map[string]string, 3)
+	t.Rand = make(map[string][]string, 3)
+	t.Seq = make(map[string][]string, 3)
+	t.SeqCnt = make(map[string]int, 3)
+	t.Vars = make(map[string]string, 3)
+
+	t.Param["Repeat"] = "1"
+	t.Param["MaxTime"] = "unlimited"
+	t.Param["Sleep"] = "0"
+	
+	return &t
 }
 
 func (t *Test) String() (s string) {
@@ -87,6 +105,16 @@ func (t *Test) String() (s string) {
 	return
 }
 
+func (t *Test) Repeat() int {
+	if t.Param == nil { return 1 }
+	r, ok := t.Param["Repeat"]
+	if !ok {
+		warn("Test '%s' does not have Repeat parameter! Will use 1", t.Title)
+		r = "1"
+	}
+	return atoi(r, 0, 1)
+}
+
 type TestError struct {
 	os.ErrorString
 }
@@ -104,15 +132,6 @@ type Suite struct {
 	Result map[string]int // 0: not run jet, 1: pass, 2: fail, 3: err
 }
 
-func (c *Condition) Info(txt string) string {
-	// TODO: remove/mask/... newlines
-	vs := c.String()
-	if len(vs) > MaxConditionLen {
-		vs = vs[:MaxConditionLen] + "..."
-	}
-	cs := fmt.Sprintf("%s (line %d) '%s'", txt, c.Line, vs)
-	return cs
-}
 
 func report(f string, m ...interface{}) {
 	s := fmt.Sprintf(f, m...)
@@ -126,7 +145,7 @@ func report(f string, m ...interface{}) {
 func testHeader(resp *http.Response, t *Test) (err os.Error) {
 	debug("Testing Header")
 	for _, c := range t.RespCond {
-		cs := c.Info("resp")
+		cs := c.Info("resp", false)
 		v := resp.Header.Get(c.Key)
 		if !c.Fullfilled(v) {
 			report("FAILED %s: Got '%s'", cs, v)
@@ -140,10 +159,11 @@ func testHeader(resp *http.Response, t *Test) (err os.Error) {
 
 func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 	debug("Testing Body")
+	var binbody *string
 	for _, c := range t.BodyCond {
-		cs := c.Info("body")
+		cs := c.Info("body", true)
 		switch c.Key {
-		case "Text":
+		case "Txt":
 			trace("Text Matching '%s'", c.String())
 			if !c.Fullfilled(body) {
 				report("FAILED %s", cs)
@@ -152,11 +172,20 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 				report("Passed %s", cs)
 			}
 		case "Bin":
-			error("Unimplemented: Binary matching")
+			if binbody == nil {
+				bin := hex.EncodeToString([]byte(body))
+				binbody = &bin
+			}
+			if !c.Fullfilled(*binbody) {
+				report("FAILED %s", cs)
+				err = ErrTest
+			} else {
+				report("Passed %s", cs)
+			}
 			err = ErrSystem
 		case "Tag":
 			if doc == nil {
-				error("Faild body tag condition (line %d): Document unparsable.", c.Line)
+				error("FAILED %s: Document unparsable.", cs)
 				err = ErrSystem
 				continue
 			}
@@ -175,6 +204,8 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 			} else {
 				warn("Tag counting not implemented jet (line %d).", c.Line)
 			}
+		default:
+			error("Unkown type of test '%s' (line %d). Ignored.", c.Key, c.Line)
 		}
 	}
 	return
@@ -259,11 +290,11 @@ func (s *Suite) RunTest(n int) (err os.Error) {
 		tt.Vars = make(map[string]string, cnt)
 	}
 
-	if tt.Repeat == 0 {
+	if tt.Repeat() == 0 {
 		info("Test no %d '%s' is disabled.", n, tt.Title)
 	} else {
-		for i := 1; i <= tt.Repeat; i++ {
-			info("Test %d '%s': Round %d of %d.", n, tt.Title, i, tt.Repeat)
+		for i := 1; i <= tt.Repeat(); i++ {
+			info("Test %d '%s': Round %d of %d.", n, tt.Title, i, tt.Repeat())
 			s.RunSingleRound(n)
 		}
 	}
