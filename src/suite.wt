@@ -13,20 +13,21 @@
 -------------------------------  
 GLOBAL
 -------------------------------
-HEADER:
+HEADER
   Basic-Auth: "User:Passwd"			// Added to all following requests
   Cookie:     "Some cookie string"	// Same for cookie
-RETURN:
+RESPONSE
   StatusCode == 200					// Required for all test if not overwritten
-SETTING:
+SETTINGS
   Repeat: 3							// Repeat each test 3 times
-CONST
-  BaseUrl = "http://www.unic.com"		// Use like ${BaseUrl}
-RAND
-  Name = "Anna" "Berta" "Cecil" "Doris"	// ${Name} is a random one of them
-  Amount = "1" "2" "3" "4" "99" "100"	// same for ${Amount}
-SEQ
-  Num = "12" "24" "36" "48"				// ${Num} will cycle through list
+VARIABLES
+  Const
+    BaseUrl = "http://www.unic.com"		// Use like ${BaseUrl}
+  Rand
+    Name = "Anna" "Berta" "Cecil" "Doris"	// ${Name} is a random one of them
+    Amount = "1" "2" "3" "4" "99" "100"	// same for ${Amount}
+  Sequenz
+    Num = "12" "24" "36" "48"				// ${Num} will cycle through list
   
 
 ---------------------------------

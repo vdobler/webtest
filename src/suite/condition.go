@@ -50,8 +50,8 @@ func (cond *Condition) Fullfilled(v string) bool {
 	case "<=":
 		ans = (atoi(v, cond.Line, 0) >= atoi(cond.Val, cond.Line, 0))
 	case "/=":
-		if rexp, err := regexp.Compile(cond.Val) ; err != nil {
-			ans = (rexp.FindStringIndex(v) != nil) 
+		if rexp, err := regexp.Compile(cond.Val); err != nil {
+			ans = (rexp.FindStringIndex(v) != nil)
 		} else {
 			error("Invalid regexp in condition '%s': %s", cond.String(), err.String())
 		}
@@ -79,11 +79,10 @@ func (c *Condition) Info(txt string, align bool) string {
 	if i := strings.Index(vs, "\n"); i != -1 {
 		vs = vs[:i]
 	}
-	
+
 	if len(vs) > MaxConditionLen {
 		vs = vs[:MaxConditionLen] + "..."
 	}
-	
+
 	return fmt.Sprintf("%s (line %d) '%s'", txt, c.Line, vs)
 }
-

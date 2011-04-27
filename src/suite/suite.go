@@ -3,16 +3,17 @@ package suite
 import (
 	"fmt"
 	// "bufio"
-	"os"
+	// "os"
 	"http"
 	"log"
 	"strings"
 	// "strconv"
 	"./../tag/tag"
 	"encoding/hex"
+	"time"
 )
 
-var logLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var logLevel int = 5 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 
 
 func error(f string, m ...interface{}) {
@@ -53,13 +54,13 @@ type Test struct {
 	// MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
 	// Sleep    int // -1: unset, >=0: sleep after in ms
 	// Repeat   int // -1: unset, 0=disabled, >0: count
-	Param    map[string]string
-	Const    map[string]string
-	Rand     map[string][]string
-	Seq      map[string][]string
-	SeqCnt   map[string]int
-	Vars     map[string]string
-	Result   []string
+	Param  map[string]string
+	Const  map[string]string
+	Rand   map[string][]string
+	Seq    map[string][]string
+	SeqCnt map[string]int
+	Vars   map[string]string
+	Result []string
 }
 
 func (t *Test) Report(pass bool, f string, m ...interface{}) {
@@ -71,13 +72,13 @@ func (t *Test) Report(pass bool, f string, m ...interface{}) {
 		s = "FAILED " + s
 		error(s)
 	}
-	t.Result = append(t.Result, s) 
+	t.Result = append(t.Result, s)
 }
 
 func (t *Test) Stat() (total, passed, failed int) {
 	for _, r := range t.Result {
 		total++
-		if strings.HasPrefix(r, "Passed" ) {
+		if strings.HasPrefix(r, "Passed") {
 			passed++
 		} else {
 			failed++
@@ -96,14 +97,14 @@ func (t *Test) Status() (status string) {
 		} else {
 			status = "PASSED"
 		}
-		status += fmt.Sprintf(" total: %d, passed %d, failed %d", n, p, f)
+		status += fmt.Sprintf(" (total: %d, passed: %d, failed: %d)", n, p, f)
 	}
 	return
 }
 
 func NewTest(title string) *Test {
 	t := Test{Title: title}
-	
+
 	t.Header = make(map[string]string, 3)
 	t.Param = make(map[string]string, 3)
 	t.Const = make(map[string]string, 3)
@@ -115,36 +116,74 @@ func NewTest(title string) *Test {
 	t.Param["Repeat"] = "1"
 	t.Param["MaxTime"] = "unlimited"
 	t.Param["Sleep"] = "0"
-	
+
 	return &t
 }
 
-func (t *Test) String() (s string) {
-	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
-	s += t.Method + " " + t.Url + "\n"
-	if len(t.Header) > 0 {
-		s += "HEADER:\n"
-		for k, v := range t.Header {
-			s += "\t" + k + ": " + v + "\n"
-		}
+func needQuotes(s string) bool {
+	return strings.Contains(s, "\"") || strings.HasPrefix(s, " ") || strings.HasSuffix(s, " ") || strings.Contains(s, "\n")
+}
+
+func quote(s string) string {
+	if !needQuotes(s) {
+		return s
 	}
-	if len(t.RespCond) > 0 {
-		s += "RESPONSE:\n"
-		for _, cond := range t.RespCond {
-			s += "\t" + cond.String() + "\n"
-		}
-	}
-	if len(t.BodyCond) > 0 {
-		s += "Body:\n"
-		for _, cond := range t.BodyCond {
-			s += "\t" + cond.String() + "\n"
+	return "\"" + strings.Replace(strings.Replace(s, "\"", "\\\"", -1), "\n", "\\n", -1) + "\""
+}
+
+func formatMap(s string, m *map[string]string) (f string) {
+	if len(*m) > 0 {
+		f = s + "\n"
+		for k, v := range *m {
+			f += "\t" + k + ": " + quote(v) + "\n"
 		}
 	}
 	return
 }
 
+func formatMultiMap(s string, m *map[string][]string) (f string) {
+	if len(*m) > 0 {
+		f = s + "\n"
+		for k, l := range *m {
+			f += "\t" + k + ":"
+			for _, v := range l {
+				f += " " + quote(v)
+			}
+			f += "\n"
+		}
+	}
+	return
+}
+
+func formatCond(s string, m *[]Condition) (f string) {
+	if len(*m) > 0 {
+		f = s + "\n"
+		for _, c := range *m {
+			f += "\t" + c.String() + "\n"
+		}
+	}
+	return
+}
+
+
+func (t *Test) String() (s string) {
+	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
+	s += t.Method + " " + t.Url + "\n"
+	s += formatMap("HEADER", &t.Header)
+	s += formatCond("RESPONSE", &t.RespCond)
+	s += formatCond("BODY", &t.BodyCond)
+	s += formatMap("PARAM", &t.Param)
+	s += formatMap("CONST", &t.Const)
+	s += formatMultiMap("SEQ", &t.Seq)
+	s += formatMultiMap("RAND", &t.Rand)
+
+	return
+}
+
 func (t *Test) Repeat() int {
-	if t.Param == nil { return 1 }
+	if t.Param == nil {
+		return 1
+	}
 	r, ok := t.Param["Repeat"]
 	if !ok {
 		warn("Test '%s' does not have Repeat parameter! Will use 1", t.Title)
@@ -153,6 +192,16 @@ func (t *Test) Repeat() int {
 	return atoi(r, 0, 1)
 }
 
+func (t *Test) Sleep() (i int) {
+	if t.Param == nil {
+		return 1
+	}
+	r, ok := t.Param["Sleep"]
+	if !ok {
+		r = "0"
+	}
+	return atoi(r, 0, 0)
+}
 
 // TODO: Results?
 type Suite struct {
@@ -160,22 +209,32 @@ type Suite struct {
 	Result map[string]int // 0: not run jet, 1: pass, 2: fail, 3: err
 }
 
+func (s *Suite) RunTest(n int) {
+	if n < 0 || n >= len(s.Test) {
+		error("No such test")
+	}
 
-func testHeader(resp *http.Response, t *Test) {
+	global := &s.Test[0] // TODO use if correct
+
+	s.Test[n].Run(global)
+
+}
+
+func testHeader(resp *http.Response, t, orig *Test) {
 	debug("Testing Header")
 	for _, c := range t.RespCond {
 		cs := c.Info("resp", false)
 		v := resp.Header.Get(c.Key)
 		if !c.Fullfilled(v) {
-			t.Report(false, "%s: Got '%s'", cs, v)
+			orig.Report(false, "%s: Got '%s'", cs, v)
 		} else {
-			t.Report(true, "%s.", cs)
+			orig.Report(true, "%s.", cs)
 		}
 	}
 	return
 }
 
-func testBody(body string, t *Test, doc *tag.Node) {
+func testBody(body string, t, orig *Test, doc *tag.Node) {
 	debug("Testing Body")
 	var binbody *string
 	for _, c := range t.BodyCond {
@@ -184,9 +243,9 @@ func testBody(body string, t *Test, doc *tag.Node) {
 		case "Txt":
 			trace("Text Matching '%s'", c.String())
 			if !c.Fullfilled(body) {
-				t.Report(false, cs)
+				orig.Report(false, cs)
 			} else {
-				t.Report(true, cs)
+				orig.Report(true, cs)
 			}
 		case "Bin":
 			if binbody == nil {
@@ -194,9 +253,9 @@ func testBody(body string, t *Test, doc *tag.Node) {
 				binbody = &bin
 			}
 			if !c.Fullfilled(*binbody) {
-				t.Report(false, cs)
+				orig.Report(false, cs)
 			} else {
-				t.Report(true, cs)
+				orig.Report(true, cs)
 			}
 		case "Tag":
 			if doc == nil {
@@ -207,11 +266,11 @@ func testBody(body string, t *Test, doc *tag.Node) {
 			if c.Op == "" { // no counting
 				n := tag.FindTag(ts, doc)
 				if n == nil && !c.Neg {
-					t.Report(false, "%s: Missing", cs)
+					orig.Report(false, "%s: Missing", cs)
 				} else if n != nil && c.Neg {
-					t.Report(false, "%s: Forbidden", cs)
+					orig.Report(false, "%s: Forbidden", cs)
 				} else {
-					t.Report(true, "%s", cs)
+					orig.Report(true, "%s", cs)
 				}
 			} else {
 				warn("Tag counting not implemented jet (line %d).", c.Line)
@@ -255,22 +314,19 @@ func addAllCond(test, global []Condition) []Condition {
 
 
 // Prepare the test: Add new stuff from global
-func prepareTest(s *Suite, n int) *Test {
-	debug("Preparing test no %d.", n)
+func prepareTest(t, global *Test) *Test {
+	debug("Preparing test '%s'.", t.Title)
 
 	// Clear map of variable values: new run, new values (overkill for consts)
-	for k, _ := range s.Test[n].Vars {
-		s.Test[n].Vars[k] = "", false
+	for k, _ := range t.Vars {
+		t.Vars[k] = "", false
 	}
 
-	test := s.Test[n]
-	global := s.Test[0]
+	test := *t // create copy
 	test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 	test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
-	// info("#Headers: %d, #RespCond: %d, #BodyCond: %d", len(test.Header), len(test.RespCond), len(test.BodyCond))
 
-
-	substituteVariables(&test, &global, &s.Test[n])
+	substituteVariables(&test, global, t)
 	debug("Test to execute = \n%s", test.String())
 	return &test
 }
@@ -285,61 +341,63 @@ func parsableBody(resp *http.Response) bool {
 	return false
 }
 
-func (s *Suite) RunTest(n int) (err os.Error) {
+func (test *Test) Run(global *Test) {
 
-	tt := &s.Test[n]
 	// Initialize sequenze count
-	if tt.SeqCnt == nil {
-		tt.SeqCnt = make(map[string]int, len(tt.Seq))
-		for k, _ := range tt.Seq {
-			tt.SeqCnt[k] = 0
+	if test.SeqCnt == nil {
+		test.SeqCnt = make(map[string]int, len(test.Seq))
+		for k, _ := range test.Seq {
+			test.SeqCnt[k] = 0
 		}
 	}
 
 	// Initialize storage for current value of vars
-	if s.Test[n].Vars == nil {
-		cnt := len(tt.Seq) + len(tt.Rand) + len(tt.Const)
-		tt.Vars = make(map[string]string, cnt)
+	if test.Vars == nil {
+		cnt := len(test.Seq) + len(test.Rand) + len(test.Const)
+		test.Vars = make(map[string]string, cnt)
 	}
 
-	if tt.Repeat() == 0 {
-		info("Test no %d '%s' is disabled.", n, tt.Title)
+	if test.Repeat() == 0 {
+		info("Test no '%s' is disabled.", test.Title)
 	} else {
-		for i := 1; i <= tt.Repeat(); i++ {
-			info("Test %d '%s': Round %d of %d.", n, tt.Title, i, tt.Repeat())
-			s.RunSingleRound(n)
+		for i := 1; i <= test.Repeat(); i++ {
+			info("Test '%s': Round %d of %d.", test.Title, i, test.Repeat())
+			test.RunSingle(global)
 		}
 	}
+
+	info("Test '%s': %s", test.Title, test.Status())
 	return
 }
 
-func (s *Suite) RunSingleRound(n int) {
+func (test *Test) RunSingle(global *Test) {
 
-	t := prepareTest(s, n)
-	info("Running test %d: '%s'", n, t.Title)
+	ti := prepareTest(test, global)
+	info("Running test '%s'", ti.Title)
 
-	if t.Method != "GET" {
+	if ti.Method != "GET" {
 		error("Post not jet implemented")
 		return
 	}
 
-	response, url, err := Get(t)
+	response, url, err := Get(ti)
 	if err != nil {
-		t.Report(false, err.String())
+		test.Report(false, err.String())
 		return
 	}
 
 	// Add special fields to header
 	response.Header.Set("StatusCode", fmt.Sprintf("%d", response.StatusCode))
 	response.Header.Set("Url", url)
-	testHeader(response, t)
+	testHeader(response, ti, test)
 
 	body := readBody(response.Body)
 	var doc *tag.Node
 	if parsableBody(response) {
 		doc = tag.ParseHtml(body)
 	}
-	testBody(body, t, doc)
+	testBody(body, ti, test, doc)
 
+	time.Sleep(1000 * int64(test.Sleep()))
 	return
 }
