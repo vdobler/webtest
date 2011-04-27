@@ -59,8 +59,46 @@ type Test struct {
 	Seq      map[string][]string
 	SeqCnt   map[string]int
 	Vars     map[string]string
-	Run      bool
-	Passed   bool
+	Result   []string
+}
+
+func (t *Test) Report(pass bool, f string, m ...interface{}) {
+	s := fmt.Sprintf(f, m...)
+	if pass {
+		s = "Passed " + s
+		info(s)
+	} else {
+		s = "FAILED " + s
+		error(s)
+	}
+	t.Result = append(t.Result, s) 
+}
+
+func (t *Test) Stat() (total, passed, failed int) {
+	for _, r := range t.Result {
+		total++
+		if strings.HasPrefix(r, "Passed" ) {
+			passed++
+		} else {
+			failed++
+		}
+	}
+	return
+}
+
+func (t *Test) Status() (status string) {
+	n, p, f := t.Stat()
+	if n == 0 {
+		status = "not jet run"
+	} else {
+		if f > 0 {
+			status = "FAILED"
+		} else {
+			status = "PASSED"
+		}
+		status += fmt.Sprintf(" total: %d, passed %d, failed %d", n, p, f)
+	}
+	return
 }
 
 func NewTest(title string) *Test {
@@ -115,16 +153,6 @@ func (t *Test) Repeat() int {
 	return atoi(r, 0, 1)
 }
 
-type TestError struct {
-	os.ErrorString
-}
-
-var (
-	ErrTimeout = &TestError{"Connection timed out."}
-	ErrSystem  = &TestError{"Underlying system failed."}
-	ErrTest    = &TestError{"Failed Test."}
-)
-
 
 // TODO: Results?
 type Suite struct {
@@ -133,31 +161,21 @@ type Suite struct {
 }
 
 
-func report(f string, m ...interface{}) {
-	s := fmt.Sprintf(f, m...)
-	if strings.HasPrefix(s, "FAILED") {
-		error(s)
-	} else {
-		info(s)
-	}
-}
-
-func testHeader(resp *http.Response, t *Test) (err os.Error) {
+func testHeader(resp *http.Response, t *Test) {
 	debug("Testing Header")
 	for _, c := range t.RespCond {
 		cs := c.Info("resp", false)
 		v := resp.Header.Get(c.Key)
 		if !c.Fullfilled(v) {
-			report("FAILED %s: Got '%s'", cs, v)
-			err = ErrTest
+			t.Report(false, "%s: Got '%s'", cs, v)
 		} else {
-			report("Passed %s.", cs)
+			t.Report(true, "%s.", cs)
 		}
 	}
 	return
 }
 
-func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
+func testBody(body string, t *Test, doc *tag.Node) {
 	debug("Testing Body")
 	var binbody *string
 	for _, c := range t.BodyCond {
@@ -166,10 +184,9 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 		case "Txt":
 			trace("Text Matching '%s'", c.String())
 			if !c.Fullfilled(body) {
-				report("FAILED %s", cs)
-				err = ErrTest
+				t.Report(false, cs)
 			} else {
-				report("Passed %s", cs)
+				t.Report(true, cs)
 			}
 		case "Bin":
 			if binbody == nil {
@@ -177,29 +194,24 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 				binbody = &bin
 			}
 			if !c.Fullfilled(*binbody) {
-				report("FAILED %s", cs)
-				err = ErrTest
+				t.Report(false, cs)
 			} else {
-				report("Passed %s", cs)
+				t.Report(true, cs)
 			}
-			err = ErrSystem
 		case "Tag":
 			if doc == nil {
 				error("FAILED %s: Document unparsable.", cs)
-				err = ErrSystem
 				continue
 			}
 			ts := tag.ParseTagSpec(c.Val)
 			if c.Op == "" { // no counting
 				n := tag.FindTag(ts, doc)
 				if n == nil && !c.Neg {
-					report("FAILED %s: Missing", cs)
-					err = ErrTest
+					t.Report(false, "%s: Missing", cs)
 				} else if n != nil && c.Neg {
-					report("FAILED %s: Forbidden", cs)
-					err = ErrTest
+					t.Report(false, "%s: Forbidden", cs)
 				} else {
-					report("Passed %s", cs)
+					t.Report(true, "%s", cs)
 				}
 			} else {
 				warn("Tag counting not implemented jet (line %d).", c.Line)
@@ -301,39 +313,33 @@ func (s *Suite) RunTest(n int) (err os.Error) {
 	return
 }
 
-func (s *Suite) RunSingleRound(n int) (err os.Error) {
+func (s *Suite) RunSingleRound(n int) {
 
 	t := prepareTest(s, n)
 	info("Running test %d: '%s'", n, t.Title)
 
 	if t.Method != "GET" {
 		error("Post not jet implemented")
-		return ErrSystem
+		return
 	}
 
 	response, url, err := Get(t)
-
 	if err != nil {
-		error(err.String())
-		return ErrSystem
+		t.Report(false, err.String())
+		return
 	}
 
 	// Add special fields to header
 	response.Header.Set("StatusCode", fmt.Sprintf("%d", response.StatusCode))
 	response.Header.Set("Url", url)
-	herr := testHeader(response, t)
+	testHeader(response, t)
 
 	body := readBody(response.Body)
 	var doc *tag.Node
 	if parsableBody(response) {
 		doc = tag.ParseHtml(body)
 	}
-
-	berr := testBody(body, t, doc)
-
-	if herr != nil || berr != nil {
-		err = ErrTest
-	}
+	testBody(body, t, doc)
 
 	return
 }
