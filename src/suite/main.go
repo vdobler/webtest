@@ -23,11 +23,12 @@ func main() {
 					     Seq: map[string][]string{},
 						 Repeat: 1}
 
-	test := suite.Test{Title: "Demo Test", Method: "GET", Url: "http://www.unic.com/${varC}/${varR}/${varS}/more/${varR}/${varS}/extra/${varR}/${varS}",
-					   RespCond: []suite.Condition{ suite.Condition{Key: "StatusCode", Op: ">=", Val: "100"}},
+	test := suite.Test{Title: "Demo Test", Method: "GET", Url: "${UNIC}",
+					   RespCond: []suite.Condition{ suite.Condition{Key: "StatusCode", Op: ">=", Val: "100"},
+													suite.Condition{Key: "Url", Op: "_=", Val: "${UNIC}/ch/de.html"}},
 					   BodyCond: []suite.Condition{ suite.Condition{Key: "Text", Op: "~=", Val: "Unic AG"}, 
 												    suite.Condition{Key: "Tag", Val: "a href=/ch/de/leistungen.${varR}.html == Leistungen ${varS}", Neg:true}},
-					   Const: map[string]string{ "varC": "Super!" },
+					   Const: map[string]string{ "UNIC": "http://www.unic.com" },
 					   Rand: map[string][]string{ "varR": []string{"AA", "BB", "CC", "DD", "EE"} },
 					   Seq: map[string][]string{ "varS": []string{"first", "second", "third", "forth"} },
 					   Repeat: 2,

@@ -7,14 +7,13 @@ import (
 	"http"
 	"log"
 	"strings"
-	"strconv"
+	// "strconv"
 	"./../tag/tag"
-	"io"
-	"bytes"
-	"rand"
 )
 
 var logLevel int = 3   // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+
+const MaxConditionLen = 40
 
 func error(f string, m... interface{}) { if logLevel >= 1 { log.Print("*ERROR* " + fmt.Sprintf(f, m...)) } }
 func warn(f string, m... interface{})  { if logLevel >= 2 { log.Print("*WARN * " + fmt.Sprintf(f, m...)) } }
@@ -22,63 +21,7 @@ func info(f string, m... interface{})  { if logLevel >= 3 { log.Print("*INFO * "
 func debug(f string, m... interface{}) { if logLevel >= 4 { log.Print("*DEBUG* " + fmt.Sprintf(f, m...)) } }
 func trace(f string, m... interface{}) { if logLevel >= 5 { log.Print("*TRACE* " + fmt.Sprintf(f, m...)) } }
 
-var Random *rand.Rand
 
-func init() {
-	Random = rand.New(rand.NewSource(12345))
-}
-
-// Represent a condition like "!Content-Type ~= "text/html" where Key="Content-Type"
-// Op="~=", Val="text/html" and Neg=true.  For tags Op contains the number of
-// occurences of the tag. Key is "Text", "Bin" or "Tag" for body-testing.
-// Line contains the line number in the source
-type Condition struct {
-	Key string
-	Op	string
-	Val string
-	Neg bool
-	Line int
-}
-
-func atoi(a string, n int) int {
-	i, err := strconv.Atoi(a)
-	if err != nil {
-		error("Cannot convert '%s' to integer (line %d).", a, n)
-		i = -99999	}
-	return i
-}
-
-func (cond *Condition) Fullfilled (v string) bool {
-	ans := false
-	switch cond.Op {
-	case "==": ans = (cond.Val == v)
-	case "_=": ans = strings.HasPrefix(v, cond.Val)
-	case "=_": ans = strings.HasSuffix(v, cond.Val)
-	case "~=": ans = strings.Contains(v, cond.Val)
-	case ">": ans = (atoi(v, cond.Line) > atoi(cond.Val, cond.Line))
-	case ">=": ans = (atoi(v, cond.Line) >= atoi(cond.Val, cond.Line))
-	case "<": ans = (atoi(v, cond.Line) < atoi(cond.Val, cond.Line))
-	case "<=": ans = (atoi(v, cond.Line) >= atoi(cond.Val, cond.Line))
-	default:
-		warn("Condition operator '%s' (line %d) not implemented.", cond.Op, cond.Line)
-	}
-	if cond.Neg {
-		ans = !ans
-	}
-	return ans
-}
-
-func (c *Condition) String() (s string) {
-	if c.Neg { s = "!" }
-	s += c.Key + " " + c.Op + " " + c.Val
-	return
-}
-
-func (c *Condition) Copy() (n *Condition) {
-	n = new(Condition)
-	n.Key, n.Op, n.Val, n.Neg, n.Line = c.Key, c.Op, c.Val, c.Neg, c.Line
-	return	
-}
 
 type Test struct {
 	Title  string
@@ -136,76 +79,61 @@ var (
 )
 
 
-// TODO: GLobal is just Test[0]. Test shall have own Random and Sequenz and Const
+// TODO: Results?
 type Suite struct {
-	Global Test
-	Const  map[string] string
-	Random map[string] string
-	Sequenz map[string] string
 	Test []Test
 	Result  map[string] int  // 0: not run jet, 1: pass, 2: fail, 3: err
 }
 
-func readBody(r io.ReadCloser) string {
-	var bb bytes.Buffer
-	if r != nil {
-		io.Copy(&bb, r)
-		r.Close()
+func (c *Condition) Info(txt string) string {
+	// TODO: remove/mask/... newlines
+	vs := c.String()
+	if len(vs) > MaxConditionLen {
+		vs = vs[:MaxConditionLen] + "..."
 	}
-	return bb.String()
+	cs := fmt.Sprintf("%s (line %d) '%s'", txt, c.Line, vs)
+	return cs
 }
 
-func shouldRedirect(statusCode int) bool {
-	switch statusCode {
-	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect:
-		return true
-	}
-	return false
-}
-
-func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, err os.Error) {
-	return
-
-}
-
-func addHeaders(req *http.Request, t *Test) {
-	for k, v:= range t.Header {
-		req.Header.Set(k, v)
+func report(f string, m... interface{}) {
+	s := fmt.Sprintf(f, m...)
+	if strings.HasPrefix(s, "FAILED") {
+		error(s)
+	} else {
+		info(s)
 	}
 }
-
-
 
 func testHeader(resp *http.Response, t *Test) (err os.Error) {
-	info("Testing Header")
-	for i, c := range t.RespCond {
-		trace("Response condition %d: %s", i, c.String())
+	debug("Testing Header")
+	for _, c := range t.RespCond {
+		cs := c.Info("resp")
 		v := resp.Header.Get(c.Key)
 		if !c.Fullfilled(v) {
-			error("Failed header condition '%s' (line %d): Got '%s'", c.String(), c.Line, v)
+			report("FAILED %s: Got '%s'", cs, v)
 			err = ErrTest
 		} else {
-			debug("Okay")
+			report("Passed %s.", cs)
 		}
 	}
 	return
 }
 
 func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
-	info("Testing Body")
-	for i, c := range t.BodyCond {
-		trace("Body Condition %d: '%s'", i, c.String())
+	debug("Testing Body")
+	for _, c := range t.BodyCond {
+		cs := c.Info("body")
 		switch c.Key {
 		case "Text":
 			trace("Text Matching '%s'", c.String())
 			if !c.Fullfilled(body) {
-				error("Failed body text condition '%s' (line %d).", c.String(), c.Line)
+				report("FAILED %s", cs)
 				err = ErrTest
 			} else {
-				debug("Okay")
+				report("Passed %s", cs)
 			}
 		case "Bin":
-			error("Unimplemented")
+			error("Unimplemented: Binary matching")
 			err = ErrSystem
 		case "Tag":
 			if doc == nil {
@@ -217,13 +145,13 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 			if c.Op == "" { // no counting
 				n := tag.FindTag(ts, doc)
 				if n == nil && !c.Neg {
-					error("Failed body tag condition '%s' (line %d): Not found.", ts.String(), c.Line)
+					report("FAILED %s: Missing", cs)
 					err = ErrTest
 				} else if n != nil && c.Neg {
-					error("Failed body tag condition '%s' (line %d): Found forbidden.", ts.String(), c.Line)
+					report("FAILED %s: Forbidden", cs)
 					err = ErrTest
 				} else {
-					debug("Okay")
+					report("Passed %s", cs)
 				}
 			} else {
 				warn("Tag counting not implemented jet (line %d).", c.Line)
@@ -234,56 +162,6 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 }
 
 
-
-func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
-	var url = t.Url  // <-- Patched
-	// TODO: if/when we add cookie support, the redirected request shouldn't
-	// necessarily supply the same cookies as the original.
-	// TODO: set referrer header on redirects.
-	var base *http.URL
-	// TODO: remove this hard-coded 10 and use the Client's policy
-	// (ClientConfig) instead.
-	for redirect := 0; ; redirect++ {
-		if redirect >= 10 {
-			err = os.ErrorString("stopped after 10 redirects")
-			break
-		}
-
-		var req http.Request
-		req.Method = "GET"
-		req.ProtoMajor = 1
-		req.ProtoMinor = 1
-		if base == nil {
-			req.URL, err = http.ParseURL(url)
-		} else {
-			req.URL, err = base.ParseURL(url)
-		}
-		if err != nil {
-			break
-		}
-		// vvvv Patched vvvv
-		addHeaders(&req, t) 
-		// ^^^^ Patched ^^^^
-		url = req.URL.String()
-		if r, err = http.DefaultClient.Do(&req); err != nil {
-			break
-		}
-		if shouldRedirect(r.StatusCode) {
-			r.Body.Close()
-			if url = r.Header.Get("Location"); url == "" {
-				err = os.ErrorString(fmt.Sprintf("%d response missing Location header", r.StatusCode))
-				break
-			}
-			base = req.URL
-			continue
-		}
-		finalURL = url
-		return
-	}
-
-	err = &http.URLError{"Get", url, err}
-	return
-}
 
 func addMissingCond(test, global []Condition) []Condition {
 	a := len(test)
@@ -312,104 +190,11 @@ func addAllCond(test, global []Condition) []Condition {
 	return test
 }
 
-func isLetter(x uint8) bool {
-	return (x >= 'a' && x <= 'z') || (x >= 'A' && x <= 'Z')
-}
-
-func usedVars(str string) (vars []string) {
-	m := len(str)-1
-	for i:=0; i<m; i++ {
-		if str[i] == '$' && str[i+1] == '{' {
-			a := i+2
-			for i=a; i<m && isLetter(str[i]); i++ { } 
-			// debug("Start %d, End %d, Name %s", a, i, str[a:i])
-			if str[i] == '}' {
-				vars = append(vars, str[a:i])
-			}
-		}
-	}
-	return
-}
-
-func randomVar(list []string) string {
-	n := len(list)
-	return list[Random.Intn(n)]
-}
-
-func nextVar(list []string, v string, t *Test) (val string) {
-	/*
-	if t.SeqCnt == nil {
-		t.SeqCnt = make(map[string] int, len(t.Seq))
-		for k, _ := range t.Seq {
-			t.SeqCnt[k] = 0
-		}
-	}
-	*/
-	i, _ := t.SeqCnt[v]; 
-	val = list[i]
-	i++
-	i = i % len(list)
-	t.SeqCnt[v] = i
-	return
-}
-
-func varValue(v string, test, global, orig *Test) (value string) {
-	if val, ok := orig.Vars[v]; ok {
-		value = val
-		trace("Reusing '%s' for var '%s'.", val, v)
-	} else 	if val, ok := test.Const[v]; ok {  
-		value = val 
-	} else if val, ok := global.Const[v]; ok {  
-		value = val 
-	} else if rnd, ok := test.Rand[v]; ok {  
-		value = randomVar(rnd) 
-	} else if rnd, ok := global.Rand[v]; ok {  
-		value = randomVar(rnd) 
-	} else if seq, ok := test.Seq[v]; ok {  
-		value = nextVar(seq, v, orig) 
-	} else if seq, ok := global.Seq[v]; ok {  
-		value = nextVar(seq, v, orig) 
-	} else {
-		error("Cannot find value for variable '%s'!", v)
-	}
-	
-	// Save value
-	orig.Vars[v] = value
-	
-	return 
-}
-
-
-func substitute(str string, test, global, orig *Test) string {
-	trace("Substitute '%s'", str)
-	used := usedVars(str)
-	for _, v := range used {
-		val := varValue(v, test, global, orig)
-		trace("Will use '%s' as value for var %s.", val, v)
-		str = strings.Replace(str, "${" + v + "}", val, 1)
-		trace("str now '%s'", str)
-	}
-	info("Substituted %d variables: '%s'.", len(used), str)
-	return str
-}
-
-func substituteVariables(test, global, orig *Test) {
-	test.Url = substitute(test.Url, test, global, orig)
-	for k, v := range test.Header {
-		test.Header[k] = substitute(v, test, global, orig)
-	}
-	for i, c := range test.RespCond {
-		test.RespCond[i].Val = substitute(c.Val, test, global, orig)
-	}
-	for i, c := range test.BodyCond {
-		test.BodyCond[i].Val = substitute(c.Val, test, global, orig)
-	}
-}
 
 
 // Prepare the test: Add new stuff from global
 func prepareTest(s *Suite, n int) (*Test) {
-	info("Preparing test no %d.", n)
+	debug("Preparing test no %d.", n)
 
 	// Clear map of variable values: new run, new values (overkill for consts)
 	for k, _ := range s.Test[n].Vars {
@@ -424,7 +209,7 @@ func prepareTest(s *Suite, n int) (*Test) {
 	
 	
 	substituteVariables(&test, &global, &s.Test[n])
-	info("Test to execute = \n%s", test.String())
+	debug("Test to execute = \n%s", test.String())
 	return &test
 }
 
@@ -444,7 +229,7 @@ func (s *Suite) RunTest(n int) (err os.Error) {
 	// Initialize sequenze count
 	if tt.SeqCnt == nil {
 		tt.SeqCnt = make(map[string] int, len(tt.Seq))
-		for k, _ := range tt.Seq {
+		for k, _ := range tt.Seq {  
 			tt.SeqCnt[k] = 0
 		}
 	}
