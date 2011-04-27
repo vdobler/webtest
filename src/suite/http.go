@@ -33,14 +33,14 @@ func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, er
 }
 
 func addHeaders(req *http.Request, t *Test) {
-	for k, v:= range t.Header {
+	for k, v := range t.Header {
 		req.Header.Set(k, v)
 	}
 }
 
 
 func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
-	var url = t.Url  // <-- Patched
+	var url = t.Url // <-- Patched
 	// TODO: if/when we add cookie support, the redirected request shouldn't
 	// necessarily supply the same cookies as the original.
 	// TODO: set referrer header on redirects.
@@ -66,7 +66,7 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 			break
 		}
 		// vvvv Patched vvvv
-		addHeaders(&req, t) 
+		addHeaders(&req, t)
 		// ^^^^ Patched ^^^^
 		url = req.URL.String()
 		if r, err = http.DefaultClient.Do(&req); err != nil {

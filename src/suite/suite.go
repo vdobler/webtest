@@ -11,37 +11,56 @@ import (
 	"./../tag/tag"
 )
 
-var logLevel int = 3   // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var logLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 
 const MaxConditionLen = 40
 
-func error(f string, m... interface{}) { if logLevel >= 1 { log.Print("*ERROR* " + fmt.Sprintf(f, m...)) } }
-func warn(f string, m... interface{})  { if logLevel >= 2 { log.Print("*WARN * " + fmt.Sprintf(f, m...)) } }
-func info(f string, m... interface{})  { if logLevel >= 3 { log.Print("*INFO * " + fmt.Sprintf(f, m...)) } }
-func debug(f string, m... interface{}) { if logLevel >= 4 { log.Print("*DEBUG* " + fmt.Sprintf(f, m...)) } }
-func trace(f string, m... interface{}) { if logLevel >= 5 { log.Print("*TRACE* " + fmt.Sprintf(f, m...)) } }
-
+func error(f string, m ...interface{}) {
+	if logLevel >= 1 {
+		log.Print("*ERROR* " + fmt.Sprintf(f, m...))
+	}
+}
+func warn(f string, m ...interface{}) {
+	if logLevel >= 2 {
+		log.Print("*WARN * " + fmt.Sprintf(f, m...))
+	}
+}
+func info(f string, m ...interface{}) {
+	if logLevel >= 3 {
+		log.Print("*INFO * " + fmt.Sprintf(f, m...))
+	}
+}
+func debug(f string, m ...interface{}) {
+	if logLevel >= 4 {
+		log.Print("*DEBUG* " + fmt.Sprintf(f, m...))
+	}
+}
+func trace(f string, m ...interface{}) {
+	if logLevel >= 5 {
+		log.Print("*TRACE* " + fmt.Sprintf(f, m...))
+	}
+}
 
 
 type Test struct {
-	Title  string
-	Method string
-	Url    string
-	Header map[string] string
+	Title    string
+	Method   string
+	Url      string
+	Header   map[string]string
 	RespCond []Condition
 	BodyCond []Condition
-	Pre  []string
-	MaxTime int // -1: unset, 0=no limit, >0: limit in ms
-	Sleep int   // -1: unset, >=0: sleep after in ms
-	Repeat int  // -1: unset, 0=disabled, >0: count
-	Param map[string] string
-	Const  map[string] string
-	Rand map[string] []string
-	Seq map[string] []string
-	SeqCnt map[string] int
-	Vars map[string] string
-	Run bool
-	Passed bool
+	Pre      []string
+	MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
+	Sleep    int // -1: unset, >=0: sleep after in ms
+	Repeat   int // -1: unset, 0=disabled, >0: count
+	Param    map[string]string
+	Const    map[string]string
+	Rand     map[string][]string
+	Seq      map[string][]string
+	SeqCnt   map[string]int
+	Vars     map[string]string
+	Run      bool
+	Passed   bool
 }
 
 func (t *Test) String() (s string) {
@@ -73,16 +92,16 @@ type TestError struct {
 }
 
 var (
-	ErrTimeout	= &TestError{"Connection timed out."}
-	ErrSystem   = &TestError{"Underlying system failed."}
-	ErrTest     = &TestError{"Failed Test."}
+	ErrTimeout = &TestError{"Connection timed out."}
+	ErrSystem  = &TestError{"Underlying system failed."}
+	ErrTest    = &TestError{"Failed Test."}
 )
 
 
 // TODO: Results?
 type Suite struct {
-	Test []Test
-	Result  map[string] int  // 0: not run jet, 1: pass, 2: fail, 3: err
+	Test   []Test
+	Result map[string]int // 0: not run jet, 1: pass, 2: fail, 3: err
 }
 
 func (c *Condition) Info(txt string) string {
@@ -95,7 +114,7 @@ func (c *Condition) Info(txt string) string {
 	return cs
 }
 
-func report(f string, m... interface{}) {
+func report(f string, m ...interface{}) {
 	s := fmt.Sprintf(f, m...)
 	if strings.HasPrefix(s, "FAILED") {
 		error(s)
@@ -162,18 +181,19 @@ func testBody(body string, t *Test, doc *tag.Node) (err os.Error) {
 }
 
 
-
 func addMissingCond(test, global []Condition) []Condition {
 	a := len(test)
 	for _, cond := range global {
 		found := false
-		for i:=0; i<a; i++ {
-			if cond.Key == test[i].Key { 
+		for i := 0; i < a; i++ {
+			if cond.Key == test[i].Key {
 				found = true
 				break
 			}
 		}
-		if found { continue }  // do not overwrite
+		if found {
+			continue
+		} // do not overwrite
 		test = append(test, cond)
 		trace("Adding response condition '%s'", cond.String())
 	}
@@ -181,8 +201,8 @@ func addMissingCond(test, global []Condition) []Condition {
 	return test
 }
 
-func addAllCond(test, global []Condition) []Condition { 
-	for _, cond := range global	{
+func addAllCond(test, global []Condition) []Condition {
+	for _, cond := range global {
 		trace("Adding body condition '%s'", cond.String())
 		test = append(test, cond)
 	}
@@ -191,23 +211,22 @@ func addAllCond(test, global []Condition) []Condition {
 }
 
 
-
 // Prepare the test: Add new stuff from global
-func prepareTest(s *Suite, n int) (*Test) {
+func prepareTest(s *Suite, n int) *Test {
 	debug("Preparing test no %d.", n)
 
 	// Clear map of variable values: new run, new values (overkill for consts)
 	for k, _ := range s.Test[n].Vars {
 		s.Test[n].Vars[k] = "", false
 	}
-	
+
 	test := s.Test[n]
 	global := s.Test[0]
 	test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 	test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	// info("#Headers: %d, #RespCond: %d, #BodyCond: %d", len(test.Header), len(test.RespCond), len(test.BodyCond))
-	
-	
+
+
 	substituteVariables(&test, &global, &s.Test[n])
 	debug("Test to execute = \n%s", test.String())
 	return &test
@@ -224,26 +243,26 @@ func parsableBody(resp *http.Response) bool {
 }
 
 func (s *Suite) RunTest(n int) (err os.Error) {
-	
+
 	tt := &s.Test[n]
 	// Initialize sequenze count
 	if tt.SeqCnt == nil {
-		tt.SeqCnt = make(map[string] int, len(tt.Seq))
-		for k, _ := range tt.Seq {  
+		tt.SeqCnt = make(map[string]int, len(tt.Seq))
+		for k, _ := range tt.Seq {
 			tt.SeqCnt[k] = 0
 		}
 	}
-	
+
 	// Initialize storage for current value of vars
 	if s.Test[n].Vars == nil {
-		cnt := len(tt.Seq)+len(tt.Rand)+len(tt.Const)
-		tt.Vars = make(map[string] string, cnt)
+		cnt := len(tt.Seq) + len(tt.Rand) + len(tt.Const)
+		tt.Vars = make(map[string]string, cnt)
 	}
 
 	if tt.Repeat == 0 {
 		info("Test no %d '%s' is disabled.", n, tt.Title)
 	} else {
-		for i:=1; i<=tt.Repeat; i++ {
+		for i := 1; i <= tt.Repeat; i++ {
 			info("Test %d '%s': Round %d of %d.", n, tt.Title, i, tt.Repeat)
 			s.RunSingleRound(n)
 		}
@@ -255,35 +274,35 @@ func (s *Suite) RunSingleRound(n int) (err os.Error) {
 
 	t := prepareTest(s, n)
 	info("Running test %d: '%s'", n, t.Title)
-	
+
 	if t.Method != "GET" {
 		error("Post not jet implemented")
 		return ErrSystem
-	} 
-	
+	}
+
 	response, url, err := Get(t)
-	
+
 	if err != nil {
 		error(err.String())
 		return ErrSystem
 	}
-	
+
 	// Add special fields to header
 	response.Header.Set("StatusCode", fmt.Sprintf("%d", response.StatusCode))
 	response.Header.Set("Url", url)
 	herr := testHeader(response, t)
-	
+
 	body := readBody(response.Body)
 	var doc *tag.Node
 	if parsableBody(response) {
 		doc = tag.ParseHtml(body)
-	} 
-	
+	}
+
 	berr := testBody(body, t, doc)
 
-	if herr!=nil || berr!=nil {
+	if herr != nil || berr != nil {
 		err = ErrTest
 	}
-	
+
 	return
 }
