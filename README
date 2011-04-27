@@ -1,9 +1,18 @@
 README
 ======
 
-This project shall provide reliable, easy to use and fast
-methods and tools to check websites.
-Current ideas:
- - Implement CheckTag in Go
- - Provide text flattening for html
+This project shall provide reliable, easy to use and fast methods and tools 
+to check websites and webinterfaces.
 
+It currently implements tag to check the presence of tags and tag-structures
+in html/xml documents.
+
+Web test suites can be set up and run. A test can set header information
+to send to the server and check the response: Returned header values and
+the body (by use of above tag, text and binary matching)
+
+Next steps:
+ - parser to read tests and whole test suites from file
+ - tag counting
+ - local unit test
+ 
