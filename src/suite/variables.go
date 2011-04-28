@@ -8,7 +8,7 @@ import (
 var Random *rand.Rand
 
 func init() {
-	Random = rand.New(rand.NewSource(12345))
+	Random = rand.New(rand.NewSource(12345))  // TODO: use timestap or supplied param from cmd line
 }
 
 
@@ -59,7 +59,7 @@ func nextVar(list []string, v string, t *Test) (val string) {
 }
 
 
-func varValue(v string, test, global, orig *Test) (value string) {
+func varValueFallback(v string, test, global, orig *Test) (value string) {
 	if val, ok := orig.Vars[v]; ok {
 		value = val
 		trace("Reusing '%s' for var '%s'.", val, v)
@@ -81,16 +81,41 @@ func varValue(v string, test, global, orig *Test) (value string) {
 
 	// Save value
 	orig.Vars[v] = value
-
 	return
 }
 
+func varValue(v string, test, orig *Test) (value string) {
+	if val, ok := orig.Vars[v]; ok {
+		value = val
+		trace("Reusing '%s' for var '%s'.", val, v)
+	} else if val, ok := test.Const[v]; ok {
+		value = val
+	} else if rnd, ok := test.Rand[v]; ok {
+		value = randomVar(rnd)
+	} else if seq, ok := test.Seq[v]; ok {
+		value = nextVar(seq, v, orig)
+	} else {
+		error("Cannot find value for variable '%s'!", v)
+	}
 
+	// Save value
+	orig.Vars[v] = value
+	return
+}
+
+// Subsitute all variables in str with their appropriate values.
+// If global is non nil, than global woll be used as fallback if test
+// does not provide the variable.
 func substitute(str string, test, global, orig *Test) string {
 	trace("Substitute '%s'", str)
 	used := usedVars(str)
 	for _, v := range used {
-		val := varValue(v, test, global, orig)
+		var val string
+		if global != nil {
+			val = varValueFallback(v, test, global, orig)
+		} else {
+			val = varValue(v, test, orig)
+		}
 		trace("Will use '%s' as value for var %s.", val, v)
 		str = strings.Replace(str, "${"+v+"}", val, 1)
 		trace("str now '%s'", str)
@@ -99,6 +124,7 @@ func substitute(str string, test, global, orig *Test) string {
 	return str
 }
 
+// Replace all variables in test with their appropriate values.
 func substituteVariables(test, global, orig *Test) {
 	test.Url = substitute(test.Url, test, global, orig)
 	for k, v := range test.Header {
@@ -110,4 +136,5 @@ func substituteVariables(test, global, orig *Test) {
 	for i, c := range test.BodyCond {
 		test.BodyCond[i].Val = substitute(c.Val, test, global, orig)
 	}
+	// TODO: what fileds else? in Params too?
 }

@@ -49,4 +49,5 @@ func main() {
 	// h2 class=home == Qualität für Sie!
 	suite := suite.Suite{Test: []suite.Test{global, test, pdf}}
 	suite.RunTest(1)
+	pdf.Run(nil)
 }
