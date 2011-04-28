@@ -34,6 +34,7 @@ func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, er
 
 func addHeaders(req *http.Request, t *Test) {
 	for k, v := range t.Header {
+		trace("req.Header = %v", req.Header)
 		req.Header.Set(k, v)
 	}
 }
@@ -57,6 +58,9 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 		req.Method = "GET"
 		req.ProtoMajor = 1
 		req.ProtoMinor = 1
+		// vvvv Patched vvvv
+		req.Header = http.Header{}
+		// ^^^^ Patched ^^^^
 		if base == nil {
 			req.URL, err = http.ParseURL(url)
 		} else {
