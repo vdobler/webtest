@@ -4,13 +4,48 @@ import (
 	// "fmt"
 	// "http"
 	// "html"
-	_ "strings"
+	"strings"
 	"./suite"
 )
 
 
 func main() {
+	var sample string = `# Very simple
+  # example
+  
+--------------------
+Simple Example
+--------------------
+GET http://www.google.ch
 
+CONST
+	base       something complicated here
+	extension  html
+	
+HEADER
+	User-Agent       Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; Gecko/20110319 Firefox/3.6.16
+	Accept-Language  en-us,en;q=0.5
+RESPONSE
+	StatusCode == 200
+	!SomeHeader ~= Important
+BODY
+	Txt ~= Google
+	Bin ~= 0a
+	Tag title == Google 
+SETTING
+	Repeat     1
+	Max-Time   2000
+	
+`
+	sr := strings.NewReader(sample)
+	parser := suite.NewParser(sr)
+	ps , _ := parser.ReadSuite()
+	if len(ps.Test) < 999 {
+		ps.Test[0].Run(nil)
+
+		return 
+	}
+	
 	global := suite.Test{Title: "Global",
 		Header: map[string]string{
 			"User-Agent":      "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; ${varR}/${varS}) Gecko/20110319 Firefox/3.6.16",

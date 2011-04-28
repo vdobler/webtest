@@ -5,7 +5,7 @@ main.exe: main.8 suite.8
 main.8: main.go suite.8
 	8g main.go
 	
-suite.8: suite.go test.go variables.go condition.go http.go
+suite.8: suite.go test.go variables.go condition.go http.go parser.go
 	8g -o $@ $+
 
 clean:

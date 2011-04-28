@@ -107,7 +107,6 @@ func varValue(v string, test, orig *Test) (value string) {
 // If global is non nil, than global woll be used as fallback if test
 // does not provide the variable.
 func substitute(str string, test, global, orig *Test) string {
-	trace("Substitute '%s'", str)
 	used := usedVars(str)
 	for _, v := range used {
 		var val string
@@ -120,7 +119,9 @@ func substitute(str string, test, global, orig *Test) string {
 		str = strings.Replace(str, "${"+v+"}", val, 1)
 		trace("str now '%s'", str)
 	}
-	trace("Substituted %d variables: '%s'.", len(used), str)
+	if len(used) > 0 {
+		trace("Substituted %d variables: '%s'.", len(used), str)
+	}
 	return str
 }
 

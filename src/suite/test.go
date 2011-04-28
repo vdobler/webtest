@@ -22,6 +22,7 @@ type Test struct {
 	// Sleep    int // -1: unset, >=0: sleep after in ms
 	// Repeat   int // -1: unset, 0=disabled, >0: count
 	Param  map[string]string
+	Setting map[string]string
 	Const  map[string]string
 	Rand   map[string][]string
 	Seq    map[string][]string
@@ -45,6 +46,7 @@ func (t *Test) Report(pass bool, f string, m ...interface{}) {
 func (t *Test) Stat() (total, passed, failed int) {
 	for _, r := range t.Result {
 		total++
+		trace("Result: %s", r)
 		if strings.HasPrefix(r, "Passed") {
 			passed++
 		} else {
@@ -74,15 +76,16 @@ func NewTest(title string) *Test {
 
 	t.Header = make(map[string]string, 3)
 	t.Param = make(map[string]string, 3)
+	t.Setting = make(map[string]string, 3)
 	t.Const = make(map[string]string, 3)
 	t.Rand = make(map[string][]string, 3)
 	t.Seq = make(map[string][]string, 3)
 	t.SeqCnt = make(map[string]int, 3)
 	t.Vars = make(map[string]string, 3)
 
-	t.Param["Repeat"] = "1"
-	t.Param["MaxTime"] = "unlimited"
-	t.Param["Sleep"] = "0"
+	t.Setting["Repeat"] = "1"
+	t.Setting["MaxTime"] = "unlimited"
+	t.Setting["Sleep"] = "0"
 
 	return &t
 }
@@ -148,10 +151,10 @@ func (t *Test) String() (s string) {
 }
 
 func (t *Test) Repeat() int {
-	if t.Param == nil {
+	if t.Setting == nil {
 		return 1
 	}
-	r, ok := t.Param["Repeat"]
+	r, ok := t.Setting["Repeat"]
 	if !ok {
 		warn("Test '%s' does not have Repeat parameter! Will use 1", t.Title)
 		r = "1"
@@ -160,10 +163,10 @@ func (t *Test) Repeat() int {
 }
 
 func (t *Test) Sleep() (i int) {
-	if t.Param == nil {
+	if t.Setting == nil {
 		return 1
 	}
-	r, ok := t.Param["Sleep"]
+	r, ok := t.Setting["Sleep"]
 	if !ok {
 		r = "0"
 	}

@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var logLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var logLevel int = 5 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 
 
 func error(f string, m ...interface{}) {
@@ -38,7 +38,13 @@ func trace(f string, m ...interface{}) {
 // TODO: Results?
 type Suite struct {
 	Test   []Test
-	Result map[string]int // 0: not run jet, 1: pass, 2: fail, 3: err
+	// Result map[string]int // 0: not run jet, 1: pass, 2: fail, 3: err
+}
+
+func NewSuite() (suite *Suite) {
+	suite =  new(Suite)
+	suite.Test = make([]Test, 0, 5)
+	return
 }
 
 func (s *Suite) RunTest(n int) {
