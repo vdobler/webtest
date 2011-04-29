@@ -2,7 +2,7 @@ package suite
 
 import (
 	"fmt"
-	// "bufio"
+	"strings"
 	"os"
 	"http"
 	"io"
@@ -60,6 +60,15 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 		req.ProtoMinor = 1
 		// vvvv Patched vvvv
 		req.Header = http.Header{}
+		if len(t.Param) > 0 {
+			ep := http.EncodeQuery(t.Param)
+			// TODO handle #-case
+			if strings.Contains(url, "?") {
+				url = url + "&" + ep
+			} else {
+				url = url + "?" + ep
+			}
+		}
 		// ^^^^ Patched ^^^^
 		if base == nil {
 			req.URL, err = http.ParseURL(url)

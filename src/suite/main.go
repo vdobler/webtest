@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "fmt"
+	"fmt"
 	// "http"
 	// "html"
 	"strings"
@@ -10,6 +10,16 @@ import (
 
 
 func main() {
+	x := []string{"Hund", "Anfang Ende", "ein zwei drei letztes", "\"mit space\"", "\"a b c d e\"", "\"mit  viel  space\"", 
+				  "3\"4", "der \"Hund\\\" baut", "\"das\\tWetter\\\" ist\\nsuper\""}
+	for _, xx := range(x) {
+		fmt.Printf("xx == %s\n", xx)
+		for _, v := range(suite.StringList(xx)) {
+			fmt.Printf("  --> %s\n", v)
+		}
+	}
+
+
 	var sample string = `# Very simple
   # example
   
@@ -22,12 +32,22 @@ CONST
 	base       something complicated here
 	extension  html
 	
+SEQ
+	id  abc xyz 123
+	num 1 2 3 4 99 100 101
+	var hund katze "tasmanischer tiger" fisch "Goa Baum"
+	name volker "dr. \"rer.nat\" dobler" sabine
+	
 HEADER
 	User-Agent       Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; Gecko/20110319 Firefox/3.6.16
 	Accept-Language  en-us,en;q=0.5
 RESPONSE
-	StatusCode == 200
-	!SomeHeader ~= Important
+	 StatusCode == 200
+	!SomeOtherHeader ~= Important
+PARAM
+	query	"some query"
+	text	some other
+	mode	"some \"fancy\" stuff"
 BODY
 	Txt ~= Google
 	Bin ~= 0a
@@ -41,9 +61,8 @@ SETTING
 	parser := suite.NewParser(sr)
 	ps , _ := parser.ReadSuite()
 	if len(ps.Test) < 999 {
-		ps.Test[0].Run(nil)
-
-		return 
+		fmt.Printf("\n%s\n", ps.Test[0].String())
+		return
 	}
 	
 	global := suite.Test{Title: "Global",
@@ -68,7 +87,8 @@ SETTING
 		Const: map[string]string{"UNIC": "http://www.unic.com"},
 		Rand:  map[string][]string{"varR": []string{"AA", "BB", "CC", "DD", "EE"}},
 		Seq:   map[string][]string{"varS": []string{"first ", "second", "third", "forth"}},
-		Param: map[string]string{"Repeat": "4", "Sleep": "1200"},
+		Param:   map[string][]string{"query": []string{"my-query"}, "selection": []string{"AB", "XY", "HP"}},
+		Setting: map[string]string{"Repeat": "4", "Sleep": "1200"},
 	}
 
 	pdf := suite.Test{Title: "PDF (Binary) Test", Method: "GET",
@@ -78,7 +98,7 @@ SETTING
 		Const:    map[string]string{},
 		Rand:     map[string][]string{},
 		Seq:      map[string][]string{},
-		Param:    map[string]string{"Repeat": "1"},
+		Setting:    map[string]string{"Repeat": "1"},
 	}
 
 	// h2 class=home == Qualität für Sie!

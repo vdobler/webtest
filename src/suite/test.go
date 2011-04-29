@@ -21,7 +21,7 @@ type Test struct {
 	// MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
 	// Sleep    int // -1: unset, >=0: sleep after in ms
 	// Repeat   int // -1: unset, 0=disabled, >0: count
-	Param  map[string]string
+	Param  map[string][]string
 	Setting map[string]string
 	Const  map[string]string
 	Rand   map[string][]string
@@ -75,7 +75,7 @@ func NewTest(title string) *Test {
 	t := Test{Title: title}
 
 	t.Header = make(map[string]string, 3)
-	t.Param = make(map[string]string, 3)
+	t.Param = make(map[string][]string, 3)
 	t.Setting = make(map[string]string, 3)
 	t.Const = make(map[string]string, 3)
 	t.Rand = make(map[string][]string, 3)
@@ -90,22 +90,37 @@ func NewTest(title string) *Test {
 	return &t
 }
 
-func needQuotes(s string) bool {
-	return strings.Contains(s, "\"") || strings.HasPrefix(s, " ") || strings.HasSuffix(s, " ") || strings.Contains(s, "\n")
+func needQuotes(s string, containedSpacesNeedQuotes bool) bool {
+	if containedSpacesNeedQuotes && strings.Contains(s, " ") {
+		return true
+	}
+	return strings.Contains(s, "\"") || strings.HasPrefix(s, " ") || strings.HasSuffix(s, " ") || strings.Contains(s, "\n") || strings.Contains(s, "\t")
 }
 
-func quote(s string) string {
-	if !needQuotes(s) {
+func quote(s string, containedSpacesNeedQuotes bool) string {
+	if !needQuotes(s, containedSpacesNeedQuotes) {
 		return s
 	}
-	return "\"" + strings.Replace(strings.Replace(s, "\"", "\\\"", -1), "\n", "\\n", -1) + "\""
+	s = strings.Replace(s, "\"", "\\\"", -1)
+	s = strings.Replace(s, "\n", "\\n", -1)
+	s = strings.Replace(s, "\t", "\\t", -1)
+	
+	return "\"" + s + "\""
 }
+
+
 
 func formatMap(s string, m *map[string]string) (f string) {
 	if len(*m) > 0 {
 		f = s + "\n"
+		longest := 0
+		for k, _ := range *m {
+			if len(k) > longest { 
+				longest = len(k) 
+			}
+		}
 		for k, v := range *m {
-			f += "\t" + k + ": " + quote(v) + "\n"
+			f += fmt.Sprintf("\t%-*s  %s\n", longest, k, quote(v, false))
 		}
 	}
 	return
@@ -114,10 +129,16 @@ func formatMap(s string, m *map[string]string) (f string) {
 func formatMultiMap(s string, m *map[string][]string) (f string) {
 	if len(*m) > 0 {
 		f = s + "\n"
+		longest := 0
+		for k, _ := range *m {
+			if len(k) > longest { 
+				longest = len(k) 
+			}
+		}
 		for k, l := range *m {
-			f += "\t" + k + ":"
+			f += fmt.Sprintf("\t%-*s ", longest, k)
 			for _, v := range l {
-				f += " " + quote(v)
+				f += " " + quote(v, true)
 			}
 			f += "\n"
 		}
@@ -128,8 +149,19 @@ func formatMultiMap(s string, m *map[string][]string) (f string) {
 func formatCond(s string, m *[]Condition) (f string) {
 	if len(*m) > 0 {
 		f = s + "\n"
+		longest := 0
 		for _, c := range *m {
-			f += "\t" + c.String() + "\n"
+			if len(c.Key) > longest { 
+				longest = len(c.Key) 
+			}
+		}
+		for _, c := range *m {
+			if c.Neg {
+				f += "\t!"
+			} else {
+				f += "\t "
+			}
+			f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
 		}
 	}
 	return
@@ -142,7 +174,7 @@ func (t *Test) String() (s string) {
 	s += formatMap("HEADER", &t.Header)
 	s += formatCond("RESPONSE", &t.RespCond)
 	s += formatCond("BODY", &t.BodyCond)
-	s += formatMap("PARAM", &t.Param)
+	s += formatMultiMap("PARAM", &t.Param)
 	s += formatMap("CONST", &t.Const)
 	s += formatMultiMap("SEQ", &t.Seq)
 	s += formatMultiMap("RAND", &t.Rand)

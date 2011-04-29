@@ -32,8 +32,8 @@ type Parser struct {
 func NewParser(r io.Reader) *Parser {
 	parser := new(Parser)
 	parser.reader = linereader.NewReader(r, 4000)
-	parser.line = make([]Line, 50)
-	parser.suite = make([]Test, 3)
+	parser.line = []Line{}
+	parser.suite = []Test{}
 	return parser
 }
 
@@ -84,8 +84,43 @@ func hp(s, p string) bool {
 	return strings.HasPrefix(s, p)
 }
 
+func hs(s, p string) bool {
+	return strings.HasSuffix(s, p)
+}
+
 func trim(s string) string {
 	return strings.Trim(s, " \t")
+}
+
+func deescape(str string) string {
+	str = strings.Replace(str, "\\\"", "\"", -1)
+	str = strings.Replace(str, "\\n", "\n", -1)
+	str = strings.Replace(str, "\\t", "\t", -1)
+	
+	return str
+}
+
+func dequote(str string) string {
+	if hp(str,"\"") && hs(str, "\"") {
+		str = str[1:len(str)-1]
+		return deescape(str)
+	}
+	return str
+}
+
+func firstSpace(s string) int {
+	si := strings.Index(s, " ")
+	ti := strings.Index(s, "\t")
+	if si==-1 && ti==-1 {
+		return -1
+	} else if si==-1 {
+		return ti
+	} else if ti==-1 {
+		return si
+	} else if si < ti {
+		return si
+	}
+	return ti
 }
 
 func (p *Parser) readMap(m *map[string]string) {
@@ -97,7 +132,7 @@ func (p *Parser) readMap(m *map[string]string) {
 			return
 		}
 		line = trim(line)
-		j := strings.Index(line, " ")
+		j := firstSpace(line)
 		if j == -1 {
 			error("No value on line %d", no)
 		} else {
@@ -108,6 +143,50 @@ func (p *Parser) readMap(m *map[string]string) {
 		}
 	}
 }
+
+func StringList(line string) (list []string) {
+	all := strings.Fields(line)
+	
+	for i:=0; i<len(all); i++ {
+		if hp(all[i], "\"") {
+			s := all[i]
+			i++
+			for ; i<len(all) && !(hs(all[i],"\"") && !hs(all[i], "\\\"")); i++ { 
+				s += " " + all[i]
+			}
+			if i<len(all) {
+				s += " " + all[i]
+			}
+			list = append(list, dequote(s))
+		} else {
+			list = append(list, all[i])
+		}
+	}
+	return
+}
+
+func (p *Parser) readMultiMap(m *map[string][]string) {
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		if !hp(line, "\t") {
+			p.i--
+			return
+		}
+		line = trim(line)
+		j := firstSpace(line)
+		if j == -1 {
+			error("No value on line %d", no)
+		} else {
+			k := trim(line[:j])
+			line = trim(line[j:])
+			list := StringList(line)
+			(*m)[k] = list
+			trace("Added to mulit map (line %d): >>>%s<<<: %v", no, k, list)
+		}
+	}
+}
+
 
 func (p *Parser) readCond(body bool) ([]Condition) {
 	var list []Condition = make([]Condition, 0, 3)
@@ -120,7 +199,7 @@ func (p *Parser) readCond(body bool) ([]Condition) {
 			return list
 		}
 		line = trim(line)
-		j := strings.Index(line, " ")
+		j := firstSpace(line)
 		if j == -1 {
 			error("No op or value on line %d", no)
 			continue
@@ -149,7 +228,7 @@ func (p *Parser) readCond(body bool) ([]Condition) {
 				continue
 			}
 		} 
-		j = strings.Index(line, " ")
+		j = firstSpace(line)
 		if j == -1 {
 			error("No value on line %d", no)
 			continue
@@ -222,11 +301,17 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "BODY":
 			test.BodyCond = p.readCond( true )
 		case "PARAM":
-			p.readMap( &test.Param )
+			p.readMultiMap( &test.Param )
 		case "SETTING":
 			p.readMap( &test.Setting )
 		case "CONST":
 			p.readMap( &test.Const )
+		case "RAND":
+			p.readMultiMap( &test.Rand )
+		case "SEQ":
+			p.readMultiMap( &test.Seq )
+		default :
+			error("Unknow element '%s' in line %d. Skipped.", line, no)
 		}
 		
 	}
