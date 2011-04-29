@@ -1,0 +1,62 @@
+﻿#
+# A very basic example
+#
+
+-------------------------------
+Global
+-------------------------------
+GET http://www.google.com
+HEADER
+	User-Agent   Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
+RESPONSE
+	StatusCode == 200
+
+	
+
+--------------------------------
+google.com --> google.ch
+--------------------------------
+# Test redirect from google.com to swiss version under google.ch
+GET http://www.google.ch
+RESPONSE
+	Url  == http://www.google.ch
+
+
+---------------------------------
+Stellenmarkt: Freizeit
+---------------------------------	
+GET http://www.jobs.sites.be.ch/jobs_sites/de/index/navi/stellenmarkt/stellen/verwaltung.result.html
+PARAM
+	_charset_       UTF-8
+	Organisation    all
+	Sprache         all
+	Arbeitspensum   all
+	PubliziertSeit  01
+	Textsuche       freizeit
+	Referenznummer 
+	next            "Stelle finden"
+RESPONSE
+	Content-Type  ~=  text/html
+BODY
+	Tag     title == Verwaltung (Stellenmarkt) Stellenmarkt*
+	Tag     table summary=Suchresultate"
+	
+---------------------------------
+Stellenmarkt: Faulenzen
+---------------------------------	
+GET http://www.jobs.sites.be.ch/jobs_sites/de/index/navi/stellenmarkt/stellen/verwaltung.result.html
+PARAM
+	_charset_       UTF-8
+	Organisation    all
+	Sprache         all
+	Arbeitspensum   all
+	PubliziertSeit  01
+	Textsuche       faulenzen
+	Referenznummer 
+	next            "Stelle finden"
+RESPONSE
+	Content-Type  ~=  text/html
+BODY
+	 Tag     p == Aktuell passt leider kein Inserat mit Ihren Suchkriterien überein*
+	!Tag     table summary=Suchresultate"
+	

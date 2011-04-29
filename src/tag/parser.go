@@ -2,9 +2,10 @@ package tag
 
 import (
 	"fmt"
-	// "bufio"
+	"bytes"
 	// "os"
 	"html"
+	"xml"
 	// "log"
 	"strings"
 	// "container/vector"
@@ -104,16 +105,18 @@ func (n *Node) Html() (s string) {
 // Parse the given html and return the root node of the document.
 // Parsing starts at the first StartToken and will ignore
 func ParseHtml(h string) (root *Node) {
+	debug(h)
 	r := strings.NewReader(h)
-	z := html.NewTokenizer(r)
+	parser := xml.NewParser(r)
+	parser.Strict = false;
+    parser.AutoClose = xml.HTMLAutoClose;
+    parser.Entity = xml.HTMLEntity
 	for {
-		tt := z.Next()
-		if tt == html.ErrorToken {
-			return nil
-		}
-		if tt == html.StartTagToken {
-			tok := z.Token()
-			root = parse(tok, z, nil)
+		tok, err := parser.Token()
+		if err != nil { return nil }
+		switch tok.(type) {
+		case xml.StartElement:
+			root = parse(tok, parser, nil)
 			debug("Constructed Html: \n" + root.HtmlRep(0))
 			return root
 		}
@@ -137,58 +140,43 @@ func cleanText(t string) (s string) {
 	return
 }
 
-func parse(tok html.Token, z *html.Tokenizer, parent *Node) (node *Node) {
-	if tok.Type != html.StartTagToken {
-		fmt.Printf("parse() called on non start tag\n")
-		return nil
-	}
-	// debug("parse on tok=" + tok.Data)
+func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 	node = new(Node)
 	node.Parent = parent
-	node.Name = tok.Data
-	node.Attr = tok.Attr
+	st, _ := tok.(xml.StartElement)
+	node.Name = st.Name.Local
+	node.Attr = []html.Attribute{}
+	for _, attr := range st.Attr {
+		a := html.Attribute{Key: attr.Name.Local, Val: attr.Value}
+		node.Attr = append(node.Attr, a)
+	}
+	
 	// var childs vector.Vector
 	// var chld []*Node
 
 	for done := false; !done; {
-		tt := z.Next()
-		if tt == html.ErrorToken {
+		tok, err := parser.Token()
+		if err != nil {
 			return
 		}
-		t := z.Token()
-
-		// Some Tags are selfclosing, even if not written properly as "<tag />"
-		if tt == html.StartTagToken {
-			switch t.Data {
-			case "img", "meta", "input", "br", "hr":
-				tt = html.SelfClosingTagToken
-			}
-		}
-
-		switch tt {
-		case html.StartTagToken:
-			// debug("STT " + t.Data)
-			ch := parse(t, z, node)
+		switch t := tok.(type) {
+		case xml.StartElement:
+			ch := parse(t, parser, node)
 			node.Child = append(node.Child, ch)
 			node.subs = append(node.subs, ch)
 			node.Full += " " + ch.Full
-		case html.EndTagToken:
-			// debug("ETT " + t.Data)
-			if t.Data != node.Name {
-				fmt.Printf("Tag " + node.Name + " closed by " + t.Data + "\n")
+		case xml.EndElement:
+			if t.Name.Local != node.Name {
+				fmt.Printf("Tag " + node.Name + " closed by " + t.Name.Local + "\n")
 			}
 			done = true
-		case html.TextToken:
-			// debug("TT")
-			ct := " " + cleanText(t.Data)
+		case xml.CharData:
+			b := bytes.NewBuffer([]byte(t))
+			s := b.String()
+			ct := " " + cleanText(s)
 			node.Text += ct
 			node.Full += ct
-			node.subs = append(node.subs, &Node{Parent: node, Name: TEXT_NODE, Text: t.Data})
-		case html.SelfClosingTagToken:
-			// debug("SCTT " + t.Data)
-			ch := Node{Name: t.Data, Attr: t.Attr}
-			node.Child = append(node.Child, &ch)
-			node.subs = append(node.subs, &ch)
+			node.subs = append(node.subs, &Node{Parent: node, Name: TEXT_NODE, Text: s})
 		}
 	}
 
