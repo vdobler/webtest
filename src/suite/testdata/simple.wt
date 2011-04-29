@@ -1,0 +1,13 @@
+#
+# Most simple web test
+#
+
+-------------------------------
+Simple Test
+-------------------------------
+GET http://www.google.com
+RESPONSE
+	StatusCode == 200
+BODY
+	Txt ~= Google
+	
