@@ -1,4 +1,4 @@
-﻿#
+#
 # A very basic example
 #
 
@@ -42,7 +42,7 @@ BODY
 	Tag     table summary=Suchresultate"
 	
 ---------------------------------
-Stellenmarkt: Faulenzen
+Faulenzen
 ---------------------------------	
 GET http://www.jobs.sites.be.ch/jobs_sites/de/index/navi/stellenmarkt/stellen/verwaltung.result.html
 PARAM

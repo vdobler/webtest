@@ -66,7 +66,7 @@ func (t *Test) Status() (status string) {
 		} else {
 			status = "PASSED"
 		}
-		status += fmt.Sprintf(" (total: %d, passed: %d, failed: %d)", n, p, f)
+		status += fmt.Sprintf(" (total: %-2d,  passed: %-2d,  failed: %-2d)", n, p, f)
 	}
 	return
 }

@@ -133,14 +133,15 @@ func (p *Parser) readMap(m *map[string]string) {
 		}
 		line = trim(line)
 		j := firstSpace(line)
+		var k, v string
 		if j == -1 {
-			error("No value on line %d", no)
+			k = line
 		} else {
-			k := trim(line[:j])
-			v := trim(line[j:])
-			(*m)[k] = v
-			trace("Added to map (line %d): %s: %s", no, k, v)
+			k = trim(line[:j])
+			v = trim(line[j:])
 		}
+		(*m)[k] = v
+		trace("Added to map (line %d): %s: %s", no, k, v)
 	}
 }
 
@@ -175,15 +176,18 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 		}
 		line = trim(line)
 		j := firstSpace(line)
+		var k string
+		var list []string
 		if j == -1 {
-			error("No value on line %d", no)
+			k = line
+			list = []string{}
 		} else {
-			k := trim(line[:j])
+			k = trim(line[:j])
 			line = trim(line[j:])
-			list := StringList(line)
-			(*m)[k] = list
-			trace("Added to mulit map (line %d): >>>%s<<<: %v", no, k, list)
+			list = StringList(line)
 		}
+		(*m)[k] = list
+		trace("Added to mulit map (line %d): >>>%s<<<: %v", no, k, list)
 	}
 }
 
@@ -275,10 +279,12 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			}
 			p.i++
 			line, no = trim(p.line[p.i].line), p.line[p.i].no
-			if hp(line, "GET") {
+			if hp(line, "GET ") {
 				test.Method, test.Url = "GET", trim(line[3:])
-			} else if hp(line, "GET") {
-				test.Method, test.Url = "GET", trim(line[3:])
+				continue
+			} else if hp(line, "POST ") {
+				test.Method, test.Url = "POST", trim(line[3:])
+				continue
 			} else {
 				error("Method and Url missing or wrong in line %d", no)
 				err = ParserError{"Method and Url missing or wrong"}
