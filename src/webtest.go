@@ -33,7 +33,9 @@ func main() {
 		}
 		parser := suite.NewParser(file)
 		s , _ := parser.ReadSuite()
-		for i, t:= range s.Test {
+		for i, t := range s.Test {
+			// do not run global
+			if i==0 && t.Title=="Global" { continue }
 			fmt.Printf("\n\n# Test %d\n%s\n", i, t.String())
 			s.RunTest(i)
 		}

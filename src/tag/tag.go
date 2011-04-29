@@ -1,7 +1,7 @@
 package tag
 
 import (
-	// "fmt"
+	"fmt"
 	// "bufio"
 	// "os"
 	"html"
@@ -10,18 +10,15 @@ import (
 	// "container/vector"
 )
 
+var Debug bool
 
 func debug(m ...interface{}) {
-	/*
-	str := fmt.Sprint(m...)
-	fmt.Print(str + "\n")
-	*/
+	if Debug {
+		str := fmt.Sprint(m...)
+		fmt.Print(str + "\n")
+	}
 	// log.Print(m...)
 }
-
-
-
-
 
 // Check if cl is presnet in classes.
 func containsClass(cl string, classes []string) bool {
