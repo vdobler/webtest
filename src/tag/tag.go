@@ -2,7 +2,7 @@ package tag
 
 import (
 	"fmt"
-	// "bufio"
+	"regexp"
 	// "os"
 	"html"
 	// "log"
@@ -116,8 +116,15 @@ func Matches(ts *TagSpec, node *Node) bool {
 	return true
 }
 
+// TODO: Compile just once (during parsing/tagspec construction
 func regexpMatches(s, exp string) bool {
-	return false // TODO: implement
+	fmt.Printf("Regexp Match '%s' :: '%s'\n", s, exp)
+	if rexp, err := regexp.Compile(exp); err == nil {
+		return (rexp.FindStringIndex(s) != nil)
+	} else {
+		fmt.Printf("Invalid regexp '%s': %s\n", exp, err.String())
+	}
+	return false
 }
 
 func wildcardMatches(s, exp string) bool {
@@ -136,7 +143,7 @@ func textMatches(s, exp string) bool {
 	}
 
 	if exp[0] == '/' && exp[len(exp)-1] == '/' {
-		return regexpMatches(s, exp[1:len(exp)-2])
+		return regexpMatches(s, exp[1:len(exp)-1])
 	} else if strings.Index(exp, "*") >= 0 {
 		return wildcardMatches(s, exp)
 	}
