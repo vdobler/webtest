@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"log"
 	"./suite/suite"
+	"sort"
 )
 
 var benchmark bool = false
@@ -69,6 +70,28 @@ func shouldRun(s *suite.Suite, no int) bool {
 	return false
 }
 
+const MaxInt = int(^uint(0) >> 1)
+const MinInt = -MaxInt - 1 
+
+func fiveval(data []int) (min, lq, med, avg, uq, max int) {
+	min, max = MaxInt, MinInt
+	sum, n := 0, len(data)
+	for _, v := range data {
+		if v < min { min = v }
+		if v > max { max = v }
+		sum += v
+	}
+	
+	avg = sum/n
+
+	sort.SortInts(data)
+	qi := n/4
+	lq, uq = data[qi], data[n-qi]
+	med = data[n/2]
+	
+	return
+}
+
 func main() {
 	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
@@ -108,17 +131,29 @@ func main() {
 			if i == 0 && t.Title == "Global" {
 				continue
 			}
-			if shouldRun(s, i) {
-				debug("shouldRun(s, %d) == %v", i, shouldRun(s, i))
-				s.RunTest(i)
-			} else {
-				info("Will not run test %d.", i)
-			}
 			at := t.Title
 			if len(at) > 20 {
 				at = at[0:18] + ".."
 			}
-			result += fmt.Sprintf("Test %2d: '%-20s': %s\n", i, at, s.Test[i].Status())
+			at = fmt.Sprintf("Test %2d: %-20s", i, at)
+			
+			if shouldRun(s, i) {
+				if benchmark {
+					dur, f, err := s.BenchTest(i, numRuns)
+					if err != nil {
+						result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
+					} else {
+						min, lq, med, avg, uq, max := fiveval(dur)
+						result += fmt.Sprintf("%s: min: %-4d 25: %-4d med: %-4d avg: %-4d 75: %-4d max: %4d (in ms, %d runs, %d failures)\n", 
+												at, min, lq, med, avg, uq, max, len(dur), f)
+					}
+				} else {
+					s.RunTest(i)
+					result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
+				}
+			} else {
+				info("Skipped test %d.", i)
+			}
 		}
 
 	}

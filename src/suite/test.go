@@ -4,11 +4,20 @@ import (
 	"fmt"
 	"http"
 	"strings"
+	"os"
 	"./../tag/tag"
 	"encoding/hex"
 	"time"
 )
 
+var (
+	BenchTolerance float32 = 1.3
+)
+
+type Error string
+func (e Error) String() string {
+	return string(e)
+}
 
 type Test struct {
 	Title    string
@@ -325,11 +334,7 @@ func parsableBody(resp *http.Response) bool {
 	return false
 }
 
-// Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
-// field in Param. If global is non nil it will be used as "template" for the
-// test. The test.Result field is updated.
-func (test *Test) Run(global *Test) {
-
+func (test *Test) Init() {
 	// Initialize sequenze count
 	if test.SeqCnt == nil {
 		test.SeqCnt = make(map[string]int, len(test.Seq))
@@ -343,6 +348,14 @@ func (test *Test) Run(global *Test) {
 		cnt := len(test.Seq) + len(test.Rand) + len(test.Const)
 		test.Vars = make(map[string]string, cnt)
 	}
+}
+
+
+// Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
+// field in Param. If global is non nil it will be used as "template" for the
+// test. The test.Result field is updated.
+func (test *Test) Run(global *Test) {
+	test.Init()
 
 	if test.Repeat() == 0 {
 		info("Test no '%s' is disabled.", test.Title)
@@ -357,20 +370,59 @@ func (test *Test) Run(global *Test) {
 	return
 }
 
-// Performa a single run of the test.
-func (test *Test) RunSingle(global *Test) {
+func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
+	test.Init()
+
+	if count < 5 {
+		warn("Cannot benchmark with less than 5 rounds. Will use 5.")
+		count = 5
+	} 
+
+	durations = make([]int, count)
+	total, okay := 0, 0
+	
+	for okay < count {
+		if float32(total) > BenchTolerance*float32(count) {
+			info("Too many errors for %d: %f > %f", count, float32(total), BenchTolerance*float32(count))
+			err = Error("Too many failures/errors during benching")
+			return
+		}
+		info("Bench '%s':", test.Title)
+		dur, e := test.RunSingle(global)
+		total++
+		if e != nil {
+			warn("Failure during bench")
+		} else {
+			durations[okay] = dur
+			okay++
+		}
+	}
+
+	failures = total - okay
+	
+	return
+}
+
+// Perform a single run of the test.  Return duration for server response in ms.
+func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 
 	ti := prepareTest(test, global)
 	info("Running test '%s'", ti.Title)
 
 	if ti.Method != "GET" {
 		error("Post not jet implemented")
+		duration = -1
 		return
 	}
 
-	response, url, err := Get(ti)
-	if err != nil {
-		test.Report(false, err.String())
+	starttime := time.Nanoseconds()
+	response, url, geterr := Get(ti)
+	endtime := time.Nanoseconds()
+	duration = int(endtime - starttime)/1000000
+	
+	if geterr != nil {
+		test.Report(false, geterr.String())
+		err = Error("Error: " + geterr.String())
 		return
 	}
 
@@ -386,6 +438,11 @@ func (test *Test) RunSingle(global *Test) {
 	}
 	testBody(body, ti, test, doc)
 
+	_, _, failed := test.Stat()
+	if failed != 0 {
+		err = Error("Failure: " + geterr.String())
+	}
+	
 	time.Sleep(1000 * int64(test.Sleep()))
 	return
 }

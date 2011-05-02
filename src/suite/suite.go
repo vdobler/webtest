@@ -3,6 +3,7 @@ package suite
 import (
 	"fmt"
 	"log"
+	"os"
 )
 
 var LogLevel int = 5 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -59,4 +60,19 @@ func (s *Suite) RunTest(n int) {
 
 	s.Test[n].Run(global)
 
+}
+
+
+func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
+	if n < 0 || n >= len(s.Test) {
+		error("No such test")
+	}
+
+	var global *Test
+	if n > 0 && s.Test[0].Title == "Global" {
+		global = &s.Test[0]
+	}
+
+	dur, f, err = s.Test[n].Bench(global, count)
+	return
 }
