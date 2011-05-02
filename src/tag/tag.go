@@ -117,7 +117,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 }
 
 func regexpMatches(s, exp string) bool {
-	return false  // TODO: implement
+	return false // TODO: implement
 }
 
 func wildcardMatches(s, exp string) bool {

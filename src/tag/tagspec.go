@@ -144,7 +144,7 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec) {
 // Returns the number of leading spaces in s.
 func indentDepth(s string) (d int) {
 	d = 0
-	for i:=0; i<len(s); i++ { 
+	for i := 0; i < len(s); i++ {
 		if s[i] == ' ' {
 			d++
 		} else if s[i] == '\t' {
@@ -161,10 +161,10 @@ func ParseTagSpec(spec string) (ts *TagSpec) {
 	if len(lines) > 1 {
 		ind := indentDepth(lines[1])
 		// fmt.Printf("Have subs: indent >= %d\n", ind)
-		for i:=1; i<len(lines); {
+		for i := 1; i < len(lines); {
 			ss := lines[i]
 			i++
-			for ; i<len(lines) && indentDepth(lines[i])>ind; i++ {
+			for ; i < len(lines) && indentDepth(lines[i]) > ind; i++ {
 				ss += "\n" + lines[i]
 			}
 			ts.Sub = append(ts.Sub, ParseTagSpec(ss))

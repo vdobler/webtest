@@ -10,15 +10,14 @@ import (
 
 
 func main() {
-	x := []string{"Hund", "Anfang Ende", "ein zwei drei letztes", "\"mit space\"", "\"a b c d e\"", "\"mit  viel  space\"", 
-				  "3\"4", "der \"Hund\\\" baut", "\"das\\tWetter\\\" ist\\nsuper\""}
-	for _, xx := range(x) {
+	x := []string{"Hund", "Anfang Ende", "ein zwei drei letztes", "\"mit space\"", "\"a b c d e\"", "\"mit  viel  space\"",
+		"3\"4", "der \"Hund\\\" baut", "\"das\\tWetter\\\" ist\\nsuper\""}
+	for _, xx := range x {
 		fmt.Printf("xx == %s\n", xx)
-		for _, v := range(suite.StringList(xx)) {
+		for _, v := range suite.StringList(xx) {
 			fmt.Printf("  --> %s\n", v)
 		}
 	}
-
 
 	var sample string = `# Very simple
   # example
@@ -59,12 +58,12 @@ SETTING
 `
 	sr := strings.NewReader(sample)
 	parser := suite.NewParser(sr)
-	ps , _ := parser.ReadSuite()
+	ps, _ := parser.ReadSuite()
 	if len(ps.Test) < 999 {
 		fmt.Printf("\n%s\n", ps.Test[0].String())
 		return
 	}
-	
+
 	global := suite.Test{Title: "Global",
 		Header: map[string]string{
 			"User-Agent":      "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; ${varR}/${varS}) Gecko/20110319 Firefox/3.6.16",
@@ -84,9 +83,9 @@ SETTING
 		BodyCond: []suite.Condition{suite.Condition{Key: "Txt", Op: "~=", Val: "Unic AG"},
 			suite.Condition{Key: "Tag", Val: "a href=/ch/de/leistungen.${varR}.html == Leistungen ${varS}", Neg: true},
 			suite.Condition{Key: "Tag", Val: "h2 class=home == Qualität für Sie!"}},
-		Const: map[string]string{"UNIC": "http://www.unic.com"},
-		Rand:  map[string][]string{"varR": []string{"AA", "BB", "CC", "DD", "EE"}},
-		Seq:   map[string][]string{"varS": []string{"first ", "second", "third", "forth"}},
+		Const:   map[string]string{"UNIC": "http://www.unic.com"},
+		Rand:    map[string][]string{"varR": []string{"AA", "BB", "CC", "DD", "EE"}},
+		Seq:     map[string][]string{"varS": []string{"first ", "second", "third", "forth"}},
 		Param:   map[string][]string{"query": []string{"my-query"}, "selection": []string{"AB", "XY", "HP"}},
 		Setting: map[string]string{"Repeat": "4", "Sleep": "1200"},
 	}
@@ -98,7 +97,7 @@ SETTING
 		Const:    map[string]string{},
 		Rand:     map[string][]string{},
 		Seq:      map[string][]string{},
-		Setting:    map[string]string{"Repeat": "1"},
+		Setting:  map[string]string{"Repeat": "1"},
 	}
 
 	// h2 class=home == Qualität für Sie!

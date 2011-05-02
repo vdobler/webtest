@@ -30,15 +30,13 @@ var html1 = `<!DOCTYPE html>
 </html>`
 
 
-
 func TestMatch(t *testing.T) {
-	ts := TagSpec{Name: "title", 
-				  Content: "Hallo Welt", 
-				  Classes: []string{"imp", "new"},
-				  XClasses: []string{"old"},
-				  Attr: []html.Attribute{html.Attribute{Key:"id", Val: "hund"}},
-				  XAttr: []html.Attribute{html.Attribute{Key:"targett", Val: IGNORED}, html.Attribute{Key:"name", Val: "vod"}} }
+	ts := TagSpec{Name: "title",
+		Content:  "Hallo Welt",
+		Classes:  []string{"imp", "new"},
+		XClasses: []string{"old"},
+		Attr:     []html.Attribute{html.Attribute{Key: "id", Val: "hund"}},
+		XAttr:    []html.Attribute{html.Attribute{Key: "targett", Val: IGNORED}, html.Attribute{Key: "name", Val: "vod"}}}
 	fmt.Printf("TagSpec : " + ts.String() + "\n")
-
 
 }

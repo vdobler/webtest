@@ -8,7 +8,7 @@ import (
 var Random *rand.Rand
 
 func init() {
-	Random = rand.New(rand.NewSource(12345))  // TODO: use timestap or supplied param from cmd line
+	Random = rand.New(rand.NewSource(12345)) // TODO: use timestap or supplied param from cmd line
 }
 
 

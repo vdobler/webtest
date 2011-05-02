@@ -25,8 +25,8 @@ type Node struct {
 	Text   string
 	Full   string
 	Child  []*Node
-	subs   []*Node   // subs contains real child tags _and_ text childs (where Name=="-TXT-")
-	class  []string  
+	subs   []*Node // subs contains real child tags _and_ text childs (where Name=="-TXT-")
+	class  []string
 }
 
 // String "representation" of a Node. Usefull for debuging purpose.
@@ -54,7 +54,9 @@ func (n *Node) HtmlRep(indent int) (s string) {
 	if len(n.class) > 0 {
 		s += " class=\""
 		for i, c := range n.class {
-			if i > 0 { s += " " }
+			if i > 0 {
+				s += " "
+			}
 			s += c
 		}
 		s += "\""
@@ -62,7 +64,7 @@ func (n *Node) HtmlRep(indent int) (s string) {
 	s += "> " + n.Text
 	if indent >= 0 {
 		for _, c := range n.Child {
-			s += "\n" + c.HtmlRep(indent + 1)
+			s += "\n" + c.HtmlRep(indent+1)
 		}
 	}
 	return
@@ -79,7 +81,9 @@ func (n *Node) Html() (s string) {
 	if len(n.class) > 0 {
 		s += " class=\""
 		for i, c := range n.class {
-			if i > 0 { s += " " }
+			if i > 0 {
+				s += " "
+			}
 			s += c
 		}
 		s += "\""
@@ -108,12 +112,14 @@ func ParseHtml(h string) (root *Node) {
 	debug(h)
 	r := strings.NewReader(h)
 	parser := xml.NewParser(r)
-	parser.Strict = false;
-    parser.AutoClose = xml.HTMLAutoClose;
-    parser.Entity = xml.HTMLEntity
+	parser.Strict = false
+	parser.AutoClose = xml.HTMLAutoClose
+	parser.Entity = xml.HTMLEntity
 	for {
 		tok, err := parser.Token()
-		if err != nil { return nil }
+		if err != nil {
+			return nil
+		}
 		switch tok.(type) {
 		case xml.StartElement:
 			root = parse(tok, parser, nil)
@@ -150,7 +156,7 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 		a := html.Attribute{Key: attr.Name.Local, Val: attr.Value}
 		node.Attr = append(node.Attr, a)
 	}
-	
+
 	// var childs vector.Vector
 	// var chld []*Node
 
@@ -182,9 +188,9 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 
 	node.Text = strings.Trim(node.Text, " \n\t\r")
 	node.Full = strings.Trim(node.Full, " \n\t\r")
-	
+
 	prepareClasses(node)
-	
+
 	// debug("Made Node: " + node.String() + "\n")
 	// fmt.Printf("Made node: %s\n", node.String())
 	return
@@ -197,7 +203,7 @@ func prepareClasses(node *Node) {
 			node.class = strings.Fields(a.Val)
 			// Remove from Attr
 			m := len(node.Attr) - 1
-			for j:=i; j<m; j++ {
+			for j := i; j < m; j++ {
 				node.Attr[j] = node.Attr[j+1]
 			}
 			node.Attr = node.Attr[:m]

@@ -44,7 +44,7 @@ func trace(f string, m ...interface{}) {
 
 
 func shouldRun(s *suite.Suite, no int) bool {
-	if toRun == ""  {
+	if toRun == "" {
 		return true
 	}
 	sp := strings.Split(toRun, ",", -1)
@@ -52,11 +52,11 @@ func shouldRun(s *suite.Suite, no int) bool {
 	for _, x := range sp {
 		i, err := strconv.Atoi(x)
 		if err == nil {
-			if (i==0 && s.Test[0].Title!="Global") || (i>0 && i<len(s.Test)) && no==i {
+			if (i == 0 && s.Test[0].Title != "Global") || (i > 0 && i < len(s.Test)) && no == i {
 				return true
 			}
 		} else if strings.HasSuffix(x, "...") {
-			x = x[0:len(x)-3]
+			x = x[0 : len(x)-3]
 			if strings.HasPrefix(title, x) {
 				return true
 			}
@@ -77,36 +77,36 @@ func main() {
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
 
 	flag.Parse()
-	
+
 	suite.LogLevel = LogLevel
-		
+
 	if flag.NArg() == 0 {
 		fmt.Printf("No webtest file given.\n")
 		return
 	}
-	
+
 	var result string = "\n============================ Results ============================\n"
-	
-	for _, filename := range(flag.Args()) {
+
+	for _, filename := range flag.Args() {
 		file, err := os.Open(filename, os.O_RDONLY, 777)
 		if err != nil {
 			fmt.Printf("Cannot read from '%s': %s\n", filename, err.String())
 			continue
 		}
 		parser := suite.NewParser(file)
-		s , _ := parser.ReadSuite()
+		s, _ := parser.ReadSuite()
 		file.Close()
-		
+
 		result += "\nSuite " + filename + ":\n------------------------------------\n"
-		
+
 		for i, t := range s.Test {
 			if checkOnly {
 				fmt.Printf("\n%s\n", t.String())
 				continue
 			}
 			// do not run global
-			if i==0 && t.Title=="Global" { 
-				continue 
+			if i == 0 && t.Title == "Global" {
+				continue
 			}
 			if shouldRun(s, i) {
 				debug("shouldRun(s, %d) == %v", i, shouldRun(s, i))
@@ -120,7 +120,7 @@ func main() {
 			}
 			result += fmt.Sprintf("Test %2d: '%-20s': %s\n", i, at, s.Test[i].Status())
 		}
-		
+
 	}
 	// Summary
 	if !checkOnly {

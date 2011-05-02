@@ -21,14 +21,14 @@ type Test struct {
 	// MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
 	// Sleep    int // -1: unset, >=0: sleep after in ms
 	// Repeat   int // -1: unset, 0=disabled, >0: count
-	Param  map[string][]string
+	Param   map[string][]string
 	Setting map[string]string
-	Const  map[string]string
-	Rand   map[string][]string
-	Seq    map[string][]string
-	SeqCnt map[string]int
-	Vars   map[string]string
-	Result []string
+	Const   map[string]string
+	Rand    map[string][]string
+	Seq     map[string][]string
+	SeqCnt  map[string]int
+	Vars    map[string]string
+	Result  []string
 }
 
 func (t *Test) Report(pass bool, f string, m ...interface{}) {
@@ -104,10 +104,9 @@ func quote(s string, containedSpacesNeedQuotes bool) string {
 	s = strings.Replace(s, "\"", "\\\"", -1)
 	s = strings.Replace(s, "\n", "\\n", -1)
 	s = strings.Replace(s, "\t", "\\t", -1)
-	
+
 	return "\"" + s + "\""
 }
-
 
 
 func formatMap(s string, m *map[string]string) (f string) {
@@ -115,8 +114,8 @@ func formatMap(s string, m *map[string]string) (f string) {
 		f = s + "\n"
 		longest := 0
 		for k, _ := range *m {
-			if len(k) > longest { 
-				longest = len(k) 
+			if len(k) > longest {
+				longest = len(k)
 			}
 		}
 		for k, v := range *m {
@@ -131,8 +130,8 @@ func formatMultiMap(s string, m *map[string][]string) (f string) {
 		f = s + "\n"
 		longest := 0
 		for k, _ := range *m {
-			if len(k) > longest { 
-				longest = len(k) 
+			if len(k) > longest {
+				longest = len(k)
 			}
 		}
 		for k, l := range *m {
@@ -151,8 +150,8 @@ func formatCond(s string, m *[]Condition) (f string) {
 		f = s + "\n"
 		longest := 0
 		for _, c := range *m {
-			if len(c.Key) > longest { 
-				longest = len(c.Key) 
+			if len(c.Key) > longest {
+				longest = len(c.Key)
 			}
 		}
 		for _, c := range *m {

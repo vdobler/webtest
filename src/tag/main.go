@@ -50,14 +50,14 @@ func test(doc *tag.Node, spec string) {
 func main() {
 	doc := tag.ParseHtml(html1)
 
-	test(doc, "a class=ext class=int !class=wrong target !title == My * Link") 
+	test(doc, "a class=ext class=int !class=wrong target !title == My * Link")
 
 	test(doc, "div id=theDiv")
 
 	test(doc, "p class=ext !style id=myId !lang=en =D= Some Text")
-	
+
 	test(doc, "p\n  div id=theDiv")
-	
+
 	test(doc, "div\n  p\n    img\n    div\n      h2\n      p\n    p\n    h2\n      span")
-	  
+
 }

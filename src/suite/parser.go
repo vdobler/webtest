@@ -18,15 +18,15 @@ func (pe ParserError) String() string {
 
 type Line struct {
 	line string
-	no int
+	no   int
 }
 
 type Parser struct {
 	reader *linereader.Reader
-	line []Line
-	test *Test
-	suite []Test
-	i int
+	line   []Line
+	test   *Test
+	suite  []Test
+	i      int
 }
 
 func NewParser(r io.Reader) *Parser {
@@ -39,15 +39,19 @@ func NewParser(r io.Reader) *Parser {
 
 
 func (p *Parser) nextLine() (line Line, err os.Error) {
-	var isprefix bool 
+	var isprefix bool
 	var by []byte
 	var str string
 	by, isprefix, err = p.reader.ReadLine()
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	for isprefix {
 		str += string(by)
 		by, isprefix, err = p.reader.ReadLine()
-		if err != nil { return }
+		if err != nil {
+			return
+		}
 	}
 	str += string(by)
 	p.i++
@@ -58,8 +62,8 @@ func (p *Parser) nextLine() (line Line, err os.Error) {
 func (p *Parser) nextRealLine() (line Line, err os.Error) {
 	for {
 		line, err = p.nextLine()
-		if err != nil { 
-			return 
+		if err != nil {
+			return
 		}
 		if len(trim(line.line)) > 0 && !hp(trim(line.line), "#") {
 			break
@@ -73,7 +77,9 @@ func (p *Parser) readLines() {
 	p.i = 0
 	for {
 		line, err := p.nextRealLine()
-		if err != nil { return }
+		if err != nil {
+			return
+		}
 		p.line = append(p.line, line)
 		trace("%-3d: %s", line.no, line.line)
 	}
@@ -96,13 +102,13 @@ func deescape(str string) string {
 	str = strings.Replace(str, "\\\"", "\"", -1)
 	str = strings.Replace(str, "\\n", "\n", -1)
 	str = strings.Replace(str, "\\t", "\t", -1)
-	
+
 	return str
 }
 
 func dequote(str string) string {
-	if hp(str,"\"") && hs(str, "\"") {
-		str = str[1:len(str)-1]
+	if hp(str, "\"") && hs(str, "\"") {
+		str = str[1 : len(str)-1]
 		return deescape(str)
 	}
 	return str
@@ -111,11 +117,11 @@ func dequote(str string) string {
 func firstSpace(s string) int {
 	si := strings.Index(s, " ")
 	ti := strings.Index(s, "\t")
-	if si==-1 && ti==-1 {
+	if si == -1 && ti == -1 {
 		return -1
-	} else if si==-1 {
+	} else if si == -1 {
 		return ti
-	} else if ti==-1 {
+	} else if ti == -1 {
 		return si
 	} else if si < ti {
 		return si
@@ -147,15 +153,15 @@ func (p *Parser) readMap(m *map[string]string) {
 
 func StringList(line string) (list []string) {
 	all := strings.Fields(line)
-	
-	for i:=0; i<len(all); i++ {
+
+	for i := 0; i < len(all); i++ {
 		if hp(all[i], "\"") {
 			s := all[i]
 			i++
-			for ; i<len(all) && !(hs(all[i],"\"") && !hs(all[i], "\\\"")); i++ { 
+			for ; i < len(all) && !(hs(all[i], "\"") && !hs(all[i], "\\\"")); i++ {
 				s += " " + all[i]
 			}
-			if i<len(all) {
+			if i < len(all) {
 				s += " " + all[i]
 			}
 			list = append(list, dequote(s))
@@ -192,7 +198,7 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 }
 
 
-func (p *Parser) readCond(body bool) ([]Condition) {
+func (p *Parser) readCond(body bool) []Condition {
 	var list []Condition = make([]Condition, 0, 3)
 
 	for p.i < len(p.line)-1 {
@@ -223,7 +229,7 @@ func (p *Parser) readCond(body bool) ([]Condition) {
 				error("No such condition type '%s' for body.", k)
 				continue
 			}
-			
+
 			// Handle Tag
 			if k == "Tag" {
 				cond := Condition{Key: k, Val: line, Neg: neg}
@@ -231,7 +237,7 @@ func (p *Parser) readCond(body bool) ([]Condition) {
 				trace("Added to condition (line %d): %s", no, cond.String())
 				continue
 			}
-		} 
+		}
 		j = firstSpace(line)
 		if j == -1 {
 			error("No value on line %d", no)
@@ -248,15 +254,15 @@ func (p *Parser) readCond(body bool) ([]Condition) {
 
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
-	
+
 	var test *Test
 	suite = NewSuite()
-	
-	for p.i=0; p.i<len(p.line); p.i++ {
+
+	for p.i = 0; p.i < len(p.line); p.i++ {
 		line, no := p.line[p.i].line, p.line[p.i].no
-		
+
 		// sart of test
-		if hp(line,"---------") {
+		if hp(line, "---------") {
 			if test != nil {
 				suite.Test = append(suite.Test, *test)
 				trace("Append test to suite: \n%s", test.String())
@@ -272,7 +278,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			test = NewTest(line)
 			p.i++
 			line, no = p.line[p.i].line, p.line[p.i].no
-			if !hp(line,"---------") {
+			if !hp(line, "---------") {
 				error("Title lower border missing in line %d", no)
 				err = ParserError{"Title lower border missing."}
 				return
@@ -291,37 +297,37 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 				return
 			}
 		}
-		
+
 		if hp(line, "\t") || hp(line, " ") {
 			error("Misplaced indented stuff in line %d", no)
 			err = ParserError{"Mispalced indented stuff"}
 			return
 		}
-		
+
 		line = trim(line)
 		switch line {
 		case "HEADER":
-			p.readMap( &test.Header )
+			p.readMap(&test.Header)
 		case "RESPONSE":
-			 test.RespCond = p.readCond( false )
+			test.RespCond = p.readCond(false)
 		case "BODY":
-			test.BodyCond = p.readCond( true )
+			test.BodyCond = p.readCond(true)
 		case "PARAM":
-			p.readMultiMap( &test.Param )
+			p.readMultiMap(&test.Param)
 		case "SETTING":
-			p.readMap( &test.Setting )
+			p.readMap(&test.Setting)
 		case "CONST":
-			p.readMap( &test.Const )
+			p.readMap(&test.Const)
 		case "RAND":
-			p.readMultiMap( &test.Rand )
+			p.readMultiMap(&test.Rand)
 		case "SEQ":
-			p.readMultiMap( &test.Seq )
-		default :
+			p.readMultiMap(&test.Seq)
+		default:
 			error("Unknow element '%s' in line %d. Skipped.", line, no)
 		}
-		
+
 	}
-	
+
 	if test != nil {
 		suite.Test = append(suite.Test, *test)
 		trace("Append test to suite: \n%s", test.String())
