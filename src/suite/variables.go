@@ -36,7 +36,9 @@ func usedVars(str string) (vars []string) {
 // Choose a random one of list.
 func randomVar(list []string) string {
 	n := len(list)
-	return list[Random.Intn(n)]
+	r := Random.Intn(n)
+	trace("Will use %d from list of %d.", r, n)
+	return list[r]
 }
 
 
@@ -90,8 +92,10 @@ func varValue(v string, test, orig *Test) (value string) {
 		trace("Reusing '%s' for var '%s'.", val, v)
 	} else if val, ok := test.Const[v]; ok {
 		value = val
+		trace("Using const '%s' for var '%s'.", val, v)
 	} else if rnd, ok := test.Rand[v]; ok {
 		value = randomVar(rnd)
+		trace("Using random '%s' for var '%s'.", value, v)
 	} else if seq, ok := test.Seq[v]; ok {
 		value = nextVar(seq, v, orig)
 	} else {
@@ -116,8 +120,7 @@ func substitute(str string, test, global, orig *Test) string {
 			val = varValue(v, test, orig)
 		}
 		trace("Will use '%s' as value for var %s.", val, v)
-		str = strings.Replace(str, "${"+v+"}", val, 1)
-		trace("str now '%s'", str)
+		str = strings.Replace(str, "${" + v + "}", val, 1)
 	}
 	if len(used) > 0 {
 		trace("Substituted %d variables: '%s'.", len(used), str)
@@ -136,6 +139,15 @@ func substituteVariables(test, global, orig *Test) {
 	}
 	for i, c := range test.BodyCond {
 		test.BodyCond[i].Val = substitute(c.Val, test, global, orig)
+	}
+
+	for k, vl := range test.Param {
+		trace("Param %s: %v", k, vl)
+		sl := make([]string, len(vl))
+		for i, v := range vl {
+			sl[i] = substitute(v, test, global, orig)
+		}
+		test.Param[k] = sl
 	}
 	// TODO: what fileds else? in Params too?
 }

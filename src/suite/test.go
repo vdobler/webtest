@@ -5,7 +5,7 @@ import (
 	"http"
 	"strings"
 	"os"
-	"./../tag/tag"
+	"dobler/webtest/tag"
 	"encoding/hex"
 	"time"
 )
@@ -40,22 +40,70 @@ type Test struct {
 	Result  []string
 }
 
+// Make a deep copy of src. dest will not share any data structures with src.
+func (src *Test) Copy() (dest *Test) {
+	dest = new(Test)
+	dest.Title = src.Title
+	dest.Method = src.Method
+	dest.Url = src.Url
+	dest.Header = copyMap(src.Header)
+	dest.RespCond = make([]Condition, len(src.RespCond))
+	copy(dest.RespCond, src.RespCond)
+	dest.BodyCond = make([]Condition, len(src.BodyCond))
+	copy(dest.BodyCond, src.BodyCond)
+	dest.Pre = make([]string, len(src.Pre))
+	copy(dest.Pre, src.Pre)
+	dest.Param = copyMultiMap(src.Param)
+	dest.Setting = copyMap(src.Setting)
+	dest.Const = copyMap(src.Const)
+	dest.Rand = copyMultiMap(src.Rand)
+	dest.Seq = copyMultiMap(src.Seq)
+	dest.SeqCnt = make(map[string]int, len(src.SeqCnt))
+	for k, v := range src.SeqCnt {
+		dest.SeqCnt[k] = v
+	}
+	dest.Vars = copyMap(src.Vars)
+	dest.Result = make([]string, len(src.Result))
+	copy(dest.Result, src.Result)
+	return
+}
+
+func copyMultiMap(src map[string][]string) (dest map[string][]string) {
+	dest = make(map[string][]string, len(src))
+	for k, vl := range src {
+		nl := make([]string, len(vl))
+		copy(nl, vl)
+		dest[k] = nl
+	}
+	return
+}
+func copyMap(src map[string]string) (dest map[string]string) {
+	dest = make(map[string]string, len(src))
+	for k, v := range src {
+		dest[k] = v
+	}
+	return
+}
+
+
+// Store pass or fail in t.
 func (t *Test) Report(pass bool, f string, m ...interface{}) {
 	s := fmt.Sprintf(f, m...)
 	if pass {
 		s = "Passed " + s
-		info(s)
+		debug(s)
 	} else {
 		s = "FAILED " + s
-		error(s)
+		info(s)
 	}
 	t.Result = append(t.Result, s)
 }
 
+// Return number of executed (total), passed and failed tests. 
 func (t *Test) Stat() (total, passed, failed int) {
 	for _, r := range t.Result {
 		total++
-		trace("Result: %s", r)
+		// trace("Result: %s", r)
 		if strings.HasPrefix(r, "Passed") {
 			passed++
 		} else {
@@ -65,6 +113,7 @@ func (t *Test) Stat() (total, passed, failed int) {
 	return
 }
 
+// Texttual representation of t.Stat()
 func (t *Test) Status() (status string) {
 	n, p, f := t.Stat()
 	if n == 0 {
@@ -83,14 +132,14 @@ func (t *Test) Status() (status string) {
 func NewTest(title string) *Test {
 	t := Test{Title: title}
 
-	t.Header = make(map[string]string, 3)
-	t.Param = make(map[string][]string, 3)
-	t.Setting = make(map[string]string, 3)
-	t.Const = make(map[string]string, 3)
-	t.Rand = make(map[string][]string, 3)
-	t.Seq = make(map[string][]string, 3)
-	t.SeqCnt = make(map[string]int, 3)
-	t.Vars = make(map[string]string, 3)
+	t.Header = make(map[string]string)
+	t.Param = make(map[string][]string)
+	t.Setting = make(map[string]string)
+	t.Const = make(map[string]string)
+	t.Rand = make(map[string][]string)
+	t.Seq = make(map[string][]string)
+	t.SeqCnt = make(map[string]int)
+	t.Vars = make(map[string]string)
 
 	t.Setting["Repeat"] = "1"
 	t.Setting["MaxTime"] = "unlimited"
@@ -186,6 +235,7 @@ func (t *Test) String() (s string) {
 	s += formatMap("CONST", &t.Const)
 	s += formatMultiMap("SEQ", &t.Seq)
 	s += formatMultiMap("RAND", &t.Rand)
+	s += formatMap("SETTING", &t.Setting)
 
 	return
 }
@@ -244,6 +294,7 @@ func testBody(body string, t, orig *Test, doc *tag.Node) {
 		case "Bin":
 			if binbody == nil {
 				bin := hex.EncodeToString([]byte(body))
+				// fmt.Printf("binbody == >>%s<<\n", bin)
 				binbody = &bin
 			}
 			if !c.Fullfilled(*binbody) {
@@ -277,6 +328,15 @@ func testBody(body string, t, orig *Test, doc *tag.Node) {
 }
 
 
+func addMissingHeader(test, global *map[string]string) {
+	for k, v := range *global {
+		if _, ok := (*test)[k]; !ok {
+			(*test)[k] = v
+			trace("Adding missing header %s: %s", k, v)
+		}
+	}
+}
+
 func addMissingCond(test, global []Condition) []Condition {
 	a := len(test)
 	for _, cond := range global {
@@ -307,21 +367,21 @@ func addAllCond(test, global []Condition) []Condition {
 
 // Prepare the test: Add new stuff from global
 func prepareTest(t, global *Test) *Test {
-	debug("Preparing test '%s'.", t.Title)
+	debug("Preparing test '%s' (global %t).", t.Title, (global!=nil))
 
 	// Clear map of variable values: new run, new values (overkill for consts)
 	for k, _ := range t.Vars {
 		t.Vars[k] = "", false
 	}
-
-	test := *t // create copy
+	test := t.Copy()
 	if global != nil {
+		addMissingHeader(&test.Header, &global.Header)
 		test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	}
-	substituteVariables(&test, global, t)
+	substituteVariables(test, global, t)
 	debug("Test to execute = \n%s", test.String())
-	return &test
+	return test
 }
 
 func parsableBody(resp *http.Response) bool {
@@ -407,7 +467,6 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 
 	ti := prepareTest(test, global)
-	info("Running test '%s'", ti.Title)
 
 	if ti.Method != "GET" {
 		error("Post not jet implemented")
@@ -440,7 +499,7 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 
 	_, _, failed := test.Stat()
 	if failed != 0 {
-		err = Error("Failure: " + geterr.String())
+		err = Error("Failure: " + test.Status())
 	}
 	
 	time.Sleep(1000 * int64(test.Sleep()))

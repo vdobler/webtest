@@ -232,7 +232,7 @@ func (p *Parser) readCond(body bool) []Condition {
 
 			// Handle Tag
 			if k == "Tag" {
-				cond := Condition{Key: k, Val: line, Neg: neg}
+				cond := Condition{Key: k, Val: line, Neg: neg, Line: no}
 				list = append(list, cond)
 				trace("Added to condition (line %d): %s", no, cond.String())
 				continue
@@ -245,7 +245,10 @@ func (p *Parser) readCond(body bool) []Condition {
 		}
 		op := trim(line[:j])
 		v := trim(line[j:])
-		cond := Condition{Key: k, Op: op, Val: v, Neg: neg}
+		if k == "Bin" {
+			v = strings.ToLower(v)  // our internal bin-values are lowercase
+		}
+		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Line: no}
 		list = append(list, cond)
 		trace("Added to condition (line %d): %s", no, cond.String())
 	}
@@ -312,9 +315,9 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			test.RespCond = p.readCond(false)
 		case "BODY":
 			test.BodyCond = p.readCond(true)
-		case "PARAM":
+		case "PARAM", "PARAMETERS":
 			p.readMultiMap(&test.Param)
-		case "SETTING":
+		case "SETTING", "SETTINGS":
 			p.readMap(&test.Setting)
 		case "CONST":
 			p.readMap(&test.Const)

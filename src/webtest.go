@@ -7,7 +7,7 @@ import (
 	"strings"
 	"strconv"
 	"log"
-	"./suite/suite"
+	"dobler/webtest/suite"
 	"sort"
 )
 
@@ -91,6 +91,8 @@ func fiveval(data []int) (min, lq, med, avg, uq, max int) {
 	
 	return
 }
+
+
 
 func main() {
 	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")

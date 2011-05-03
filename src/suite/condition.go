@@ -51,7 +51,7 @@ func (cond *Condition) Fullfilled(v string) bool {
 		ans = (atoi(v, cond.Line, 0) >= atoi(cond.Val, cond.Line, 0))
 	case "/=":
 		if rexp, err := regexp.Compile(cond.Val); err == nil {
-			ans = (rexp.FindStringIndex(v) == nil)
+			ans = (rexp.FindStringIndex(v) != nil)
 		} else {
 			error("Invalid regexp in condition '%s': %s", cond.String(), err.String())
 		}

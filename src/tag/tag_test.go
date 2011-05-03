@@ -1,20 +1,18 @@
-package main
+package tag
 
 import (
-	"./tag"
 	"testing"
-	"regexp"
-	"fmt"
+	_ "fmt"
 )
 
-func check(doc *tag.Node, spec, expectedId string, t *testing.T) {
-	fmt.Printf("Spec: %s\n", spec)
-	ts := tag.ParseTagSpec(spec)
+func check(doc *Node, spec, expectedId string, t *testing.T) {
+	// fmt.Printf("Spec: %s\n", spec)
+	ts := ParseTagSpec(spec)
 	if ts == nil {
 		t.Error("Unparsabel " + spec)
 		return
 	} else {
-		n := tag.FindTag(ts, doc)
+		n := FindTag(ts, doc)
 		if n == nil {
 			t.Error("Not found: " + spec)
 			return
@@ -57,8 +55,18 @@ var SimpleHtml = `<!DOCTYPE html>
 </html>`
 
 
+
+
+func BenchmarkParsing(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        _ = ParseHtml(SimpleHtml)
+    }
+}
+
+
+
 func TestBasics(t *testing.T) {
-	doc := tag.ParseHtml(SimpleHtml)
+	doc := ParseHtml(SimpleHtml)
 	if doc == nil {
 		t.Error("Unparsabel html.")
 		t.FailNow()
@@ -99,9 +107,3 @@ func TestBasics(t *testing.T) {
 	// check(doc, "", "", t)
 }
 
-func main() {
-	tests := []testing.InternalTest{
-		{"TestBasics", TestBasics},
-	}
-	testing.Main(regexp.MatchString, tests)
-}

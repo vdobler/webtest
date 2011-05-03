@@ -1,14 +1,12 @@
+include $(GOROOT)/src/Make.inc
 
-main.exe: main.8 suite.8
-	8l -o main.exe main.8
+TARG=dobler/webtest/suite
+GOFILES=\
+	suite.go\
+	test.go\
+	condition.go\
+	variables.go\
+	parser.go\
+	http.go
 
-main.8: main.go suite.8
-	8g main.go
-	
-suite.8: suite.go test.go variables.go condition.go http.go parser.go
-	8g -o $@ $+
-
-clean:
-	rm -f *.8 *.exe
-
-PHONY: clean
+include $(GOROOT)/src/Make.pkg

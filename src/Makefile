@@ -1,15 +1,20 @@
+include $(GOROOT)/src/Make.inc
 
-webtest.exe: webtest.8 
-	8l -o webtest.exe  webtest.8 
+TARG=webtest
+GOFILES=\
+	webtest.go\
 
-webtest.8: webtest.go 
-	cd tag && $(MAKE) tag.8
-	cd suite && $(MAKE) suite.8
-	8g webtest.go
+DEFAULT: webtest.exe
 	
-clean:
-	cd tag && $(MAKE) clean
-	cd suite && $(MAKE) clean
-	rm -f *.8 *.exe
-
-PHONY: clean
+	
+PACKAGES:
+	cd tag && $(MAKE) install
+	cd suite && $(MAKE) install
+	
+CLEAN:
+	cd tag && $(MAKE) clean 
+	cd suite && $(MAKE) clean 
+	$(MAKE) clean 
+	
+	
+include $(GOROOT)/src/Make.cmd

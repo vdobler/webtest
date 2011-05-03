@@ -1,0 +1,59 @@
+#
+# A very basic example
+#
+
+-------------------------------
+Global
+-------------------------------
+GET no.use
+HEADER
+	User-Agent		Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
+	Authorization	Basic YWRtaW46YWRtaW4=
+RESPONSE
+	StatusCode == 200
+CONST
+	BaseUrl  http://localhost:4502/content/test/de
+	
+
+--------------------------------
+Startseite
+--------------------------------
+GET ${BaseUrl}/index.html
+PARAM
+	wcmmode  disabled
+BODY
+	Txt  ~= Kanton Bern
+	Tag  p class=date == 7. Juli 2010
+	Tag  a href=/test/de/index/marc.html class=twoLines 
+
+
+--------------------------------
+Meldungssuche 2005
+--------------------------------
+GET ${BaseUrl}/index/wasser.archiv.html
+PARAM
+	wcmmode		disabled
+	years		2005
+	months		all
+	submit		Suchen
+BODY
+	 Txt  ~= Kanton Bern
+	 Tag  p class=date == 25. Mai 2005
+	 Tag  p == Description of test 8
+	!Tag  p class=date ==  * 2040
+	!Tag  p class=date == 5. Juli 2010
+	
+
+--------------------------------
+Meldungssuche Angriff
+--------------------------------
+GET ${BaseUrl}/index/wasser.archiv.html
+PARAM
+	wcmmode		disabled
+	years		2000
+	months		${Month}
+	submit		Suchen
+SEQ
+	Month		1 2 11 12 0 13 -1 999 -999 a " " abcxyz <h1>Gotcha!</h1>
+SETTING
+	Repeat		13

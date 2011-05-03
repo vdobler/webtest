@@ -82,7 +82,7 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 		addHeaders(&req, t)
 		// ^^^^ Patched ^^^^
 		url = req.URL.String()
-		trace("GETing %s", url)
+		info("GET %s", url)
 		if r, err = http.DefaultClient.Do(&req); err != nil {
 			break
 		}

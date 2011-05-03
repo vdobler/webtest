@@ -118,7 +118,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 
 // TODO: Compile just once (during parsing/tagspec construction
 func regexpMatches(s, exp string) bool {
-	fmt.Printf("Regexp Match '%s' :: '%s'\n", s, exp)
+	// fmt.Printf("Regexp Match '%s' :: '%s'\n", s, exp)
 	if rexp, err := regexp.Compile(exp); err == nil {
 		return (rexp.FindStringIndex(s) != nil)
 	} else {

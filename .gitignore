@@ -1,4 +1,8 @@
 # Ignore compiled and executable files
 *.8
 *.exe
+_obj
+_test
+_testmain.go
+
 
