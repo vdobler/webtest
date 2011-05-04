@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	port = ":54123"
-	host = "http://localhost"
+	port     = ":54123"
+	host     = "http://localhost"
 	theSuite *Suite
 )
 
@@ -115,11 +115,11 @@ func StartHandlers(addr string, t *testing.T) (err os.Error) {
 	http.Handle("/html.html", http.HandlerFunc(htmlHandler))
 	http.Handle("/bin.bin", http.HandlerFunc(binHandler))
 	http.Handle("/404.html", http.NotFoundHandler())
-    err = http.ListenAndServe(addr, nil)
-    if err != nil {
-        fmt.Printf("Cannot run test server on port %s.\nFAIL\n", addr)
+	err = http.ListenAndServe(addr, nil)
+	if err != nil {
+		fmt.Printf("Cannot run test server on port %s.\nFAIL\n", addr)
 		os.Exit(1)
-    }
+	}
 	return
 }
 
@@ -163,7 +163,7 @@ func binHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func passed(test *Test, t *testing.T) bool {
- 	if !strings.HasPrefix(test.Status(), "PASSED") {
+	if !strings.HasPrefix(test.Status(), "PASSED") {
 		t.Logf("Result from test %s:\n%s", test.Title, test.Result)
 		t.Fail()
 		return false
@@ -176,12 +176,11 @@ func TestParsing(t *testing.T) {
 	suiteText := fmt.Sprintf(suiteTmpl, host, port)
 	p := NewParser(strings.NewReader(suiteText))
 	var err os.Error
-	theSuite, err = p.ReadSuite() 
+	theSuite, err = p.ReadSuite()
 	if err != nil {
 		t.Fatalf("Cannot read suite: %s", err.String())
 	}
 }
-
 
 
 func TestBasic(t *testing.T) {
@@ -203,7 +202,6 @@ func TestBin(t *testing.T) {
 }
 
 
-
 func TestSequence(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
@@ -219,6 +217,3 @@ func TestRandom(t *testing.T) {
 	theSuite.RunTest(5)
 	passed(&theSuite.Test[5], t)
 }
-
-
-

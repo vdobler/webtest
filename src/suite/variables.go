@@ -120,7 +120,7 @@ func substitute(str string, test, global, orig *Test) string {
 			val = varValue(v, test, orig)
 		}
 		trace("Will use '%s' as value for var %s.", val, v)
-		str = strings.Replace(str, "${" + v + "}", val, 1)
+		str = strings.Replace(str, "${"+v+"}", val, 1)
 	}
 	if len(used) > 0 {
 		trace("Substituted %d variables: '%s'.", len(used), str)

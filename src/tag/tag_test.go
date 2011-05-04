@@ -55,14 +55,11 @@ var SimpleHtml = `<!DOCTYPE html>
 </html>`
 
 
-
-
 func BenchmarkParsing(b *testing.B) {
-    for i := 0; i < b.N; i++ {
-        _ = ParseHtml(SimpleHtml)
-    }
+	for i := 0; i < b.N; i++ {
+		_ = ParseHtml(SimpleHtml)
+	}
 }
-
 
 
 func TestBasics(t *testing.T) {
@@ -106,4 +103,3 @@ func TestBasics(t *testing.T) {
 	check(doc, "span == /Some [aeio]+ text/", "SP1", t)
 	// check(doc, "", "", t)
 }
-

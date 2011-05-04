@@ -15,6 +15,7 @@ var (
 )
 
 type Error string
+
 func (e Error) String() string {
 	return string(e)
 }
@@ -367,7 +368,7 @@ func addAllCond(test, global []Condition) []Condition {
 
 // Prepare the test: Add new stuff from global
 func prepareTest(t, global *Test) *Test {
-	debug("Preparing test '%s' (global %t).", t.Title, (global!=nil))
+	debug("Preparing test '%s' (global %t).", t.Title, (global != nil))
 
 	// Clear map of variable values: new run, new values (overkill for consts)
 	for k, _ := range t.Vars {
@@ -436,11 +437,11 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 	if count < 5 {
 		warn("Cannot benchmark with less than 5 rounds. Will use 5.")
 		count = 5
-	} 
+	}
 
 	durations = make([]int, count)
 	total, okay := 0, 0
-	
+
 	for okay < count {
 		if float32(total) > BenchTolerance*float32(count) {
 			info("Too many errors for %d: %f > %f", count, float32(total), BenchTolerance*float32(count))
@@ -459,7 +460,7 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 	}
 
 	failures = total - okay
-	
+
 	return
 }
 
@@ -477,8 +478,8 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 	starttime := time.Nanoseconds()
 	response, url, geterr := Get(ti)
 	endtime := time.Nanoseconds()
-	duration = int(endtime - starttime)/1000000
-	
+	duration = int(endtime-starttime) / 1000000
+
 	if geterr != nil {
 		test.Report(false, geterr.String())
 		err = Error("Error: " + geterr.String())
@@ -501,7 +502,7 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 	if failed != 0 {
 		err = Error("Failure: " + test.Status())
 	}
-	
+
 	time.Sleep(1000 * int64(test.Sleep()))
 	return
 }

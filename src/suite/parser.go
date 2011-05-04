@@ -246,7 +246,7 @@ func (p *Parser) readCond(body bool) []Condition {
 		op := trim(line[:j])
 		v := trim(line[j:])
 		if k == "Bin" {
-			v = strings.ToLower(v)  // our internal bin-values are lowercase
+			v = strings.ToLower(v) // our internal bin-values are lowercase
 		}
 		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Line: no}
 		list = append(list, cond)
