@@ -15,8 +15,8 @@ import (
 var benchmark bool = false
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
-var tagLogLevel int = LogLevel
-var suiteLogLevel int = LogLevel
+var tagLogLevel int = -1
+var suiteLogLevel int = -1
 var testsToRun string = ""
 var checkOnly bool
 
@@ -102,8 +102,8 @@ func fiveval(data []int) (min, lq, med, avg, uq, max int) {
 
 func main() {
 	flag.IntVar(&LogLevel, "log", 2, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
-	flag.IntVar(&tagLogLevel, "taglog", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
-	flag.IntVar(&suiteLogLevel, "suitelog", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
 	flag.StringVar(&testsToRun, "test", "", "Run just some tests (numbers or name)")
@@ -115,7 +115,7 @@ func main() {
 		tagLogLevel = LogLevel
 	}
 	if suiteLogLevel < 0 {
-		tagLogLevel = LogLevel
+		suiteLogLevel = LogLevel
 	}
 	
 	suite.LogLevel = suiteLogLevel
