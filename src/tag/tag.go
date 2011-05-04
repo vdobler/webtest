@@ -3,21 +3,43 @@ package tag
 import (
 	"fmt"
 	"regexp"
-	// "os"
+	"os"
 	"html"
-	// "log"
+	"log"
 	"strings"
-	// "container/vector"
 )
 
-var Debug bool
+var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var logger *log.Logger
 
-func debug(m ...interface{}) {
-	if Debug {
-		str := fmt.Sprint(m...)
-		fmt.Print(str + "\n")
+func init() {
+	logger = log.New(os.Stderr, "Tag ", log.Ldate | log.Ltime) 
+}
+
+func error(f string, m ...interface{}) {
+	if LogLevel >= 1 {
+		logger.Panic("*ERROR* " + fmt.Sprintf(f, m...))
 	}
-	// log.Print(m...)
+}
+func warn(f string, m ...interface{}) {
+	if LogLevel >= 2 {
+		logger.Print("*WARN * " + fmt.Sprintf(f, m...))
+	}
+}
+func info(f string, m ...interface{}) {
+	if LogLevel >= 3 {
+		logger.Print("*INFO * " + fmt.Sprintf(f, m...))
+	}
+}
+func debug(f string, m ...interface{}) {
+	if LogLevel >= 4 {
+		logger.Print("*DEBUG* " + fmt.Sprintf(f, m...))
+	}
+}
+func trace(f string, m ...interface{}) {
+	if LogLevel >= 5 {
+		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
+	}
 }
 
 // Check if cl is presnet in classes.
@@ -138,6 +160,7 @@ func wildcardMatches(s, exp string) bool {
 // Dispatch "plain text", "/regular expression/" and "wildcard * search"
 // to the appropriate functions
 func textMatches(s, exp string) bool {
+	debug("textMatches: got '%s' expected '%s'", s, exp)
 	if exp == "" {
 		return true
 	}

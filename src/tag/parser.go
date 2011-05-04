@@ -62,6 +62,11 @@ func (n *Node) HtmlRep(indent int) (s string) {
 		s += "\""
 	}
 	s += "> " + n.Text
+	/* *********************************
+	if n.Full != "" {
+		s += "  [[" + n.Full + "]]"
+	}
+	********************************** */
 	if indent >= 0 {
 		for _, c := range n.Child {
 			s += "\n" + c.HtmlRep(indent+1)
@@ -122,8 +127,10 @@ func ParseHtml(h string) (root *Node) {
 		}
 		switch tok.(type) {
 		case xml.StartElement:
+			debug("Starting from %v", tok)
 			root = parse(tok, parser, nil)
-			debug("Constructed Html: \n" + root.HtmlRep(0))
+			debug("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
+			debug("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
 			return root
 		}
 	}
@@ -136,6 +143,9 @@ func ParseHtml(h string) (root *Node) {
 //  - trim result.
 func cleanText(t string) (s string) {
 	s = strings.Replace(strings.Replace(strings.Replace(t, "\n", " ", -1), "\r", " ", -1), "\t", " ", -1)
+	for strings.Contains(s, "        ") {
+		s = strings.Replace(s, "        ", " ", -1)
+	}
 	for strings.Contains(s, "    ") {
 		s = strings.Replace(s, "    ", " ", -1)
 	}
@@ -151,6 +161,7 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 	node.Parent = parent
 	st, _ := tok.(xml.StartElement)
 	node.Name = st.Name.Local
+	debug("parsing tag %s", node.Name)
 	node.Attr = []html.Attribute{}
 	for _, attr := range st.Attr {
 		a := html.Attribute{Key: attr.Name.Local, Val: attr.Value}
@@ -163,6 +174,7 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 	for done := false; !done; {
 		tok, err := parser.Token()
 		if err != nil {
+			fmt.Printf("next token is err: %s\n", err.String())
 			return
 		}
 		switch t := tok.(type) {
@@ -170,7 +182,10 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 			ch := parse(t, parser, node)
 			node.Child = append(node.Child, ch)
 			node.subs = append(node.subs, ch)
-			node.Full += " " + ch.Full
+			if node.Full != "" {
+				node.Full += " " 
+			}
+			node.Full += ch.Full
 		case xml.EndElement:
 			if t.Name.Local != node.Name {
 				fmt.Printf("Tag " + node.Name + " closed by " + t.Name.Local + "\n")
@@ -187,11 +202,11 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 	}
 
 	node.Text = strings.Trim(node.Text, " \n\t\r")
-	node.Full = strings.Trim(node.Full, " \n\t\r")
+	node.Full = cleanText(node.Full)
 
 	prepareClasses(node)
 
-	// debug("Made Node: " + node.String() + "\n")
+	debug("Made Node: " + node.String() + "\n")
 	// fmt.Printf("Made node: %s\n", node.String())
 	return
 }

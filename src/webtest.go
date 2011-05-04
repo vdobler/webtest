@@ -9,12 +9,15 @@ import (
 	"log"
 	"dobler/webtest/suite"
 	"sort"
+	"dobler/webtest/tag"
 )
 
 var benchmark bool = false
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
-var toRun string = ""
+var tagLogLevel int = LogLevel
+var suiteLogLevel int = LogLevel
+var testsToRun string = ""
 var checkOnly bool
 
 func error(f string, m ...interface{}) {
@@ -45,10 +48,10 @@ func trace(f string, m ...interface{}) {
 
 
 func shouldRun(s *suite.Suite, no int) bool {
-	if toRun == "" {
+	if testsToRun == "" {
 		return true
 	}
-	sp := strings.Split(toRun, ",", -1)
+	sp := strings.Split(testsToRun, ",", -1)
 	title := s.Test[no].Title
 	for _, x := range sp {
 		i, err := strconv.Atoi(x)
@@ -98,16 +101,26 @@ func fiveval(data []int) (min, lq, med, avg, uq, max int) {
 
 
 func main() {
+	flag.IntVar(&LogLevel, "log", 2, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&tagLogLevel, "taglog", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&suiteLogLevel, "suitelog", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
-	flag.IntVar(&LogLevel, "log", 2, "Log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
-	flag.StringVar(&toRun, "test", "", "Run just some tests (numbers or name)")
+	flag.StringVar(&testsToRun, "test", "", "Run just some tests (numbers or name)")
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
 
 	flag.Parse()
 
-	suite.LogLevel = LogLevel
-
+	if tagLogLevel < 0 {
+		tagLogLevel = LogLevel
+	}
+	if suiteLogLevel < 0 {
+		tagLogLevel = LogLevel
+	}
+	
+	suite.LogLevel = suiteLogLevel
+	tag.LogLevel = tagLogLevel
+	
 	if flag.NArg() == 0 {
 		fmt.Printf("No webtest file given.\n")
 		return

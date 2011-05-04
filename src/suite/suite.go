@@ -7,31 +7,35 @@ import (
 )
 
 var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var logger *log.Logger
 
+func init() {
+	logger = log.New(os.Stderr, "Suite ", log.Ldate | log.Ltime) 
+}
 
 func error(f string, m ...interface{}) {
 	if LogLevel >= 1 {
-		log.Print("*ERROR* " + fmt.Sprintf(f, m...))
+		logger.Print("*ERROR* " + fmt.Sprintf(f, m...))
 	}
 }
 func warn(f string, m ...interface{}) {
 	if LogLevel >= 2 {
-		log.Print("*WARN * " + fmt.Sprintf(f, m...))
+		logger.Print("*WARN * " + fmt.Sprintf(f, m...))
 	}
 }
 func info(f string, m ...interface{}) {
 	if LogLevel >= 3 {
-		log.Print("*INFO * " + fmt.Sprintf(f, m...))
+		logger.Print("*INFO * " + fmt.Sprintf(f, m...))
 	}
 }
 func debug(f string, m ...interface{}) {
 	if LogLevel >= 4 {
-		log.Print("*DEBUG* " + fmt.Sprintf(f, m...))
+		logger.Print("*DEBUG* " + fmt.Sprintf(f, m...))
 	}
 }
 func trace(f string, m ...interface{}) {
 	if LogLevel >= 5 {
-		log.Print("*TRACE* " + fmt.Sprintf(f, m...))
+		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
 	}
 }
 
