@@ -85,6 +85,7 @@ var brokenHtml2 = `<!DOCTYPE html>
 </html>`
 
 func TestParsing(t *testing.T) {
+	LogLevel = 4
 	doc := ParseHtml(structureHtml)
 	if doc == nil {
 		t.Error("Unparsabel html.")

@@ -129,8 +129,8 @@ func ParseHtml(h string) (root *Node) {
 		case xml.StartElement:
 			debug("Starting from %v", tok)
 			root = parse(tok, parser, nil)
-			debug("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
-			debug("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
+			trace("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
+			trace("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
 			return root
 		}
 	}
@@ -161,7 +161,7 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 	node.Parent = parent
 	st, _ := tok.(xml.StartElement)
 	node.Name = st.Name.Local
-	debug("parsing tag %s", node.Name)
+	trace("parsing tag %s", node.Name)
 	node.Attr = []html.Attribute{}
 	for _, attr := range st.Attr {
 		a := html.Attribute{Key: attr.Name.Local, Val: attr.Value}
@@ -206,8 +206,7 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 
 	prepareClasses(node)
 
-	debug("Made Node: " + node.String() + "\n")
-	// fmt.Printf("Made node: %s\n", node.String())
+	trace("Made Node: " + node.String() + "\n")
 	return
 }
 

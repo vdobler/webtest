@@ -155,7 +155,7 @@ func indentDepth(s string) (d int) {
 }
 
 func ParseTagSpec(spec string) (ts *TagSpec) {
-	debug("\nParseTagSpec:\n%s\n", spec)
+	trace("Parsing TagSpec: %s", spec)
 	lines := strings.Split(spec, "\n", -1)
 	ts = ParseSimpleTagSpec(lines[0])
 	if len(lines) > 1 {

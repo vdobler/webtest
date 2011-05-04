@@ -68,9 +68,10 @@ func containsAttr(a html.Attribute, attr []html.Attribute) bool {
 
 // Check if ts matches the token node
 func Matches(ts *TagSpec, node *Node) bool {
-
+	debug("Trying node: " + node.String())
+	
 	// Tag Name
-	if node.Name == "*" {
+	if ts.Name == "*" {
 		return true
 	}
 	if node.Name != ts.Name {
@@ -79,14 +80,14 @@ func Matches(ts *TagSpec, node *Node) bool {
 
 	// Tag Attributes
 	for _, a := range ts.Attr {
-		debug("  Checking needed attribute ", a)
+		debug("  Checking needed attribute %s", a)
 		if !containsAttr(a, node.Attr) {
 			debug("    --> missing")
 			return false
 		}
 	}
 	for _, a := range ts.XAttr {
-		debug("  Checking forbidden attribute ", a)
+		debug("  Checking forbidden attribute %s", a)
 		if containsAttr(a, node.Attr) {
 			debug("    --> present")
 			return false
@@ -95,14 +96,14 @@ func Matches(ts *TagSpec, node *Node) bool {
 
 	// Classes
 	for _, c := range ts.Classes {
-		debug("  Checking needed class " + c)
+		debug("  Checking needed class %s", c)
 		if !containsClass(c, node.class) {
 			debug("    --> missing")
 			return false
 		}
 	}
 	for _, c := range ts.XClasses {
-		debug("  Checking forbidden class " + c)
+		debug("  Checking forbidden class %s", c)
 		if containsClass(c, node.class) {
 			debug("    --> present")
 			return false
@@ -115,8 +116,9 @@ func Matches(ts *TagSpec, node *Node) bool {
 		if ts.Deep {
 			nc = node.Full
 		}
-
+		debug("  Checking for content " + nc)
 		if !textMatches(nc, ts.Content) {
+			debug("    --> mismatch")
 			return false
 		}
 	}
@@ -124,6 +126,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 	// Sub Tags
 	ci := 0 // next child to test
 	for si := 0; si < len(ts.Sub); si++ {
+		debug("  Checking subnode %d", si)
 		var found bool = false
 		for ; ci < len(node.Child); ci++ {
 			if found = Matches(ts.Sub[si], node.Child[ci]); found {
@@ -135,6 +138,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 		}
 	}
 
+	debug("==> found")
 	return true
 }
 
@@ -146,6 +150,7 @@ func regexpMatches(s, exp string) bool {
 	} else {
 		fmt.Printf("Invalid regexp '%s': %s\n", exp, err.String())
 	}
+	trace("    --> regexp mismatch")
 	return false
 }
 
@@ -154,13 +159,14 @@ func wildcardMatches(s, exp string) bool {
 	if strings.HasPrefix(s, parts[0]) && strings.HasSuffix(s, parts[1]) {
 		return true
 	}
+	trace("    --> wildcard mismatch")
 	return false
 }
 
 // Dispatch "plain text", "/regular expression/" and "wildcard * search"
 // to the appropriate functions
 func textMatches(s, exp string) bool {
-	debug("textMatches: got '%s' expected '%s'", s, exp)
+	trace("textMatches: got '%s' expected '%s'", s, exp)
 	if exp == "" {
 		return true
 	}
@@ -170,23 +176,29 @@ func textMatches(s, exp string) bool {
 	} else if strings.Index(exp, "*") >= 0 {
 		return wildcardMatches(s, exp)
 	}
-
-	return exp == s
+	
+	if exp != s {
+		trace("    --> compare mismatch")
+		return false
+	}
+	return true
 }
 
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.
 func FindTag(ts *TagSpec, node *Node) *Node {
-	// debug("FindTag: " + node.String())
+	debug("FindTag: " + ts.String())
+	return findTag(ts, node)
+}
+
+func findTag(ts *TagSpec, node *Node) *Node {
 	if Matches(ts, node) {
-		// debug("Found!")
 		return node
 	}
 	for _, child := range node.Child {
-		if m := FindTag(ts, child); m != nil {
+		if m := findTag(ts, child); m != nil {
 			return m
 		}
 	}
-	// debug("Not found")
 	return nil
 }
