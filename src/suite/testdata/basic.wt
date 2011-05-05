@@ -39,7 +39,7 @@ RESPONSE
 	Content-Type  ~=  text/html
 BODY
 	Tag     title == Verwaltung (Stellenmarkt) Stellenmarkt*
-	Tag     table summary=Suchresultate"
+	Tag     table summary=Suchresultate
 	
 ---------------------------------
 Faulenzen
@@ -58,5 +58,5 @@ RESPONSE
 	Content-Type  ~=  text/html
 BODY
 	 Tag     p == Aktuell passt leider kein Inserat mit Ihren Suchkriterien überein*
-	!Tag     table summary=Suchresultate"
+	!Tag     table summary=Suchresultate
 	

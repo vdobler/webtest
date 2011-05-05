@@ -54,9 +54,48 @@ BODY
   Tag   								// Complex (Nested TagSpec)
 	div id=main					
 		h2 == Wilkommen!
-  !Tag  span == Ganz Falsch			// Forbidden Tag
+  !Tag  span == Ganz Falsch				// Forbidden Tag
   
+------------------------------------
+Maybe better syntax for tag checking
+------------------------------------
+BODY
+	Txt  ~=  Some Text
+	Bin  _=  ffef
+TAGS
+	    div class=teaser				// tag neededsame as
+	>0  div class=teaser				// same
+	
+	!   a href=rm-rf == Delete All		// tag forbidden
+	=0  a href=rm-rf == Delete All		// same
+	=5	p class=news =D= Aktuell*		// exact 5 occurenced
+	<3  div class=promobox				// less tahn 3 promoboxes
+	
+	[ 								// Start of complex structure
+		div class=ext					// root tag 
+			p == *News*					// nested tags
+				span == Today
+	]								// End of structure
 
+	!= 13 [							// any number of whishes
+			div class=wishes		// identified by structure
+				h3					// but not 13 of them
+					p == *From:*
+	
+		  ]
+	[					// Sructure:
+		h1				// document must contain tag with nested
+		h2				// h1 followed by two h2 and an ul with 
+		h2				// at least three items followed by one
+		ul				// h2. More h2 or li might be present
+			li			// as well as other tags before, between
+			li			// or after
+			li
+		h2
+	]
+	div class=banner  \						// syntactical sugar for
+		span class=hidden == *Banner-ID=*	// small structures
+		
 
 ------------------------------------
 Zweiter Test
