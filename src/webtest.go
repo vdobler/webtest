@@ -126,7 +126,7 @@ func main() {
 		return
 	}
 
-	var result string = "\n============================ Results ============================\n"
+	var result string = "\n================================= Results =================================\n"
 
 	for _, filename := range flag.Args() {
 		file, err := os.Open(filename, os.O_RDONLY, 777)
@@ -134,11 +134,15 @@ func main() {
 			fmt.Printf("Cannot read from '%s': %s\n", filename, err.String())
 			continue
 		}
-		parser := suite.NewParser(file)
+		basename := filename
+		if j := strings.LastIndex(basename,"/"); j != -1 {
+			basename = basename[j+1:]
+		}
+		parser := suite.NewParser(file, basename)
 		s, _ := parser.ReadSuite()
 		file.Close()
 
-		result += "\nSuite " + filename + ":\n------------------------------------\n"
+		result += "\nSuite " + filename + ":\n-----------------------------------------\n"
 
 		for i, t := range s.Test {
 			if checkOnly {

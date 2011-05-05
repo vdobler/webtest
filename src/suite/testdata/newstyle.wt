@@ -1,0 +1,36 @@
+#
+# Most simple web test
+#
+
+-------------------------------
+Simple Test
+-------------------------------
+GET http://www.unic.com/ch/de.html
+RESPONSE
+	StatusCode == 200
+BODY
+	Txt ~= Unic
+TAG
+		h2 class=home == Qualität für Sie!
+	!	h1 == WRONG
+	=3	div class=cols
+	!=2 span == xyz
+	<5  a href=somewhere.html
+	<=5 ul
+	>=2 div
+	>7  li
+	!<3 ul
+	
+	a href=http://www.google.ch
+	
+	! [
+		div class=A
+			div class=B
+				ul
+	]
+	
+	>4 [
+			div class=X
+				span == Test
+	   ]
+	   

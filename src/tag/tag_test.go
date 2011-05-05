@@ -77,29 +77,10 @@ var testSimpleHtml = `<!DOCTYPE html>
 	</div>
 	<div id="div4"><p id="plu">Luzern</p></div>
 	<div id="div5"><p id="pch"><span id="sch">Chiasso</span></p></div>
+	<div><p><div><p><span><div><p><span>Deeeeeep</span></p></div></span></p></div></p></div>
 </body>
 </html>`
 
-
-func TestTextcontent(t *testing.T) {
-	doc, err := ParseHtml(testSimpleHtml)
-	if err != nil {
-		t.Error("Unparsabel html: " + err.String())
-		t.FailNow()
-	}
-
-	check(doc, "p == Luzern", "plu", t)
-	check(doc, "p =D= Luzern", "plu", t)
-	check(doc, "span == Chiasso", "sch", t)
-	check(doc, "span =D= Chiasso", "sch", t)
-	checkN(doc, "p == Chiasso", t)
-	check(doc, "p =D= Chiasso", "pch", t)
-
-	checkN(doc, "p == AA BB CC DD EE FF GG", t)
-	check(doc, "p =D= AA BB CC DD EE FF GG", "nested", t)
-	checkN(doc, "div == 123 AA * GG 456", t)
-	check(doc, "div =D= 123 AA * GG 456", "div3", t)
-}
 
 
 func TestBasics(t *testing.T) {
@@ -142,4 +123,54 @@ func TestBasics(t *testing.T) {
 	check(doc, "span == /Some.*text/", "SP1", t)
 	check(doc, "span == /Some [aeio]+ text/", "SP1", t)
 	// check(doc, "", "", t)
+}
+
+
+func TestTextcontent(t *testing.T) {
+	doc, err := ParseHtml(testSimpleHtml)
+	if err != nil {
+		t.Error("Unparsabel html: " + err.String())
+		t.FailNow()
+	}
+
+	check(doc, "p == Luzern", "plu", t)
+	check(doc, "p =D= Luzern", "plu", t)
+	check(doc, "span == Chiasso", "sch", t)
+	check(doc, "span =D= Chiasso", "sch", t)
+	checkN(doc, "p == Chiasso", t)
+	check(doc, "p =D= Chiasso", "pch", t)
+
+	checkN(doc, "p == AA BB CC DD EE FF GG", t)
+	check(doc, "p =D= AA BB CC DD EE FF GG", "nested", t)
+	checkN(doc, "div == 123 AA * GG 456", t)
+	check(doc, "div =D= 123 AA * GG 456", "div3", t)
+}
+
+func TestCounting(t *testing.T) {
+	doc, err := ParseHtml(testSimpleHtml)
+	if err != nil {
+		t.Error("Unparsabel html: " + err.String())
+		t.FailNow()
+	}
+	
+	counts := map[string]int{"html": 1, "body": 1, "div": 6, "p": 13, "h1": 4, "h2": 1, "span": 5 }
+	for q, n := range counts {
+		m := CountTag(ParseTagSpec(q), doc)
+		if m != n {
+			t.Errorf("Found %d instances of %s but expected %d.", m, q, n)
+		}
+	}
+	
+	root := FindTag(ParseTagSpec("div id=div1"), doc)
+	if root == nil {
+		t.Error("No div id=div1 found")
+		t.FailNow()
+	}
+	counts = map[string]int{"html": 0, "body": 0, "div": 1, "p": 8, "h1": 4, "h2": 0, "span": 1 }
+	for q, n := range counts {
+		m := CountTag(ParseTagSpec(q), root)
+		if m != n {
+			t.Errorf("Found %d instances of %s but expected %d.", m, q, n)
+		}
+	}
 }

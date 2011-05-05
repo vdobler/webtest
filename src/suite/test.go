@@ -27,6 +27,7 @@ type Test struct {
 	Header   map[string]string
 	RespCond []Condition
 	BodyCond []Condition
+	Tag      []TagCondition
 	Pre      []string
 	// MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
 	// Sleep    int // -1: unset, >=0: sleep after in ms
@@ -52,6 +53,8 @@ func (src *Test) Copy() (dest *Test) {
 	copy(dest.RespCond, src.RespCond)
 	dest.BodyCond = make([]Condition, len(src.BodyCond))
 	copy(dest.BodyCond, src.BodyCond)
+	dest.Tag = make([]TagCondition, len(src.Tag))
+	copy(dest.Tag, src.Tag)
 	dest.Pre = make([]string, len(src.Pre))
 	copy(dest.Pre, src.Pre)
 	dest.Param = copyMultiMap(src.Param)
@@ -237,6 +240,16 @@ func (t *Test) String() (s string) {
 	s += formatMultiMap("SEQ", &t.Seq)
 	s += formatMultiMap("RAND", &t.Rand)
 	s += formatMap("SETTING", &t.Setting)
+	if len(t.Tag) > 0 {
+		s += "TAG\n"
+		for i, tagCond := range t.Tag {
+			fts := tagCond.String()
+			if i>0 && strings.Contains(fts, "\n") {
+				s += "\t\n"
+			}
+			s += "\t" + fts + "\n"
+		}
+	}
 
 	return
 }
@@ -250,7 +263,7 @@ func (t *Test) Repeat() int {
 		warn("Test '%s' does not have Repeat parameter! Will use 1", t.Title)
 		r = "1"
 	}
-	return atoi(r, 0, 1)
+	return atoi(r, "", 1)
 }
 
 func (t *Test) Sleep() (i int) {
@@ -261,14 +274,14 @@ func (t *Test) Sleep() (i int) {
 	if !ok {
 		r = "0"
 	}
-	return atoi(r, 0, 0)
+	return atoi(r, "", 0)
 }
 
 
 func testHeader(resp *http.Response, t, orig *Test) {
 	debug("Testing Header")
 	for _, c := range t.RespCond {
-		cs := c.Info("resp", false)
+		cs := c.Info("resp")
 		v := resp.Header.Get(c.Key)
 		if !c.Fullfilled(v) {
 			orig.Report(false, "%s: Got '%s'", cs, v)
@@ -279,11 +292,11 @@ func testHeader(resp *http.Response, t, orig *Test) {
 	return
 }
 
-func testBody(body string, t, orig *Test, doc *tag.Node) {
+func testBody(body string, t, orig *Test) {
 	debug("Testing Body")
 	var binbody *string
 	for _, c := range t.BodyCond {
-		cs := c.Info("body", true)
+		cs := c.Info("body")
 		switch c.Key {
 		case "Txt":
 			trace("Text Matching '%s'", c.String())
@@ -303,29 +316,55 @@ func testBody(body string, t, orig *Test, doc *tag.Node) {
 			} else {
 				orig.Report(true, cs)
 			}
-		case "Tag":
-			if doc == nil {
-				error("FAILED %s: Document unparsable.", cs)
-				continue
-			}
-			ts := tag.ParseTagSpec(c.Val)
-			if c.Op == "" { // no counting
-				n := tag.FindTag(ts, doc)
-				if n == nil && !c.Neg {
-					orig.Report(false, "%s: Missing", cs)
-				} else if n != nil && c.Neg {
-					orig.Report(false, "%s: Forbidden", cs)
-				} else {
-					orig.Report(true, "%s", cs)
-				}
-			} else {
-				warn("Tag counting not implemented jet (line %d).", c.Line)
-			}
 		default:
-			error("Unkown type of test '%s' (line %d). Ignored.", c.Key, c.Line)
+			error("Unkown type of test '%s' (%s). Ignored.", c.Key, c.Id)
 		}
 	}
 	return
+}
+
+func testTags(t, orig *Test, doc *tag.Node) {
+	debug("Testing Tags")
+
+	for _, tc := range t.Tag {
+		cs := tc.Info("tag")
+		switch tc.Cond {
+		case TagExpected, TagForbidden:
+			n := tag.FindTag(&tc.Spec, doc)
+			if tc.Cond == TagExpected {
+				if n != nil { 
+					orig.Report(true, "%s", cs) 
+				} else { 
+					orig.Report(false, "%s: Missing", cs) 
+				}
+			} else {
+				if n == nil { 
+					orig.Report(true, "%s", cs) 
+				} else { 
+					orig.Report(false, "%s: Forbidden", cs) 
+				}
+			}			
+		case CountEqual, CountNotEqual, CountLess, CountLessEqual, CountGreater, CountGreaterEqual:
+			got, exp := tag.CountTag(&tc.Spec, doc), tc.Count
+			switch tc.Cond {
+			case CountEqual:
+				if got != exp { orig.Report(false, "%s: Found %d expected %d", cs, got, exp); continue }
+			case CountNotEqual:
+				if got == exp { orig.Report(false, "%s: Found %d expected != %d", cs, got, exp); continue }
+			case CountLess: 
+				if got >= exp { orig.Report(false, "%s: Found %d expected < %d", cs, got, exp); continue }
+			case CountLessEqual:
+				if got > exp { orig.Report(false, "%s: Found %d expected <= %d", cs, got, exp); continue }
+			case CountGreater:
+				if got <= exp { orig.Report(false, "%s: Found %d expected > %d", cs, got, exp); continue }
+			case CountGreaterEqual:
+				if got < exp { orig.Report(false, "%s: Found %d expected >= %d", cs, got, exp); continue }
+			}
+			orig.Report(true, "%s", cs)
+		default:
+			error("Unkown type of test %d (%s). Ignored.", tc.Cond, tc.Id)
+		}
+	}
 }
 
 
@@ -492,16 +531,26 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 	testHeader(response, ti, test)
 
 	body := readBody(response.Body)
-	var doc *tag.Node
-	if parsableBody(response) {
-		var e os.Error
-		doc, e = tag.ParseHtml(body)
-		if e != nil {
-			error("Problems parsing html: " + e.String())
+	testBody(body, ti, test)
+
+	if len(ti.Tag) > 0 {
+		var doc *tag.Node
+		if parsableBody(response) {
+			var e os.Error
+			doc, e = tag.ParseHtml(body)
+			if e != nil {
+				error("Problems parsing html: " + e.String())
+			}
+		} else {
+			error("Unparsable body ")
+			test.Report(false, "Unparsabel Body. Skipped testing Tags.")
+		}
+		if doc != nil {
+			testTags(ti, test, doc)
+		} else {
+			test.Report(false, "Problems parsing Body. Skipped testing Tags.")
 		}
 	}
-	testBody(body, ti, test, doc)
-
 	_, _, failed := test.Stat()
 	if failed != 0 {
 		err = Error("Failure: " + test.Status())

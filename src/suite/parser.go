@@ -4,8 +4,10 @@ import (
 	"strings"
 	"os"
 	"io"
+	"fmt"
 	linereader "encoding/line"
 	// "bytes"
+	"dobler/webtest/tag"
 )
 
 type ParserError struct {
@@ -27,13 +29,15 @@ type Parser struct {
 	test   *Test
 	suite  []Test
 	i      int
+	name   string
 }
 
-func NewParser(r io.Reader) *Parser {
+func NewParser(r io.Reader, name string) *Parser {
 	parser := new(Parser)
 	parser.reader = linereader.NewReader(r, 4000)
 	parser.line = []Line{}
 	parser.suite = []Test{}
+	parser.name = name
 	return parser
 }
 
@@ -114,6 +118,7 @@ func dequote(str string) string {
 	return str
 }
 
+// Return index of first space/tab in s or -1 if none found.
 func firstSpace(s string) int {
 	si := strings.Index(s, " ")
 	ti := strings.Index(s, "\t")
@@ -129,6 +134,8 @@ func firstSpace(s string) int {
 	return ti
 }
 
+
+// Read a string->string map. Stopp if unindented line is found
 func (p *Parser) readMap(m *map[string]string) {
 	for p.i < len(p.line)-1 {
 		p.i++
@@ -151,6 +158,17 @@ func (p *Parser) readMap(m *map[string]string) {
 	}
 }
 
+
+// Split line at spaces into fields. Quotes can be used to hold together a
+// filed containing spaces. E.g. 
+// 		cat dog "foo bar" fish "mouse" shark
+// would yield
+//		cat
+//		dog
+//		foo bar
+//		fisch
+//		"mouse"
+//		shark
 func StringList(line string) (list []string) {
 	all := strings.Fields(line)
 
@@ -172,6 +190,7 @@ func StringList(line string) (list []string) {
 	return
 }
 
+// Like readMap, but treat value as list of strings
 func (p *Parser) readMultiMap(m *map[string][]string) {
 	for p.i < len(p.line)-1 {
 		p.i++
@@ -197,7 +216,7 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 	}
 }
 
-
+// Read a Header or Body Condition
 func (p *Parser) readCond(body bool) []Condition {
 	var list []Condition = make([]Condition, 0, 3)
 
@@ -224,17 +243,9 @@ func (p *Parser) readCond(body bool) []Condition {
 		line = trim(line[j:])
 		if body { // only some are allowed
 			switch k {
-			case "Txt", "Bin", "Tag":
+			case "Txt", "Bin":
 			default:
 				error("No such condition type '%s' for body.", k)
-				continue
-			}
-
-			// Handle Tag
-			if k == "Tag" {
-				cond := Condition{Key: k, Val: line, Neg: neg, Line: no}
-				list = append(list, cond)
-				trace("Added to condition (line %d): %s", no, cond.String())
 				continue
 			}
 		}
@@ -248,13 +259,129 @@ func (p *Parser) readCond(body bool) []Condition {
 		if k == "Bin" {
 			v = strings.ToLower(v) // our internal bin-values are lowercase
 		}
-		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Line: no}
+		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no)}
 		list = append(list, cond)
 		trace("Added to condition (line %d): %s", no, cond.String())
 	}
 	return list
 }
 
+// Helper to extract count an spec from strings like ">= 5  a href=/index.html"
+// off is the number of charactes to strip before trying to read an int.
+func numStr(line string, off, no int) (n int, spec string) {
+	trace("line = %s, off = %d", line, off) 
+	beg := line[:off]
+	line = trim(line[off:])
+	i := firstSpace(line)
+	if i < 0 {
+		error("Missing space after %s in line %d", beg, no)
+		return
+	}
+	n = atoi(line[:i], "", 0)
+	spec = line[i+1:]
+	trace("n=%d, spec=%s", n, spec)
+	return
+}
+
+// Reads the following tag conditions (like readMap)
+func (p *Parser) readTagCond() []TagCondition {
+	var list []TagCondition = make([]TagCondition, 0, 3)
+
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		if !hp(line, "\t") {
+			p.i--
+			return list
+		}
+		line = trim(line)
+		
+		cond := TagCondition{}
+		cond.Id = fmt.Sprintf("%s:%d", p.name, no)
+		var spec string
+		
+		if false {
+		} else if hp(line, "!=") {
+			cond.Cond = CountNotEqual
+			cond.Count, spec = numStr(line, 2, no)
+		} else if hp(line, "!>=") {
+			cond.Cond = CountLess
+			cond.Count, spec = numStr(line, 3, no)
+		} else if hp(line, "!>") {
+			cond.Cond = CountLessEqual
+			cond.Count, spec = numStr(line, 2, no)
+		} else if hp(line, "!<=") {
+			cond.Cond = CountGreater
+			cond.Count, spec = numStr(line, 3, no)
+		} else if hp(line, "!<") {
+			cond.Cond = CountGreaterEqual
+			cond.Count, spec = numStr(line, 2, no)
+		} else if hp(line, "!") {
+			cond.Cond = TagForbidden
+			spec = line[1:]
+		} else if hp(line, "==") {
+			cond.Cond = CountEqual
+			cond.Count, spec = numStr(line, 2, no)
+		} else if hp(line, "=") {
+			cond.Cond = CountEqual
+			cond.Count, spec = numStr(line, 1, no)
+		} else if hp(line, ">=") {
+			cond.Cond = CountGreaterEqual
+			cond.Count, spec = numStr(line, 2, no)
+		} else if hp(line, ">") {
+			cond.Cond = CountGreater
+			cond.Count, spec = numStr(line, 1, no)
+		} else if hp(line, "<=") {
+			cond.Cond = CountLessEqual
+			cond.Count, spec = numStr(line, 2, no)
+		} else if hp(line, "<") {
+			cond.Cond = CountLess
+			cond.Count, spec = numStr(line, 1, no)
+		} else {
+			cond.Cond = TagExpected
+			spec = line
+		}
+		
+		spec = trim(spec)
+		if hp(spec, "[") { // multiline tag spec
+			trace("Multiline tag spec")
+			spec = ""
+			for p.i < len(p.line)-1 {
+				p.i++
+				line, no := p.line[p.i].line, p.line[p.i].no
+				trace("Next line: %s", line)
+				if !hp(line, "\t") {
+					error("Nonindented line in multiline tag spec on line %d", no)
+					break
+				}
+				if hs(trim(line), "]") {
+					trace("End of multiline tag spec found in line %d.", no)
+					break
+				}
+				if spec == "" {
+					line = trim(line)
+				} else {
+					spec += "\n"
+				}
+				spec += line
+				trace("Spec now: '%s'", strings.Replace(strings.Replace(spec, "\n", "\\n", -1), "\t", "  ", -1))
+			}
+			//fmt.Printf("\n-------------------\n%s\n----------------------\n", spec)
+		}
+		
+		ts := tag.ParseTagSpec(spec)
+		if ts != nil {
+			cond.Spec = *ts
+			list = append(list, cond)
+			trace("Added to tag condition (line %d): %s", no, cond.String())
+		} else {
+			error("Problems parsing '%s'.", spec)
+		}
+	}
+	return list
+}
+
+// Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
 
@@ -325,6 +452,8 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.readMultiMap(&test.Rand)
 		case "SEQ":
 			p.readMultiMap(&test.Seq)
+		case "TAG", "TAGS":
+			test.Tag = p.readTagCond()
 		default:
 			error("Unknow element '%s' in line %d. Skipped.", line, no)
 		}

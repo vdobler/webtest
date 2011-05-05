@@ -68,7 +68,7 @@ func containsAttr(a html.Attribute, attr []html.Attribute) bool {
 
 // Check if ts matches the token node
 func Matches(ts *TagSpec, node *Node) bool {
-	debug("Trying node: " + node.String())
+	trace("Trying node: " + node.String())
 
 	// Tag Name
 	if ts.Name == "*" {
@@ -78,6 +78,9 @@ func Matches(ts *TagSpec, node *Node) bool {
 		return false
 	}
 
+	if LogLevel != 5 {
+		debug("Trying node: " + node.String())
+	}
 	// Tag Attributes
 	for _, a := range ts.Attr {
 		debug("  Checking needed attribute %s", a)
@@ -201,4 +204,21 @@ func findTag(ts *TagSpec, node *Node) *Node {
 		}
 	}
 	return nil
+}
+
+// Find the first tag under node which matches the given TagSpec ts.
+// If node matches, node will be returned. If no match is found nil is returned.
+func CountTag(ts *TagSpec, node *Node) (n int) {
+	debug("CountTag: " + ts.String())
+	return countTag(ts, node)
+}
+
+func countTag(ts *TagSpec, node *Node) (n int) {
+	if Matches(ts, node) {
+		return 1
+	}
+	for _, child := range node.Child {
+		n += countTag(ts, child)
+	}
+	return
 }
