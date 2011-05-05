@@ -5,7 +5,7 @@
 -------------------------------
 Global
 -------------------------------
-GET http://www.google.com
+GET realy.unused
 HEADER
 	User-Agent   Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
 RESPONSE
@@ -20,8 +20,24 @@ google.com --> google.ch
 GET http://www.google.ch
 RESPONSE
 	Url  == http://www.google.ch
+BODY
+	Txt  ~=  Über Google
+	Txt  ~=  <a href="/intl/de/privacy.html">Datenschutz</a>
 
 
+----------------------------------
+Unic.com
+----------------------------------
+GET http://www.unic.com/ch/de.html
+PARAM
+	ck	123
+RESPONSE
+	StatusCode == 200
+TAG
+	h2 class=home == Qualität für Sie!
+
+	
+	
 ---------------------------------
 Stellenmarkt: Freizeit
 ---------------------------------	
@@ -37,7 +53,7 @@ PARAM
 	next            "Stelle finden"
 RESPONSE
 	Content-Type  ~=  text/html
-BODY
+TAG
 	Tag     title == Verwaltung (Stellenmarkt) Stellenmarkt*
 	Tag     table summary=Suchresultate
 	
@@ -56,7 +72,7 @@ PARAM
 	next            "Stelle finden"
 RESPONSE
 	Content-Type  ~=  text/html
-BODY
+TAG
 	 Tag     p == Aktuell passt leider kein Inserat mit Ihren Suchkriterien überein*
 	!Tag     table summary=Suchresultate
 	

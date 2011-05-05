@@ -5,7 +5,7 @@
 -------------------------------
 Simple Test
 -------------------------------
-GET http://www.google.com
+GET http://www.google.ch
 RESPONSE
 	StatusCode == 200
 BODY

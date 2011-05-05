@@ -166,7 +166,7 @@ func main() {
 						result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
 					} else {
 						min, lq, med, avg, uq, max := fiveval(dur)
-						result += fmt.Sprintf("%s: min: %-4d 25: %-4d med: %-4d avg: %-4d 75: %-4d max: %4d (in ms, %d runs, %d failures)\n",
+						result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
 							at, min, lq, med, avg, uq, max, len(dur), f)
 					}
 				} else {
