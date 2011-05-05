@@ -3,7 +3,7 @@ package tag
 import (
 	"testing"
 	_ "fmt"
-	"strings"
+	// "strings"
 )
 
 func check(doc *Node, spec, expectedId string, t *testing.T) {
@@ -13,13 +13,13 @@ func check(doc *Node, spec, expectedId string, t *testing.T) {
 		t.Error("Unparsabel " + spec)
 		return
 	}
-	
+
 	n := FindTag(ts, doc)
 	if n == nil {
 		t.Error("Not found: " + spec)
 		return
-	} 
-	
+	}
+
 	for _, a := range n.Attr {
 		if a.Key == "id" {
 			if a.Val == expectedId {
@@ -41,68 +41,15 @@ func checkN(doc *Node, spec string, t *testing.T) {
 		t.Error("Unparsabel " + spec)
 		return
 	}
-	
+
 	n := FindTag(ts, doc)
 	if n != nil {
 		t.Error("Found: " + spec)
 	}
 }
 
-var structureHtml = `<html>
-<body>
-	<h1> A </h1>
-	<p> B
-		<span> C </span>
-		D
-	</p>
-	<h2> E </h2>
-	<div>
-		<p> F </p>
-		<p> G </p>
-	</div>
-</body>
-</html>
-`
 
-var brokenHtml1 = `<!DOCTYPE html>
-<html>
-<body>
-	<div id="div1">
-		<span id="SP1">Some aaaa text</span>
-	</wrong>
-	<p>Some Text</p>
-</body>
-</html>`
-
-var brokenHtml2 = `<!DOCTYPE html>
-<html>
-<body>
-	<div id="div1">
-		<span id="SP1>Some aaaa text</span>
-	</div>
-	<p>Some Text</p>
-</body>
-</html>`
-
-func TestParsing(t *testing.T) {
-	LogLevel = 4
-	doc := ParseHtml(structureHtml)
-	if doc == nil {
-		t.Error("Unparsabel html.")
-		t.FailNow()
-	}
-	exp := []string{"html", "body", "h1", "p", "span", "h2", "div", "p", "p"}
-	lines := strings.Split(doc.HtmlRep(0), "\n", -1)
-	for i, tag := range exp {
-		tag = "<" + tag + ">"
-		ls := strings.Trim(lines[i], " \t")
-		if ! strings.HasPrefix(ls, tag) {
-			t.Error("Expected %s on line %d but got %s.", tag, i, ls)
-		}
-	}
-}
-
-var SimpleHtml = `<!DOCTYPE html>
+var testSimpleHtml = `<!DOCTYPE html>
 <html>
 <body>
 	<div id="div1">
@@ -135,19 +82,19 @@ var SimpleHtml = `<!DOCTYPE html>
 
 
 func TestTextcontent(t *testing.T) {
-	doc := ParseHtml(SimpleHtml)
-	if doc == nil {
-		t.Error("Unparsabel html.")
+	doc, err := ParseHtml(testSimpleHtml)
+	if err != nil {
+		t.Error("Unparsabel html: " + err.String())
 		t.FailNow()
 	}
-	
+
 	check(doc, "p == Luzern", "plu", t)
 	check(doc, "p =D= Luzern", "plu", t)
 	check(doc, "span == Chiasso", "sch", t)
 	check(doc, "span =D= Chiasso", "sch", t)
 	checkN(doc, "p == Chiasso", t)
 	check(doc, "p =D= Chiasso", "pch", t)
-	
+
 	checkN(doc, "p == AA BB CC DD EE FF GG", t)
 	check(doc, "p =D= AA BB CC DD EE FF GG", "nested", t)
 	checkN(doc, "div == 123 AA * GG 456", t)
@@ -155,17 +102,10 @@ func TestTextcontent(t *testing.T) {
 }
 
 
-func BenchmarkParsing(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = ParseHtml(SimpleHtml)
-	}
-}
-
-
 func TestBasics(t *testing.T) {
-	doc := ParseHtml(SimpleHtml)
-	if doc == nil {
-		t.Error("Unparsabel html.")
+	doc, err := ParseHtml(testSimpleHtml)
+	if err != nil {
+		t.Error("Unparsabel html: " + err.String())
 		t.FailNow()
 	}
 
@@ -203,4 +143,3 @@ func TestBasics(t *testing.T) {
 	check(doc, "span == /Some [aeio]+ text/", "SP1", t)
 	// check(doc, "", "", t)
 }
-

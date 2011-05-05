@@ -117,10 +117,10 @@ func main() {
 	if suiteLogLevel < 0 {
 		suiteLogLevel = LogLevel
 	}
-	
+
 	suite.LogLevel = suiteLogLevel
 	tag.LogLevel = tagLogLevel
-	
+
 	if flag.NArg() == 0 {
 		fmt.Printf("No webtest file given.\n")
 		return

@@ -3,7 +3,7 @@ package tag
 import (
 	"fmt"
 	"bytes"
-	// "os"
+	"os"
 	"html"
 	"xml"
 	// "log"
@@ -110,36 +110,25 @@ func (n *Node) Html() (s string) {
 	return
 }
 
-
-// Parse the given html and return the root node of the document.
-// Parsing starts at the first StartToken and will ignore
-func ParseHtml(h string) (root *Node) {
-	debug(h)
-	r := strings.NewReader(h)
-	parser := xml.NewParser(r)
-	parser.Strict = false
-	parser.AutoClose = xml.HTMLAutoClose
-	parser.Entity = xml.HTMLEntity
-	for {
-		tok, err := parser.Token()
-		if err != nil {
-			return nil
-		}
-		switch tok.(type) {
-		case xml.StartElement:
-			debug("Starting from %v", tok)
-			root = parse(tok, parser, nil)
-			trace("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
-			trace("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
-			return root
+// Extract classes to own Class field in node and remove from Attr.
+func prepareClasses(node *Node) {
+	for i, a := range node.Attr {
+		if a.Key == "class" {
+			node.class = strings.Fields(a.Val)
+			// Remove from Attr
+			m := len(node.Attr) - 1
+			for j := i; j < m; j++ {
+				node.Attr[j] = node.Attr[j+1]
+			}
+			node.Attr = node.Attr[:m]
+			break
 		}
 	}
-	return nil
 }
 
 // Normalize whitespace in t: 
-//  - replace tabs, newline, ... with spaces, 
-//  - collaps multiple spaces
+//  - replace each tab, newline and cariage return with a single space, 
+//  - collaps multiple spaces to one
 //  - trim result.
 func cleanText(t string) (s string) {
 	s = strings.Replace(strings.Replace(strings.Replace(t, "\n", " ", -1), "\r", " ", -1), "\t", " ", -1)
@@ -156,7 +145,36 @@ func cleanText(t string) (s string) {
 	return
 }
 
-func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
+
+// Parse the given html and return the root node of the document.
+// Parsing starts at the first StartToken and will ignore
+func ParseHtml(h string) (root *Node, err os.Error) {
+	debug(h)
+	r := strings.NewReader(h)
+	parser := xml.NewParser(r)
+	parser.Strict = false
+	parser.AutoClose = xml.HTMLAutoClose
+	parser.Entity = xml.HTMLEntity
+	for {
+		var tok xml.Token
+		tok, err = parser.Token()
+		if err != nil {
+			return
+		}
+		switch tok.(type) {
+		case xml.StartElement:
+			debug("Starting parsing from %v", tok)
+			root, err = parse(tok, parser, nil)
+			trace("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
+			trace("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
+			return
+		}
+	}
+	return
+}
+
+
+func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.Error) {
 	node = new(Node)
 	node.Parent = parent
 	st, _ := tok.(xml.StartElement)
@@ -172,18 +190,22 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 	// var chld []*Node
 
 	for done := false; !done; {
-		tok, err := parser.Token()
+		var tok xml.Token
+		tok, err = parser.Token()
 		if err != nil {
 			fmt.Printf("next token is err: %s\n", err.String())
 			return
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
-			ch := parse(t, parser, node)
+			ch, err := parse(t, parser, node)
+			if err != nil {
+				return
+			}
 			node.Child = append(node.Child, ch)
 			node.subs = append(node.subs, ch)
 			if node.Full != "" {
-				node.Full += " " 
+				node.Full += " "
 			}
 			node.Full += ch.Full
 		case xml.EndElement:
@@ -198,6 +220,10 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 			node.Text += ct
 			node.Full += ct
 			node.subs = append(node.subs, &Node{Parent: node, Name: TEXT_NODE, Text: s})
+		case xml.Comment, xml.Directive, xml.ProcInst:
+			// skip
+		default:
+			fmt.Printf("Very strange:\nType = %t\n Value = %#v\n", tok, tok)
 		}
 	}
 
@@ -208,20 +234,4 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node) {
 
 	trace("Made Node: " + node.String() + "\n")
 	return
-}
-
-// Extract classes to own field in node and remove from Attr.
-func prepareClasses(node *Node) {
-	for i, a := range node.Attr {
-		if a.Key == "class" {
-			node.class = strings.Fields(a.Val)
-			// Remove from Attr
-			m := len(node.Attr) - 1
-			for j := i; j < m; j++ {
-				node.Attr[j] = node.Attr[j+1]
-			}
-			node.Attr = node.Attr[:m]
-			break
-		}
-	}
 }

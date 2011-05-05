@@ -13,7 +13,7 @@ var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var logger *log.Logger
 
 func init() {
-	logger = log.New(os.Stderr, "Tag ", log.Ldate | log.Ltime) 
+	logger = log.New(os.Stderr, "Tag ", log.Ldate|log.Ltime)
 }
 
 func error(f string, m ...interface{}) {
@@ -69,7 +69,7 @@ func containsAttr(a html.Attribute, attr []html.Attribute) bool {
 // Check if ts matches the token node
 func Matches(ts *TagSpec, node *Node) bool {
 	debug("Trying node: " + node.String())
-	
+
 	// Tag Name
 	if ts.Name == "*" {
 		return true
@@ -176,7 +176,7 @@ func textMatches(s, exp string) bool {
 	} else if strings.Index(exp, "*") >= 0 {
 		return wildcardMatches(s, exp)
 	}
-	
+
 	if exp != s {
 		trace("    --> compare mismatch")
 		return false

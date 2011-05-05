@@ -494,7 +494,11 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 	body := readBody(response.Body)
 	var doc *tag.Node
 	if parsableBody(response) {
-		doc = tag.ParseHtml(body)
+		var e os.Error
+		doc, e = tag.ParseHtml(body)
+		if e != nil {
+			error("Problems parsing html: " + e.String())
+		}
 	}
 	testBody(body, ti, test, doc)
 
