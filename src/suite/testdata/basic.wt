@@ -10,6 +10,8 @@ HEADER
 	User-Agent   Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
 RESPONSE
 	StatusCode == 200
+CONST
+	ErzUrl	http://www.erz.be.ch/erz/de
 
 	
 
@@ -35,9 +37,29 @@ RESPONSE
 	StatusCode == 200
 TAG
 	h2 class=home == Qualität für Sie!
+SETTINGS
+	Repeat  4
+	Sleep   500
+	
 
-	
-	
+----------------------------------
+KTBE: Meldungsarchiv Erz
+----------------------------------
+GET ${ErzUrl}/index/direktion/ueber-die-direktion/aktuell.archiv.html
+RAND
+	Month	1 2 3 4 5 6 7 8 9 0
+SETTING
+	Repeat 4
+PARAM
+	_charset_       UTF-8
+	years		2010
+	months		${Month}
+	submit		Suchen
+BODY
+	 Txt  ~= Kanton Bern
+TAG
+	 p class=date 
+	 
 ---------------------------------
 Stellenmarkt: Freizeit
 ---------------------------------	
@@ -56,6 +78,7 @@ RESPONSE
 TAG
 	Tag     title == Verwaltung (Stellenmarkt) Stellenmarkt*
 	Tag     table summary=Suchresultate
+
 	
 ---------------------------------
 Faulenzen

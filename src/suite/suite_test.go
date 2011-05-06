@@ -3,7 +3,7 @@ package suite
 import (
 	// "./suite"
 	"testing"
-	// "regexp"
+	"time"
 	"fmt"
 	"http"
 	"os"
@@ -17,13 +17,17 @@ var (
 	theSuite *Suite
 )
 
+// keep server a life for n seconds after last testcase to allow manual testt the test server...
+var testserverStayAlive int64 = 0  
+
+
 var suiteTmpl = `
 ----------------------
 Global
 ----------------------
 GET http://wont.use
 RESPONSE
-	StatusCode	== 200
+	Status-Code	== 200
 CONST
 	URL	 %s%s
 
@@ -50,6 +54,7 @@ BODY
 	 Txt  ~= Braunschweig
 	 # 5765696c6572 = hex(Weiler)
 	 Bin  ~= 5765696c6572
+TAG
 	 Tag title == Dummy HTML 1
 	 Tag p class=a
 	!Tag p class=c
@@ -75,7 +80,7 @@ GET ${URL}/bin.bin
 PARAM
 	sc  401
 RESPONSE
-	StatusCode    ==  401
+	Status-Code    ==  401
 	Content-Type  ==  application/data
 BODY
 	Txt  ~=  Hallo Welt!
@@ -105,6 +110,27 @@ BODY
 	Txt  ~=  ${name}
 SETTING
 	Repeat	3
+	
+-------------------------
+Plain Post (no Redirect)
+-------------------------
+POST ${URL}/post
+RESPONSE
+	Final-Url		${URL}/post
+BODY
+	Txt  ~=  Post Page 
+
+-------------------------
+Post (with Redirect)
+-------------------------
+POST ${URL}/post
+PARAM
+	q		html.html
+RESPONSE
+	Final-Url	${URL}/post
+TAG
+	h1 == Dummy Document *
+	p class=a == *Braunschweig Weiler
 `
 
 func TestServer(t *testing.T) {
@@ -114,7 +140,9 @@ func TestServer(t *testing.T) {
 func StartHandlers(addr string, t *testing.T) (err os.Error) {
 	http.Handle("/html.html", http.HandlerFunc(htmlHandler))
 	http.Handle("/bin.bin", http.HandlerFunc(binHandler))
+	http.Handle("/post", http.HandlerFunc(postHandler))
 	http.Handle("/404.html", http.NotFoundHandler())
+	fmt.Printf("\n\nRunning test server on %s\n\n", addr)
 	err = http.ListenAndServe(addr, nil)
 	if err != nil {
 		fmt.Printf("Cannot run test server on port %s.\nFAIL\n", addr)
@@ -130,7 +158,10 @@ var htmlPat = `<!DOCTYPE html>
 	<p class="a">Some fancy text Braunschweig Weiler</p>
 	%s
 	<div>
-		<input type="text" name="q" value="Search" />
+		<form action="/post" method="post">
+			Go to: <input type="text" name="q" value="Search" />
+			<input type="submit" />
+		</form>
 	</div>
 	<p class="b">Stupid stuff here.</p>
 </body>
@@ -145,6 +176,24 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(body))
 	w.Flush()
 }
+
+func postHandler(w http.ResponseWriter, req *http.Request) {
+	w.SetHeader("Content-Type", "text/html; charset=utf-8")
+	t := req.FormValue("q")
+	if req.Method != "POST" {
+		fmt.Printf("========= called /post with GET! ========\n")
+	}
+	if t != "" {
+		w.SetHeader("Location", host + port + "/" + t)
+		w.WriteHeader(302)
+	} else {
+		w.WriteHeader(200)
+		body := "<html><body><h1>Post Page</h1><p>t = " + t + "</p></body></html>"
+		w.Write([]byte(body))
+	}
+	w.Flush()
+}
+
 
 func binHandler(w http.ResponseWriter, req *http.Request) {
 	w.SetHeader("Content-Type", "application/data")
@@ -174,7 +223,7 @@ func passed(test *Test, t *testing.T) bool {
 
 func TestParsing(t *testing.T) {
 	suiteText := fmt.Sprintf(suiteTmpl, host, port)
-	p := NewParser(strings.NewReader(suiteText))
+	p := NewParser(strings.NewReader(suiteText), "suiteText")
 	var err os.Error
 	theSuite, err = p.ReadSuite()
 	if err != nil {
@@ -216,4 +265,26 @@ func TestRandom(t *testing.T) {
 	}
 	theSuite.RunTest(5)
 	passed(&theSuite.Test[5], t)
+}
+
+func TestPlainPost(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(6)
+	passed(&theSuite.Test[6], t)
+}
+
+func TestPost(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(7)
+	passed(&theSuite.Test[7], t)
+}
+
+
+func TestStayAlife(t *testing.T) {
+	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
+	time.Sleep(1000000000 * testserverStayAlive)
 }

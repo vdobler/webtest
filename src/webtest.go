@@ -7,8 +7,9 @@ import (
 	"strings"
 	"strconv"
 	"log"
-	"dobler/webtest/suite"
 	"sort"
+	"path"
+	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
 
@@ -46,7 +47,7 @@ func trace(f string, m ...interface{}) {
 	}
 }
 
-
+// Determine wether test no should be run based on testsToRun
 func shouldRun(s *suite.Suite, no int) bool {
 	if testsToRun == "" {
 		return true
@@ -59,13 +60,13 @@ func shouldRun(s *suite.Suite, no int) bool {
 			if (i == 0 && s.Test[0].Title != "Global") || (i > 0 && i < len(s.Test)) && no == i {
 				return true
 			}
-		} else if strings.HasSuffix(x, "...") {
-			x = x[0 : len(x)-3]
-			if strings.HasPrefix(title, x) {
-				return true
-			}
 		} else {
-			if title == x {
+			matches, err := path.Match(x, title)
+			if err != nil {
+				error("Malformed pattern '%s'.", x)
+				return false
+			}
+			if matches {
 				return true
 			}
 		}

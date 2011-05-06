@@ -508,26 +508,30 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 
 	ti := prepareTest(test, global)
 
-	if ti.Method != "GET" {
-		error("Post not jet implemented")
-		duration = -1
-		return
-	}
-
 	starttime := time.Nanoseconds()
-	response, url, geterr := Get(ti)
+	var (
+			response *http.Response
+			url      string
+			reqerr   os.Error
+		)
+		
+	if ti.Method == "GET" {
+		response, url, reqerr = Get(ti)
+	} else if ti.Method == "POST" {
+		response, url, reqerr = Post(ti)
+	}
 	endtime := time.Nanoseconds()
 	duration = int(endtime-starttime) / 1000000
 
-	if geterr != nil {
-		test.Report(false, geterr.String())
-		err = Error("Error: " + geterr.String())
+	if reqerr != nil {
+		test.Report(false, reqerr.String())
+		err = Error("Error: " + reqerr.String())
 		return
 	}
 
 	// Add special fields to header
-	response.Header.Set("StatusCode", fmt.Sprintf("%d", response.StatusCode))
-	response.Header.Set("Url", url)
+	response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
+	response.Header.Set("Final-Url", url)
 	testHeader(response, ti, test)
 
 	body := readBody(response.Body)

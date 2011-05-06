@@ -7,6 +7,7 @@ import (
 	"html"
 	"log"
 	"strings"
+	"path"
 )
 
 var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -157,13 +158,14 @@ func regexpMatches(s, exp string) bool {
 	return false
 }
 
-func wildcardMatches(s, exp string) bool {
-	parts := strings.Split(exp, "*", 2)
-	if strings.HasPrefix(s, parts[0]) && strings.HasSuffix(s, parts[1]) {
-		return true
+// Do shell like pattern globing via package path. Return true if str matches pattern exp
+func wildcardMatches(str, exp string) bool {
+	matches, err := path.Match(exp, str)
+	if err != nil {
+		error("Malformed pattern '%s'.", exp)
+		return false
 	}
-	trace("    --> wildcard mismatch")
-	return false
+	return matches
 }
 
 // Dispatch "plain text", "/regular expression/" and "wildcard * search"

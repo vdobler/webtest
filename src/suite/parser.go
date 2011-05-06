@@ -419,7 +419,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 				test.Method, test.Url = "GET", trim(line[3:])
 				continue
 			} else if hp(line, "POST ") {
-				test.Method, test.Url = "POST", trim(line[3:])
+				test.Method, test.Url = "POST", trim(line[4:])
 				continue
 			} else {
 				error("Method and Url missing or wrong in line %d", no)
