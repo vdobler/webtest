@@ -129,6 +129,8 @@ func main() {
 
 	var result string = "\n================================= Results =================================\n"
 
+	var passed bool = true
+		
 	for _, filename := range flag.Args() {
 		file, err := os.Open(filename, os.O_RDONLY, 777)
 		if err != nil {
@@ -145,8 +147,6 @@ func main() {
 
 		result += "\nSuite " + filename + ":\n-----------------------------------------\n"
 
-		var passed bool
-		
 		for i, t := range s.Test {
 			if checkOnly {
 				fmt.Printf("\n%s\n", t.String())
@@ -190,8 +190,10 @@ func main() {
 		fmt.Printf(result)
 	}
 	if passed {
+		fmt.Printf("PASS\n")
 		os.Exit(0)
 	} else {
+		fmt.Printf("FAIL\n")
 		os.Exit(1)
 	}
 }
