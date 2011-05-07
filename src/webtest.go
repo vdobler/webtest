@@ -145,6 +145,8 @@ func main() {
 
 		result += "\nSuite " + filename + ":\n-----------------------------------------\n"
 
+		var passed bool
+		
 		for i, t := range s.Test {
 			if checkOnly {
 				fmt.Printf("\n%s\n", t.String())
@@ -173,6 +175,9 @@ func main() {
 				} else {
 					s.RunTest(i)
 					result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
+					if _, _, failed := s.Test[i].Stat(); failed > 0 {
+						passed = false
+					}
 				}
 			} else {
 				info("Skipped test %d.", i)
@@ -183,5 +188,10 @@ func main() {
 	// Summary
 	if !checkOnly {
 		fmt.Printf(result)
+	}
+	if passed {
+		os.Exit(0)
+	} else {
+		os.Exit(1)
 	}
 }

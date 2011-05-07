@@ -251,7 +251,7 @@ func (p *Parser) readCond(body bool) []Condition {
 		}
 		j = firstSpace(line)
 		if j == -1 {
-			error("No value on line %d", no)
+			error("No value on line %d (in %s) or missing operator", no, trim(p.line[p.i].line))
 			continue
 		}
 		op := trim(line[:j])

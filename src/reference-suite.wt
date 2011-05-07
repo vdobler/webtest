@@ -1,0 +1,302 @@
+#
+#  Reference Suite for Webtest
+# ===============================
+#
+# Webtest test suites are simple text files in UTF-8 (without BOM).
+# Line endings may be \n or \r\n and you are stubid _and_ ugly if you use
+# the later.  The line length should not exeed 4000 characters.
+#
+# Lines "starting" with a # are comments and are ignored. The # need
+# not be the very first character on a line: # is considered 'start of
+# comment' iff it is the first non-whitespace charater on a line.
+#
+# Individual test cases are intruduced like this (test case name surrounded
+# by lines of - signs):
+# ------------------------------------
+# The Name of the Test Case
+# ------------------------------------
+# See below: Global is such a testcase. Unfortunately Global is as 
+# very special testcase. So please skip to the "Ping" test case.
+#
+
+
+
+  
+-------------------------------  
+Global
+-------------------------------
+HEADER
+  Basic-Auth: "User:Passwd"			// Added to all following requests
+  Cookie:     "Some cookie string"	// Same for cookie
+RESPONSE
+  StatusCode == 200					// Required for all test if not overwritten
+SETTINGS
+  Repeat: 3							// Repeat each test 3 times
+VARIABLES
+  Const
+    BaseUrl = "http://www.unic.com"		// Use like ${BaseUrl}
+  Rand
+    Name = "Anna" "Berta" "Cecil" "Doris"	// ${Name} is a random one of them
+    Amount = "1" "2" "3" "4" "99" "100"	// same for ${Amount}
+  Sequenz
+    Num = "12" "24" "36" "48"				// ${Num} will cycle through list
+
+	
+#
+# The most basic and simple test case: See if a server answers.
+#
+# After the test case header (-------\n<Name>\n-------) several
+# section describe various aspects of the test. A Section is intruduced
+# by an all caps section name starting at the first character of a line.
+# Individual setting in a setting are indented by (at least) a tab '\t'.
+#
+# The first section is special: It names the request method and URL and 
+# must be the first section and cannot be omitted.
+# All other section are optional and may occur in any order.
+---------------------------------
+Ping
+---------------------------------
+# Method may be "GET" or "POST". The URL must be a valid, full qualified 
+# URL.
+GET http://host.to.ping/path.html
+
+# The response section: In this section the various header fields of the
+# response can be checked. 
+RESPONSE
+	# Check that the server answered with 200 status code.
+	Status-Code	 ==  200
+
+# Thats all for the ping test case
+
+
+#
+# More on response fields checking: Recieved header fields can be accessed
+# by their name (no trailing colon), e.g. "Content-Type". 
+# There are two special fields which can be checked allways, even if the
+# server didn't include them in the response header: "Status-Code" and
+# "Final-Url". Status-Code is the numerical status code and Final-Url is
+# the URL reached after doing all the redirects requested by the server.
+#
+# There are several ways to test the recieved value.
+---------------------------------
+Ping Enhanced
+---------------------------------
+GET http://host.to.ping/path.html
+
+RESPONSE
+	 # Operator == is for real equality
+	 Status-Code	 ==  200
+	
+	 # Operator ~= test for "contains"
+	 Content-Type  ~= text/html
+	 
+	 # Operator /= test for a regualr expression matching the field value
+	 Strange-Field  /= (cat?|^dog?) .+$
+
+	 # Operator _= test for the field value starting with the given prefix
+	 Other-Header  _= StartPrefix
+
+ 	 # Operator =_ test for the field value ending with the given suffix
+	 Something     =_ EndSuffix
+	 
+	 # For field which are numeric you may use <, <=, ==, >= or > with the
+	 # usual meaning.
+	 Content-Length  > 500
+	 
+	 # To negate a condition: Prefix the whole condition with a ! charcter.
+	!App-Field ~= Illegal
+	
+	 # To disalow the mre existence of a header field:
+	!Illegal-Header
+	
+	 # Generally there is no need to quote field names or values to test
+	 # against: field names do not contain whitespace or special characters
+	 # and values are just the rest after the operator with leading and
+	 # trailung whitespace trimmed.
+	 # If you do need these leading or trailing whitespaces: Enclose the
+	 # value with " marks:
+	 Field-Name == "  spaces at begin and end are important for the test  "
+	 
+	
+
+#
+# You may specify any request header field in the HEADER section by just
+# naming them and their value.
+---------------------------------
+Ping With Header
+---------------------------------
+GET http://host.to.ping/path.html
+
+# The header section: add special request header fields here.
+HEADER
+	# add the Accept-Language fields with given value. Note: No colon (:)
+	Accept-Language  de,fr,en
+	# Quotes could be used around the value to include leading or trailing
+	# spaces, but request header fields normaly do not contain spaces at 
+	# all.
+
+	
+#
+# There are three ways to test the content of the recieved body:
+# Simple tests are specified in the BODY section, HTML tags can be checked
+# in the TAG section
+---------------------------------
+Ping Content
+---------------------------------
+GET http://host.to.ping/path.html
+
+# All simple test are placed in the body section
+BODY
+	 # Txt is the whole text of the body
+	 Txt  ==  Whole text of body
+	 # Attention: Only UTF-8 encoded bodys work well.
+	 
+	 # Bin ist the whole text of the body as hexadecimal string
+	 Bin  == 0daf23bcad873f94
+	 # Note: Syntax may change in the future
+	 
+	 # The same operators (without the numerical ones) like in the response
+	 # section can be used with with Txt and Bin: ~=, _=, =_ and /=
+	 
+	 # Use something like this to check if a binary file starts with the
+	 # appropriate magic key (png magic key below)
+	 Bin  _=  89504e470d0a1a0a
+	 
+# HTML/XML tag/element checkings are placed in section TAG
+# Syntax for the tags are like checktag. See documentation in tag.go 
+TAG
+	# Check if this h2 is present
+	h2 class=home == Qualität für Sie!
+		
+	# Fail if this h1 is present
+	! h1 == WRONG
+	
+	# Count occurences of this div: Must be exactly 3
+	=3	div class=cols
+	
+	# This span may not be present 2 times (1 or 17) is okay
+	!=2 span == xyz
+	
+	# This a may be present at most 4 times.
+	<5  a href=somewhere.html
+	# The rest of the numerical operators are <=, >= and >
+	# Negations are discuraged (but allowed): !<=, !>=, !< and !>
+
+	# Tag structures (nested tags) are introduced by '[' and ended by ']'
+	# Each on a own line.
+	[
+		div class=A
+			div class=B
+				ul
+	]
+	
+	# Negation '!' and counting operators may be placed before the [.
+	# Test if this div with span element occurs at least 5 times.
+	>4 [
+			div class=X
+				span == Test
+	   ]
+
+
+
+---------------------------------
+Wichtiger Test
+---------------------------------
+# Some description what and why this test
+# is the way it is.
+GET http://unic.com						// Method and Url
+HEADER
+  Accept-Language: "de,fr,en"			// Add/Overwrite Global Header
+RESPONSE
+  StatusCode    == "200"				// == Equals
+  Content-Type  ~= "text/html"			// ~= Contains
+  StrangeField  /= "(cat?|^dog?) .+$"   // /= Regexp
+  Url           == "http://ib.com"		// Final Url after redirect
+  ContentLength  > 500					// > for numeric args (same for <, <= and >=
+  Other-Header  _= "StartPrefix"		// _= StartsWith
+  Something     =_ EndPrefix			// =_ EndsWith.
+  !Other        ~= Illegal				// Forbidden: Fail if Other contains Illegal
+BODY
+  Txt ~= "Hallo Welt"					// Contained text
+  Bin _= A3FE0256B781					// Starts with hex values
+  Tag    h1 == Startseite				// Look for Tag
+  Tag   								// Complex (Nested TagSpec)
+	div id=main					
+		h2 == Wilkommen!
+  !Tag  span == Ganz Falsch				// Forbidden Tag
+  
+------------------------------------
+Maybe better syntax for tag checking
+------------------------------------
+BODY
+	Txt  ~=  Some Text
+	Bin  _=  ffef
+TAGS
+	    div class=teaser				// tag neededsame as
+	>0  div class=teaser				// same
+	
+	!   a href=rm-rf == Delete All		// tag forbidden
+	=0  a href=rm-rf == Delete All		// same
+	=5	p class=news =D= Aktuell*		// exact 5 occurenced
+	<3  div class=promobox				// less tahn 3 promoboxes
+	
+	[ 								// Start of complex structure
+		div class=ext					// root tag 
+			p == *News*					// nested tags
+				span == Today
+	]								// End of structure
+
+	!= 13 [							// any number of whishes
+			div class=wishes		// identified by structure
+				h3					// but not 13 of them
+					p == *From:*
+	
+		  ]
+	[					// Sructure:
+		h1				// document must contain tag with nested
+		h2				// h1 followed by two h2 and an ul with 
+		h2				// at least three items followed by one
+		ul				// h2. More h2 or li might be present
+			li			// as well as other tags before, between
+			li			// or after
+			li
+		h2
+	]
+	div class=banner  \						// syntactical sugar for
+		span class=hidden == *Banner-ID=*	// small structures
+		
+
+------------------------------------
+Zweiter Test
+------------------------------------
+# Description goes here
+POST http://www.unic.com/kontakt.htm
+SETTINGS
+  Pre       "Wichtiger T..."				// Test will not run if pre test has failed
+  Max-Time  800								// fail if longer than 800 ms
+  Sleep     2000							// sleep for 2 sek before running next test
+PARAM
+   name     "Volker Dobler "				// Parameters to post
+   addresse "Bergmattenweg 3"
+   file     testdata/file.txt				// just add filename
+RESPONSE
+  Url       "http://www.unic.com/kontakt.thanks.htm"  	// did redirect
+BODY
+  Tag=5     li class=eingabe				// 5 occurens of li tag with given class
+
+  
+------------------------------------
+Login
+------------------------------------
+# Description goes here
+POST http://fake.com/login
+SETTINGS
+  Keep-Cookies  true					// Keep returned cookie and resend on subsequent requests
+PARAM
+   name     "volker.dobler"				// Parameters to post
+   passed   "supergeheim"
+RESPONSE
+  Url       "http://www.unic.com/kontakt.thanks.htm"  	// did redirect
+BODY
+  Tag       h2 == Welcome Volker Dobler		// Login Worked
+  

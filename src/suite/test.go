@@ -228,7 +228,7 @@ func formatCond(s string, m *[]Condition) (f string) {
 	return
 }
 
-
+// String representation as as used by the parser.
 func (t *Test) String() (s string) {
 	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
 	s += t.Method + " " + t.Url + "\n"
@@ -424,6 +424,7 @@ func prepareTest(t, global *Test) *Test {
 	return test
 }
 
+// Return true if body is considered parsabel (=checkable with tag)
 func parsableBody(resp *http.Response) bool {
 	if strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
 		return true
@@ -434,6 +435,7 @@ func parsableBody(resp *http.Response) bool {
 	return false
 }
 
+// Set up bookkeeping stuf for variable substitutions.
 func (test *Test) Init() {
 	// Initialize sequenze count
 	if test.SeqCnt == nil {
@@ -512,13 +514,14 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 	var (
 			response *http.Response
 			url      string
+			cookies  []string
 			reqerr   os.Error
 		)
 		
 	if ti.Method == "GET" {
-		response, url, reqerr = Get(ti)
+		response, url, cookies, reqerr = Get(ti)
 	} else if ti.Method == "POST" {
-		response, url, reqerr = Post(ti)
+		response, url, cookies, reqerr = Post(ti)
 	}
 	endtime := time.Nanoseconds()
 	duration = int(endtime-starttime) / 1000000
@@ -529,7 +532,11 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 		return
 	}
 
-	// Add special fields to header
+	for _, cookie := range cookies {
+		trace("New cookie %s", cookie)
+	}
+	
+	// Add special fields to header befor testing
 	response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
 	response.Header.Set("Final-Url", url)
 	testHeader(response, ti, test)

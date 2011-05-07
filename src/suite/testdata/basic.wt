@@ -9,7 +9,7 @@ GET realy.unused
 HEADER
 	User-Agent   Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
 RESPONSE
-	StatusCode == 200
+	Status-Code == 200
 CONST
 	ErzUrl	http://www.erz.be.ch/erz/de
 
@@ -21,9 +21,9 @@ google.com --> google.ch
 # Test redirect from google.com to swiss version under google.ch
 GET http://www.google.ch
 RESPONSE
-	Url  == http://www.google.ch
+	Final-Url  == http://www.google.ch
 BODY
-	Txt  ~=  Über Google
+	Txt  ~=  ber Google
 	Txt  ~=  <a href="/intl/de/privacy.html">Datenschutz</a>
 
 
@@ -34,7 +34,7 @@ GET http://www.unic.com/ch/de.html
 PARAM
 	ck	123
 RESPONSE
-	StatusCode == 200
+	Status-Code == 200
 TAG
 	h2 class=home == Qualität für Sie!
 SETTINGS
@@ -49,7 +49,7 @@ GET ${ErzUrl}/index/direktion/ueber-die-direktion/aktuell.archiv.html
 RAND
 	Month	1 2 3 4 5 6 7 8 9 0
 SETTING
-	Repeat 4
+	Repeat 2
 PARAM
 	_charset_       UTF-8
 	years		2010
@@ -76,8 +76,8 @@ PARAM
 RESPONSE
 	Content-Type  ~=  text/html
 TAG
-	Tag     title == Verwaltung (Stellenmarkt) Stellenmarkt*
-	Tag     table summary=Suchresultate
+	title == Verwaltung (Stellenmarkt) Stellenmarkt*
+	table summary=Suchresultate
 
 	
 ---------------------------------
@@ -96,6 +96,6 @@ PARAM
 RESPONSE
 	Content-Type  ~=  text/html
 TAG
-	 Tag     p == Aktuell passt leider kein Inserat mit Ihren Suchkriterien überein*
-	!Tag     table summary=Suchresultate
+	 p == Aktuell passt leider kein Inserat mit Ihren Suchkriterien überein*
+	!table summary=Suchresultate
 	

@@ -10,7 +10,7 @@ HEADER
 	User-Agent		Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
 	Authorization	Basic YWRtaW46YWRtaW4=
 RESPONSE
-	StatusCode == 200
+	Status-Code == 200
 CONST
 	BaseUrl  http://localhost:4502/content/test/de
 	
@@ -23,8 +23,9 @@ PARAM
 	wcmmode  disabled
 BODY
 	Txt  ~= Kanton Bern
-	Tag  p class=date == 7. Juli 2010
-	Tag  a href=/test/de/index/marc.html class=twoLines 
+TAG
+	p class=date == 7. Juli 2010
+	a href=/test/de/index/marc.html class=twoLines 
 
 
 --------------------------------
@@ -38,10 +39,11 @@ PARAM
 	submit		Suchen
 BODY
 	 Txt  ~= Kanton Bern
-	 Tag  p class=date == 25. Mai 2005
-	 Tag  p == Description of test 8
-	!Tag  p class=date ==  * 2040
-	!Tag  p class=date == 5. Juli 2010
+TAG
+	 p class=date == 25. Mai 2005
+	 p == Description of test 8
+	!p class=date ==  * 2040
+	!p class=date == 5. Juli 2010
 	
 
 --------------------------------

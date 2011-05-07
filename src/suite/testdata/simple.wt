@@ -7,7 +7,7 @@ Simple Test
 -------------------------------
 GET http://www.google.ch
 RESPONSE
-	StatusCode == 200
+	Status-Code == 200
 BODY
 	Txt ~= Google
 	

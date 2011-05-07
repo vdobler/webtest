@@ -159,6 +159,7 @@ func ParseHtml(h string) (root *Node, err os.Error) {
 		var tok xml.Token
 		tok, err = parser.Token()
 		if err != nil {
+			fmt.Printf("XXXXXXXXXXX\n")
 			return
 		}
 		switch tok.(type) {
@@ -193,7 +194,10 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.
 		var tok xml.Token
 		tok, err = parser.Token()
 		if err != nil {
-			fmt.Printf("next token is err: %s\n", err.String())
+			if err == os.EOF {
+				err = nil
+				break
+			}
 			return
 		}
 		switch t := tok.(type) {

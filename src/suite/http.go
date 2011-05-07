@@ -42,15 +42,22 @@ func addHeaders(req *http.Request, t *Test) {
 	}
 }
 
-func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, err os.Error) {
-	trace("DoAndFollow: %s %s", req.Method, req.URL.String())
+func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
+	// TODO: if/when we add cookie support, the redirected request shouldn't
+	// necessarily supply the same cookies as the original.
+	// TODO: set referrer header on redirects.
+
+	info("%s %s", req.Method, req.URL.String())
 	
 	r, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return
 	}
 	finalUrl = req.URL.String()
-
+	if sc := r.Header.Get("Set-Cookie"); sc != "" {
+		cookies = append(cookies, sc)
+	}
+	
 	if !shouldRedirect(r.StatusCode) {
 		return
 	}
@@ -87,7 +94,10 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, err os.E
 			return
 		}
 		finalUrl = url
-
+		if sc := r.Header.Get("Set-Cookie"); sc != "" {
+			cookies = append(cookies, sc)
+		}
+		
 		if !shouldRedirect(r.StatusCode) {
 			return
 		}
@@ -99,64 +109,33 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, err os.E
 	return
 }
 
-func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
+func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
 	var url = t.Url // <-- Patched
-	// TODO: if/when we add cookie support, the redirected request shouldn't
-	// necessarily supply the same cookies as the original.
-	// TODO: set referrer header on redirects.
-	var base *http.URL
-	// TODO: remove this hard-coded 10 and use the Client's policy
-	// (ClientConfig) instead.
-	for redirect := 0; ; redirect++ {
-		if redirect >= 10 {
-			err = os.ErrorString("stopped after 10 redirects")
-			break
-		}
 
-		var req http.Request
-		req.Method = "GET"
-		req.ProtoMajor = 1
-		req.ProtoMinor = 1
-		// vvvv Patched vvvv
-		req.Header = http.Header{}
-		if len(t.Param) > 0 {
-			ep := http.EncodeQuery(t.Param)
-			// TODO handle #-case
-			if strings.Contains(url, "?") {
-				url = url + "&" + ep
-			} else {
-				url = url + "?" + ep
-			}
-		}
-		// ^^^^ Patched ^^^^
-		if base == nil {
-			req.URL, err = http.ParseURL(url)
+	var req http.Request
+	req.Method = "GET"
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
+	req.Header = http.Header{}
+	if len(t.Param) > 0 {
+		ep := http.EncodeQuery(t.Param)
+		// TODO handle #-case
+		if strings.Contains(url, "?") {
+			url = url + "&" + ep
 		} else {
-			req.URL, err = base.ParseURL(url)
+			url = url + "?" + ep
 		}
-		if err != nil {
-			break
-		}
-		addHeaders(&req, t)  // <-- Patched
-		url = req.URL.String()
-		info("GET %s", url)
-		if r, err = http.DefaultClient.Do(&req); err != nil {
-			break
-		}
-		if shouldRedirect(r.StatusCode) {
-			r.Body.Close()
-			if url = r.Header.Get("Location"); url == "" {
-				err = os.ErrorString(fmt.Sprintf("%d response missing Location header", r.StatusCode))
-				break
-			}
-			base = req.URL
-			continue
-		}
-		finalURL = url
+	}
+	req.URL, err = http.ParseURL(url)
+	if err != nil {
+		err = &http.URLError{"Get", url, err}
 		return
 	}
-
-	err = &http.URLError{"Get", url, err}
+	
+	addHeaders(&req, t)  
+	url = req.URL.String()
+	debug("Will post to %s", req.URL.String())
+	r, finalUrl, cookies, err = DoAndFollow(&req)
 	return
 }
 
@@ -165,7 +144,7 @@ func Get(t *Test) (r *http.Response, finalURL string, err os.Error) {
 // with data's keys and values urlencoded as the request body.
 //
 // Caller should close r.Body when done reading from it.
-func Post(t *Test) (r *http.Response, finalUrl string, err os.Error) {
+func Post(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
 	var req http.Request
 	var url = t.Url  //  <-- Patched
 	req.Method = "POST"
@@ -189,10 +168,10 @@ func Post(t *Test) (r *http.Response, finalUrl string, err os.Error) {
 
 	req.URL, err = http.ParseURL(url)
 	if err != nil {
-		return nil, url, err
+		return nil, url, cookies, err
 	}
 	debug("Will post to %s", req.URL.String())
-	r, finalUrl, err = DoAndFollow(&req)
+	r, finalUrl, cookies, err = DoAndFollow(&req)
 	return 
 }
 

@@ -55,10 +55,10 @@ BODY
 	 # 5765696c6572 = hex(Weiler)
 	 Bin  ~= 5765696c6572
 TAG
-	 Tag title == Dummy HTML 1
-	 Tag p class=a
-	!Tag p class=c
-	!Tag p == Wrong.*
+	 title == Dummy HTML 1
+	 p class=a
+	!p class=c
+	!p == Wrong.*
 	
 ----------------------
 Binary Test 1
@@ -116,7 +116,7 @@ Plain Post (no Redirect)
 -------------------------
 POST ${URL}/post
 RESPONSE
-	Final-Url		${URL}/post
+	Final-Url	==	${URL}/post
 BODY
 	Txt  ~=  Post Page 
 
@@ -127,7 +127,7 @@ POST ${URL}/post
 PARAM
 	q		html.html
 RESPONSE
-	Final-Url	${URL}/post
+	Final-Url	==	${URL}/html.html
 TAG
 	h1 == Dummy Document *
 	p class=a == *Braunschweig Weiler
