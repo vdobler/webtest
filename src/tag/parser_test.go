@@ -83,22 +83,18 @@ func testHtmlParsing(html string, expected []string, t *testing.T) {
 //  Testcases below
 
 func TestMostSimpleHtml(t *testing.T) {
-	LogLevel = 4
 	testHtmlParsing("<html><body>Hello</body></html>", []string{"html", "body"}, t)
 }
 
 func TestSimpleHtmlParsing(t *testing.T) {
-	LogLevel = 3
 	testHtmlParsing(testStructureHtml, []string{"html", "body", "h1", "p", "span", "h2", "div", "p", "p"}, t)
 }
 
 func TestXHtmlParsing(t *testing.T) {
-	LogLevel = 3
 	testHtmlParsing(testXhtml, []string{"html", "head", "title", "meta", "body", "h1", "p"}, t)
 }
 
 func TestHtmlEntitiesParsing(t *testing.T) {
-	LogLevel = 3
 	doc, err := ParseHtml(testEntitiesHtml)
 	if err != nil {
 		t.Error("Unparsabel html: " + err.String())

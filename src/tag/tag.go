@@ -13,7 +13,7 @@ var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var logger *log.Logger
 
 func init() {
-	logger = log.New(os.Stderr, "Tag ", log.Ldate|log.Ltime)
+	logger = log.New(os.Stderr, "Tag     ", log.Ldate|log.Ltime)
 }
 
 func error(f string, m ...interface{}) {

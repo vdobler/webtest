@@ -25,29 +25,31 @@ var suiteLogLevel int = -1
 var testsToRun string = ""
 var randomSeed int = -1
 
+var logger *log.Logger
+
 func error(f string, m ...interface{}) {
 	if LogLevel >= 1 {
-		log.Print("*ERROR* " + fmt.Sprintf(f, m...))
+		logger.Print("*ERROR* " + fmt.Sprintf(f, m...))
 	}
 }
 func warn(f string, m ...interface{}) {
 	if LogLevel >= 2 {
-		log.Print("*WARN * " + fmt.Sprintf(f, m...))
+		logger.Print("*WARN * " + fmt.Sprintf(f, m...))
 	}
 }
 func info(f string, m ...interface{}) {
 	if LogLevel >= 3 {
-		log.Print("*INFO * " + fmt.Sprintf(f, m...))
+		logger.Print("*INFO * " + fmt.Sprintf(f, m...))
 	}
 }
 func debug(f string, m ...interface{}) {
 	if LogLevel >= 4 {
-		log.Print("*DEBUG* " + fmt.Sprintf(f, m...))
+		logger.Print("*DEBUG* " + fmt.Sprintf(f, m...))
 	}
 }
 func trace(f string, m ...interface{}) {
 	if LogLevel >= 5 {
-		log.Print("*TRACE* " + fmt.Sprintf(f, m...))
+		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
 	}
 }
 
@@ -138,6 +140,8 @@ func help() {
 }
 
 func main() {
+	logger = log.New(os.Stderr, "Webtest ", log.Ldate|log.Ltime)
+	
 	var helpme bool
 	flag.BoolVar(&helpme, "help", false, "Print usage info and exit.")
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
@@ -160,9 +164,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Stress Testing not implemented")
 		os.Exit(1)
 	}
-	if (benchmark && testmode) || (benchmark && stresstest) || (testmode && stresstest) {
-		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, -test, -bench")
+	if benchmark && stresstest {
+		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, and -bench")
 		os.Exit(1)
+	}
+	if benchmark {
+		testmode = false
+	}
+	if stresstest {
+		testmode = false
 	}
 
 	if randomSeed != -1 {

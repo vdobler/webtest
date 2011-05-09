@@ -77,7 +77,7 @@ var testSimpleHtml = `<!DOCTYPE html>
 	</div>
 	<div id="div4"><p id="plu">Luzern</p></div>
 	<div id="div5"><p id="pch"><span id="sch">Chiasso</span></p></div>
-	<div><p><div><p><span><div><p><span>Deeeeeep</span></p></div></span></p></div></p></div>
+	<div id="deep"><p><div><p><span><div><p><span>Deeeeeep</span></p></div></span></p></div></p></div>
 	<p id="LongText" class="LongText">This is a pretty long text.</p>
 </body>
 </html>`
@@ -160,6 +160,18 @@ func TestTextcontent(t *testing.T) {
 	check(doc, "p class=LongText == This ?? ? pretty*text.", "LongText", t)
 	check(doc, "p id=Lon*ext == This is a pretty long text.", "LongText", t)
 	check(doc, "p id=?ong?ext == This * text.", "LongText", t)
+}
+
+func TestNestedTags(t *testing.T) {
+	doc, err := ParseHtml(testSimpleHtml)
+	if err != nil {
+		t.Error("Unparsabel html: " + err.String())
+		t.FailNow()
+	}
+	check(doc, "div\n  p id=A", "div1", t)
+	check(doc, "div\n  span == Some*text", "div1", t)
+	check(doc, "div\n p\n  div\n   p =D= Deeeeeep", "deep", t)
+	check(doc, "div class=news\n  h2\n    span class=red == new", "div2", t)
 }
 
 func TestCounting(t *testing.T) {
