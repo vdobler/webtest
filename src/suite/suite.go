@@ -42,13 +42,16 @@ func trace(f string, m ...interface{}) {
 
 // TODO: Results?
 type Suite struct {
-	Test []Test
-	// Result map[string]int // 0: not run jet, 1: pass, 2: fail, 3: err 
+	Global *Test
+	Test   []Test
+	bgload int
 }
 
 func NewSuite() (suite *Suite) {
 	suite = new(Suite)
 	suite.Test = make([]Test, 0, 5)
+	suite.Global = nil
+	suite.bgload = 0
 	return
 }
 
@@ -79,4 +82,53 @@ func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
 
 	dur, f, err = s.Test[n].Bench(global, count)
 	return
+}
+
+
+func (s *Suite) stresstest(bg *Suite) (okay bool) {
+	n := s.bgload
+	if n > 0 {
+		// start bg load
+	}
+	
+	var totaltime int
+	var totalfail int
+	for _, t := range s.Test {
+		tc := t.Copy()
+		duration, err := tc.RunSingle(s.Global)
+		if err != nil {
+			okay = false
+		}
+		_, _, failed := tc.Stat()
+		totaltime += duration
+		totalfail += failed
+	}
+
+	info("Load %d: Average response time %d [ms]. Failures %d\n", n, totaltime/len(s.Test), totalfail)
+	
+	if n > 0 {
+		// stop bg load
+	}
+	
+	// decide if still okay
+	return
+}
+
+
+func (s *Suite) Stress(bg *Suite, factor float32, step int) {
+	for {
+		okay := s.stresstest(bg)
+		if ! okay {
+			break
+		}
+		inc := int((1-factor) * float32(s.bgload))
+		if inc <= 0 {
+			inc = 1
+		}
+		if step > 0 && step < inc {
+			inc = step
+		}
+		s.bgload += inc
+	}
+
 }

@@ -16,8 +16,8 @@ import (
 
 var checkOnly bool = false
 var testmode bool = true
-var benchmark bool = false
-var stresstest bool = false
+var benchmarkMode bool = false
+var stresstestMode bool = false
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var tagLogLevel int = -1
@@ -145,10 +145,10 @@ func main() {
 	var helpme bool
 	flag.BoolVar(&helpme, "help", false, "Print usage info and exit.")
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
-	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")
+	flag.BoolVar(&benchmarkMode, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.BoolVar(&testmode, "test", true, "Perform normal testing")
 	flag.BoolVar(&checkOnly, "stress", false, "Use background-suite as stress suite for tests.")
-	flag.IntVar(&LogLevel, "log", 2, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&LogLevel, "log", 3, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
@@ -160,18 +160,18 @@ func main() {
 	if helpme {
 		help()
 	}
-	if stresstest {
+	if stresstestMode {
 		fmt.Fprintf(os.Stderr, "Stress Testing not implemented")
 		os.Exit(1)
 	}
-	if benchmark && stresstest {
+	if benchmarkMode && stresstestMode {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, and -bench")
 		os.Exit(1)
 	}
-	if benchmark {
+	if benchmarkMode {
 		testmode = false
 	}
-	if stresstest {
+	if stresstestMode {
 		testmode = false
 	}
 
@@ -189,36 +189,58 @@ func main() {
 	suite.LogLevel = suiteLogLevel
 	tag.LogLevel = tagLogLevel
 
-	if flag.NArg() == 0 {
-		fmt.Printf("No webtest file given.\n")
-		return
+	if stresstestMode {
+		if flag.NArg() != 2 {
+			error("Stresstest requires excatly two suites.")
+			os.Exit(1)
+		}
+		stresstest(flag.Args()[0], flag.Args()[1])
+		os.Exit(0)
+	} else {
+		if flag.NArg() == 0 {
+			error("No webtest file given.\n")
+			os.Exit(1)
+		}
+		testOrBenchmark(flag.Args())
 	}
+}
 
+func testOrBenchmark(filenames []string) {
+	
 	var result string = "\n================================= Results =================================\n"
 
 	var passed bool = true
-
-	for _, filename := range flag.Args() {
-		file, err := os.Open(filename, os.O_RDONLY, 777)
+	var suites []*suite.Suite = make([]*suite.Suite, 0, 20)
+	var basenames []string = make([]string, 0, 20)
+	var allReadable bool = true
+	
+	for _, filename := range filenames {
+		s, basename, err := readSuite(filename)
 		if err != nil {
-			fmt.Printf("Cannot read from '%s': %s\n", filename, err.String())
-			continue
+			allReadable = false
+		} else {
+			suites = append(suites, s)
+			basenames = append(basenames, basename)
 		}
-		basename := filename
-		if j := strings.LastIndex(basename, "/"); j != -1 {
-			basename = basename[j+1:]
-		}
-		parser := suite.NewParser(file, basename)
-		s, _ := parser.ReadSuite()
-		file.Close()
+	}
 
-		result += "\nSuite " + filename + ":\n-----------------------------------------\n"
+	if checkOnly {
+		for _, s := range suites {
+			for _, t := range s.Test {
+				fmt.Printf("\n%s\n", t.String())
+			}
+		}
+		return
+	}
+	if !allReadable {
+		os.Exit(1)
+	}
+	
+	for sn, s := range suites {
+	
+		result += "\nSuite " + basenames[sn] + ":\n-----------------------------------------\n"
 
 		for i, t := range s.Test {
-			if checkOnly {
-				fmt.Printf("\n%s\n", t.String())
-				continue
-			}
 			// do not run global
 			if i == 0 && t.Title == "Global" {
 				continue
@@ -230,7 +252,7 @@ func main() {
 			at = fmt.Sprintf("Test %2d: %-20s", i, at)
 
 			if shouldRun(s, i) {
-				if benchmark {
+				if benchmarkMode {
 					dur, f, err := s.BenchTest(i, numRuns)
 					if err != nil {
 						result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
@@ -253,9 +275,7 @@ func main() {
 
 	}
 	// Summary
-	if !checkOnly {
-		fmt.Printf(result)
-	}
+	fmt.Printf(result)
 	if passed {
 		fmt.Printf("PASS\n")
 		os.Exit(0)
@@ -263,4 +283,32 @@ func main() {
 		fmt.Printf("FAIL\n")
 		os.Exit(1)
 	}
+}
+
+func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) {
+	var file *os.File
+	file, err = os.Open(filename, os.O_RDONLY, 777)
+	defer file.Close()
+
+	if err != nil {
+		error("Cannot read from '%s': %s\n", filename, err.String())
+		return
+	}
+	basename = path.Base(filename)
+	parser := suite.NewParser(file, filename)
+	s, err = parser.ReadSuite()
+	if err != nil {
+		error("Problems parsing '%s': %s\n", filename, err.String())
+	}
+	return
+} 
+
+func stresstest(bgfilename, testfilename string) {
+	background, _, berr := readSuite(bgfilename)
+	testsuite, _, serr := readSuite(bgfilename)
+	if berr != nil || serr != nil {
+		error("Cannot parse given suites.")
+		return
+	}
+	testsuite.Stress(background, 2, 3)
 }
