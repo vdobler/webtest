@@ -22,6 +22,7 @@ var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var tagLogLevel int = -1
 var suiteLogLevel int = -1
 var testsToRun string = ""
+var randomSeed int = -1
 
 func error(f string, m ...interface{}) {
 	if LogLevel >= 1 {
@@ -115,11 +116,12 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Common Options:\n")
 	fmt.Fprintf(os.Stderr, "\tcheck      do not run \n")
-	fmt.Fprintf(os.Stderr, "\tlog        General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
-	fmt.Fprintf(os.Stderr, "\tlog.tag    Log level for Tag test (tag package)\n")
-	fmt.Fprintf(os.Stderr, "\tlog.suite  Log level for suite package\n")
-	fmt.Fprintf(os.Stderr, "\ttests      select which tests to run: Comma seperated list of numbers or\n")
-	fmt.Fprintf(os.Stderr, "\t           uniq test names prefixes.\n")
+	fmt.Fprintf(os.Stderr, "\tlog <n>        General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
+	fmt.Fprintf(os.Stderr, "\tlog.tag <n>    Log level for Tag test (tag package)\n")
+	fmt.Fprintf(os.Stderr, "\tlog.suite <n>  Log level for suite package\n")
+	fmt.Fprintf(os.Stderr, "\ttests <list>   select which tests to run: Comma seperated list of numbers or\n")
+	fmt.Fprintf(os.Stderr, "\t               uniq test names prefixes.\n")
+	fmt.Fprintf(os.Stderr, "\tseed <n>       use n as random ssed (instead of current time)\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
 	fmt.Fprintf(os.Stderr, "\n")
@@ -146,6 +148,7 @@ func main() {
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
 	flag.StringVar(&testsToRun, "tests", "", "Run just some tests (numbers or name)")
+	flag.IntVar(&randomSeed, "seed", 15, "Number of runs for each test in benchmark.")
 	flag.Usage = help
 
 	flag.Parse()
@@ -159,6 +162,10 @@ func main() {
 	if (benchmark && testmode) || (benchmark && stresstest) || (testmode && stresstest) {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, -test, -bench")
 		os.Exit(1)
+	}
+	
+	if randomSeed != -1 {
+		suite.Random = rand.New(rand.NewSource(randomSeed))
 	}
 
 	if tagLogLevel < 0 {
