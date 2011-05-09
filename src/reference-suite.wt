@@ -18,41 +18,38 @@
 # See below: Global is such a testcase. Unfortunately Global is as 
 # very special testcase. So please skip to the "Ping" test case.
 #
-
-
-
   
 -------------------------------  
 Global
 -------------------------------
-HEADER
-  Basic-Auth: "User:Passwd"			// Added to all following requests
-  Cookie:     "Some cookie string"	// Same for cookie
+GET http://unused.for/global
 RESPONSE
-  StatusCode == 200					// Required for all test if not overwritten
+	# Normly we expect to get 200. Overwrite in test if you need to 
+	# test for e.g. 404
+	Status-Code == 200
 SETTINGS
-  Repeat: 3							// Repeat each test 3 times
-VARIABLES
-  Const
-    BaseUrl = "http://www.unic.com"		// Use like ${BaseUrl}
-  Rand
-    Name = "Anna" "Berta" "Cecil" "Doris"	// ${Name} is a random one of them
-    Amount = "1" "2" "3" "4" "99" "100"	// same for ${Amount}
-  Sequenz
-    Num = "12" "24" "36" "48"				// ${Num} will cycle through list
+	# Any request taking longer than 45 seconds is considered an error.
+	Max-Time  45000
+CONST
+	# The global BaseUrl of our test server.
+	BaseUrl   http://localhost:8080
 
 	
+#
+# General Structure of Test Cases
+# -------------------------------
 #
 # The most basic and simple test case: See if a server answers.
 #
 # After the test case header (-------\n<Name>\n-------) several
-# section describe various aspects of the test. A Section is intruduced
+# sections describe various aspects of the test. A Section is intruduced
 # by an all caps section name starting at the first character of a line.
 # Individual setting in a setting are indented by (at least) a tab '\t'.
 #
 # The first section is special: It names the request method and URL and 
-# must be the first section and cannot be omitted.
-# All other section are optional and may occur in any order.
+# must be the first section, cannot be omitted an has no sub-elements.
+# All other section are optional and may occur in any order. Thing Ping
+# test below contains just the RESPONSE section.
 ---------------------------------
 Ping
 ---------------------------------
@@ -69,6 +66,9 @@ RESPONSE
 # Thats all for the ping test case
 
 
+#
+# Checking Response Header Fields
+# -------------------------------
 #
 # More on response fields checking: Recieved header fields can be accessed
 # by their name (no trailing colon), e.g. "Content-Type". 
@@ -118,7 +118,9 @@ RESPONSE
 	 Field-Name == "  spaces at begin and end are important for the test  "
 	 
 	
-
+#
+# Setting Request Header fields
+# -----------------------------
 #
 # You may specify any request header field in the HEADER section by just
 # naming them and their value.
@@ -137,9 +139,11 @@ HEADER
 
 	
 #
+# Testing the Response Body
+# -------------------------
 # There are three ways to test the content of the recieved body:
 # Simple tests are specified in the BODY section, HTML tags can be checked
-# in the TAG section
+# in the TAG section.
 ---------------------------------
 Ping Content
 ---------------------------------
@@ -165,21 +169,25 @@ BODY
 # HTML/XML tag/element checkings are placed in section TAG
 # Syntax for the tags are like checktag. See documentation in tag.go 
 TAG
-	# Check if this h2 is present
-	h2 class=home == Qualität für Sie!
+	# Check if any h2 tag with a class of 'home' and text content of
+	# 'Quality' is present
+	h2 class=home == Quality
 		
-	# Fail if this h1 is present
-	! h1 == WRONG
+	# Fail if a h1 tag with content 'WRONG' is present
+	! h5 == WRONG
 	
-	# Count occurences of this div: Must be exactly 3
-	=3	div class=cols
+	# Count occurences of this div tag with CSS class teaser: 
+	# Must be exactly 3
+	=3	div class=teaser
 	
-	# This span may not be present 2 times (1 or 17) is okay
+	# span tags may not be present 2 times (0, 1, 3, .. or 17) is okay
 	!=2 span == xyz
 	
-	# This a may be present at most 4 times.
-	<5  a href=somewhere.html
-	# The rest of the numerical operators are <=, >= and >
+	# Fail if there are more than 4 a tag linking to /somewhere.html.
+	<5  a href=/somewhere.html
+	
+	# The rest of the numerical operators are <=, >= and > and work like
+	# expected.
 	# Negations are discuraged (but allowed): !<=, !>=, !< and !>
 
 	# Tag structures (nested tags) are introduced by '[' and ended by ']'
@@ -198,105 +206,97 @@ TAG
 	   ]
 
 
-
+#
+# Sending Parameters
+# ------------------
+#
+# Arbitary parameters can be specified in the PARAM section. 
+# For GET requests they are appended to the given URL. POST requests 
+# are currently sent as "form-urlencoded" (multipart will be added soon).
+# 
 ---------------------------------
-Wichtiger Test
+Post a Comment
 ---------------------------------
-# Some description what and why this test
-# is the way it is.
-GET http://unic.com						// Method and Url
-HEADER
-  Accept-Language: "de,fr,en"			// Add/Overwrite Global Header
-RESPONSE
-  StatusCode    == "200"				// == Equals
-  Content-Type  ~= "text/html"			// ~= Contains
-  StrangeField  /= "(cat?|^dog?) .+$"   // /= Regexp
-  Url           == "http://ib.com"		// Final Url after redirect
-  ContentLength  > 500					// > for numeric args (same for <, <= and >=
-  Other-Header  _= "StartPrefix"		// _= StartsWith
-  Something     =_ EndPrefix			// =_ EndsWith.
-  !Other        ~= Illegal				// Forbidden: Fail if Other contains Illegal
-BODY
-  Txt ~= "Hallo Welt"					// Contained text
-  Bin _= A3FE0256B781					// Starts with hex values
-  Tag    h1 == Startseite				// Look for Tag
-  Tag   								// Complex (Nested TagSpec)
-	div id=main					
-		h2 == Wilkommen!
-  !Tag  span == Ganz Falsch				// Forbidden Tag
-  
-------------------------------------
-Maybe better syntax for tag checking
-------------------------------------
-BODY
-	Txt  ~=  Some Text
-	Bin  _=  ffef
-TAGS
-	    div class=teaser				// tag neededsame as
-	>0  div class=teaser				// same
-	
-	!   a href=rm-rf == Delete All		// tag forbidden
-	=0  a href=rm-rf == Delete All		// same
-	=5	p class=news =D= Aktuell*		// exact 5 occurenced
-	<3  div class=promobox				// less tahn 3 promoboxes
-	
-	[ 								// Start of complex structure
-		div class=ext					// root tag 
-			p == *News*					// nested tags
-				span == Today
-	]								// End of structure
-
-	!= 13 [							// any number of whishes
-			div class=wishes		// identified by structure
-				h3					// but not 13 of them
-					p == *From:*
-	
-		  ]
-	[					// Sructure:
-		h1				// document must contain tag with nested
-		h2				// h1 followed by two h2 and an ul with 
-		h2				// at least three items followed by one
-		ul				// h2. More h2 or li might be present
-			li			// as well as other tags before, between
-			li			// or after
-			li
-		h2
-	]
-	div class=banner  \						// syntactical sugar for
-		span class=hidden == *Banner-ID=*	// small structures
-		
-
-------------------------------------
-Zweiter Test
-------------------------------------
-# Description goes here
-POST http://www.unic.com/kontakt.htm
-SETTINGS
-  Pre       "Wichtiger T..."				// Test will not run if pre test has failed
-  Max-Time  800								// fail if longer than 800 ms
-  Sleep     2000							// sleep for 2 sek before running next test
+POST http://my.blog/comment.html
 PARAM
-   name     "Volker Dobler "				// Parameters to post
-   addresse "Bergmattenweg 3"
-   file     testdata/file.txt				// just add filename
-RESPONSE
-  Url       "http://www.unic.com/kontakt.thanks.htm"  	// did redirect
-BODY
-  Tag=5     li class=eingabe				// 5 occurens of li tag with given class
+	name	Grigori Perelman
+	text	A Proof of the Poincare Conjecture
 
-  
-------------------------------------
-Login
-------------------------------------
-# Description goes here
-POST http://fake.com/login
-SETTINGS
-  Keep-Cookies  true					// Keep returned cookie and resend on subsequent requests
+	
+#
+# Variable Subtitutions
+# ---------------------
+#
+# There are three types of variable substitutions, all can be used shell
+# variables: A variable can be asigned a value and used as part of the URL,
+# part of header, response, body or parameter values.  The usage is allways
+# the same: Occurences of ${varname} are replaced by the value of the 
+# varibale varname. But there are three ways to set a value for a variable:
+# CONST variables just take a value, there use is obious. Furthermore there
+# are SEQ (sequence) and RAND (random) values, there (reasonable) use is 
+# limited to repeated test. SEQ and RAND values take values of a given list 
+# of possible values. SEQ cycles through the list in the given order, wheras
+# RAND picks one value by random.
+#
+---------------------------------
+Test Archive
+---------------------------------
+# Usage of a variable: ${BaseUrl} is replace by const value set bolow.
+# resulting in URL beeing http://my.blog/entrieshttp://my.blog/entries
+GET ${BaseUrl}http://my.blog/entries
 PARAM
-   name     "volker.dobler"				// Parameters to post
-   passed   "supergeheim"
+	month 	${Month}
+	year	${Year
+CONST
+	# Set value of BaseUrl to http://my.blog/entries. Note: No = sign!
+	BaseUrl http://my.blog/entries
+SEQ
+	# Month will be 1 on first run of test, 2 on second, and so on.
+	# Will restart beeing 1 on 13th run of test.
+	Month	1 2 3 4 5 6 7 8 9 10 11 12
+RAND
+	# Year is one of the given four selected randomly on each test run.
+	Year 	2004 2005 2006 2007
+	# Values with spaces 'Emil Tom' must be enclosed in quotes.
+	Name	Anna "Emil Tom" Vicktoria 
+SETTING
+	# Repeat the test 7 times.
+	Repeat	7
+
+
+#
+# Settings
+# --------
+#
+# Various setting can be applied to each and every test in the SETTING
+# section. Currently the following are (or will be) implemented.
+#
+---------------------------------
+Repeated Ping
+---------------------------------
+GET http://host.to.ping/path.html
 RESPONSE
-  Url       "http://www.unic.com/kontakt.thanks.htm"  	// did redirect
-BODY
-  Tag       h2 == Welcome Volker Dobler		// Login Worked
-  
+	Status-Code	 ==  200
+SETTING
+	# Number of repetitions of the test
+	Repeat		12
+	# Fail if answer is not recievd in less than 300 ms. (Not implemented)
+	Max-Time	300
+	# Keep (store in Global) cookies set by the server answer (Not impl.)
+	Keep-Cookies	true
+	
+	
+#
+# Global
+# ------
+#
+# If the very first test in a test suite is named "Global" than this test
+# will not be run, but serve as a template for all subsequent tests:
+# Settings, Variables, Header fields and Response checks are inherited
+# from global to each test. The test may overwrite them. Body and Tag
+# checks cannot be overwritten (as the do not contain some uniq id to
+# identify them): Body and Tag conditions/checks from global are just
+# added to each test.
+#
+# See Global-"Test" above for an example
+

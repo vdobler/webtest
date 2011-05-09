@@ -13,13 +13,15 @@ import (
 	"dobler/webtest/tag"
 )
 
+var checkOnly bool = false
+var testmode bool = true
 var benchmark bool = false
+var stresstest bool = false
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var tagLogLevel int = -1
 var suiteLogLevel int = -1
 var testsToRun string = ""
-var checkOnly bool
 
 func error(f string, m ...interface{}) {
 	if LogLevel >= 1 {
@@ -100,18 +102,66 @@ func fiveval(data []int) (min, lq, med, avg, uq, max int) {
 	return
 }
 
+func help() {
+	fmt.Fprintf(os.Stderr, "\nUsage:\n")
+	fmt.Fprintf(os.Stderr, "\twebtest -check [common options] <suite>...\n")
+	fmt.Fprintf(os.Stderr, "\twebtest [-test] [common options] [test options] <suite>...\n")
+	fmt.Fprintf(os.Stderr, "\twebtest -bench [common options] [bench options] <suite>...\n")
+	fmt.Fprintf(os.Stderr, "\twebtest -stress [common options] [stress options] <background-suite> <test-suite>\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Test is the default mode and will run all test in the given suites.\n")
+	fmt.Fprintf(os.Stderr, "Check will just read the testsuite, parse ist and output warning/erros found.\n")
+	fmt.Fprintf(os.Stderr, "Benchmarking and Stress-Test (not implemented) are selected by -test or -stres.\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Common Options:\n")
+	fmt.Fprintf(os.Stderr, "\tcheck      do not run \n")
+	fmt.Fprintf(os.Stderr, "\tlog        General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
+	fmt.Fprintf(os.Stderr, "\tlog.tag    Log level for Tag test (tag package)\n")
+	fmt.Fprintf(os.Stderr, "\tlog.suite  Log level for suite package\n")
+	fmt.Fprintf(os.Stderr, "\ttests      select which tests to run: Comma seperated list of numbers or\n")
+	fmt.Fprintf(os.Stderr, "\t           uniq test names prefixes.\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Test Options:\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
+	fmt.Fprintf(os.Stderr, "\truns\tnumber of repetitions of each test (mus be >= 5).\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Stress Test Options:\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Defaults:\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	flag.PrintDefaults()
+	os.Exit(1)
+}
 
 func main() {
+	var helpme bool
+	flag.BoolVar(&helpme, "help", false, "Print usage info and exit.")
+	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
+	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")
+	flag.BoolVar(&testmode, "test", true, "Perform normal testing")
+	flag.BoolVar(&checkOnly, "stress", false, "Use background-suite as stress suite for tests.")
 	flag.IntVar(&LogLevel, "log", 2, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
-	flag.BoolVar(&benchmark, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
-	flag.StringVar(&testsToRun, "test", "", "Run just some tests (numbers or name)")
-	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
-
+	flag.StringVar(&testsToRun, "tests", "", "Run just some tests (numbers or name)")
+	flag.Usage = help
+	
 	flag.Parse()
-
+	if helpme {
+		help()
+	}
+	if stresstest {
+		fmt.Fprintf(os.Stderr, "Stress Testing not implemented")
+		os.Exit(1)
+	}
+	if (benchmark && testmode) || (benchmark && stresstest) || (testmode && stresstest) {
+		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, -test, -bench")
+		os.Exit(1)
+	}
+	
+	
 	if tagLogLevel < 0 {
 		tagLogLevel = LogLevel
 	}
