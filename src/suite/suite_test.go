@@ -18,7 +18,7 @@ var (
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
-var testserverStayAlive int64 = 0  
+var testserverStayAlive int64 = 0
 
 
 var suiteTmpl = `
@@ -131,6 +131,16 @@ RESPONSE
 TAG
 	h1 == Dummy Document *
 	p class=a == *Braunschweig Weiler
+	
+
+------------------------
+Too slow
+------------------------
+GET ${URL}/html.html
+PARAM
+	sleep	110
+SETTING
+	Max-Time	100
 `
 
 func TestServer(t *testing.T) {
@@ -172,6 +182,10 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	w.SetHeader("Fancy-Header", "Important Value")
 	w.WriteHeader(200)
 	t := req.FormValue("text")
+	s := req.FormValue("sleep")
+	if ms, err := strconv.Atoi(s); err == nil {
+		time.Sleep(1000000 * int64(ms))
+	}
 	body := fmt.Sprintf(htmlPat, t)
 	w.Write([]byte(body))
 	w.Flush()
@@ -184,7 +198,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Printf("========= called /post with GET! ========\n")
 	}
 	if t != "" {
-		w.SetHeader("Location", host + port + "/" + t)
+		w.SetHeader("Location", host+port+"/"+t)
 		w.WriteHeader(302)
 	} else {
 		w.WriteHeader(200)
@@ -220,6 +234,14 @@ func passed(test *Test, t *testing.T) bool {
 	return true
 }
 
+func failed(test *Test, t *testing.T) bool {
+	if strings.HasPrefix(test.Status(), "PASSED") {
+		t.Logf("Test %s expected to fail but passed.\n%s", test.Title, test.Result)
+		t.Fail()
+		return false
+	}
+	return true
+}
 
 func TestParsing(t *testing.T) {
 	suiteText := fmt.Sprintf(suiteTmpl, host, port)
@@ -281,6 +303,14 @@ func TestPost(t *testing.T) {
 	}
 	theSuite.RunTest(7)
 	passed(&theSuite.Test[7], t)
+}
+
+func TestTooSlow(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(8)
+	failed(&theSuite.Test[8], t)
 }
 
 

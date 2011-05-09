@@ -6,7 +6,7 @@ import (
 	"io"
 	"fmt"
 	linereader "encoding/line"
-	// "bytes"
+	"strconv"
 	"dobler/webtest/tag"
 )
 
@@ -30,18 +30,21 @@ type Parser struct {
 	suite  []Test
 	i      int
 	name   string
+	okay   bool
 }
 
+// Set up a new Parser which reads a suite from r (named name).
 func NewParser(r io.Reader, name string) *Parser {
 	parser := new(Parser)
 	parser.reader = linereader.NewReader(r, 4000)
 	parser.line = []Line{}
 	parser.suite = []Test{}
 	parser.name = name
+	parser.okay = true
 	return parser
 }
 
-
+// Read a line from the Reader
 func (p *Parser) nextLine() (line Line, err os.Error) {
 	var isprefix bool
 	var by []byte
@@ -63,6 +66,7 @@ func (p *Parser) nextLine() (line Line, err os.Error) {
 	return Line{str, p.i}, nil
 }
 
+// Return the next non-blank, non-comment line.
 func (p *Parser) nextRealLine() (line Line, err os.Error) {
 	for {
 		line, err = p.nextLine()
@@ -77,6 +81,7 @@ func (p *Parser) nextRealLine() (line Line, err os.Error) {
 	return
 }
 
+// Fill list of lines.
 func (p *Parser) readLines() {
 	p.i = 0
 	for {
@@ -90,10 +95,12 @@ func (p *Parser) readLines() {
 }
 
 
+// Abrevations for strings.HasPrefix
 func hp(s, p string) bool {
 	return strings.HasPrefix(s, p)
 }
 
+// Abrevation for strings.HasSuffix
 func hs(s, p string) bool {
 	return strings.HasSuffix(s, p)
 }
@@ -231,6 +238,7 @@ func (p *Parser) readCond(body bool) []Condition {
 		j := firstSpace(line)
 		if j == -1 {
 			error("No op or value on line %d", no)
+			p.okay = false
 			continue
 		}
 
@@ -246,12 +254,14 @@ func (p *Parser) readCond(body bool) []Condition {
 			case "Txt", "Bin":
 			default:
 				error("No such condition type '%s' for body.", k)
+				p.okay = false
 				continue
 			}
 		}
 		j = firstSpace(line)
 		if j == -1 {
 			error("No value on line %d (in %s) or missing operator", no, trim(p.line[p.i].line))
+			p.okay = false
 			continue
 		}
 		op := trim(line[:j])
@@ -268,16 +278,20 @@ func (p *Parser) readCond(body bool) []Condition {
 
 // Helper to extract count an spec from strings like ">= 5  a href=/index.html"
 // off is the number of charactes to strip before trying to read an int.
-func numStr(line string, off, no int) (n int, spec string) {
-	trace("line = %s, off = %d", line, off) 
+func numStr(line string, off, no int) (n int, spec string, err os.Error) {
+	trace("line = %s, off = %d", line, off)
 	beg := line[:off]
 	line = trim(line[off:])
 	i := firstSpace(line)
 	if i < 0 {
 		error("Missing space after %s in line %d", beg, no)
+		err = ParserError{"Missing space"}
 		return
 	}
-	n = atoi(line[:i], "", 0)
+	n, err = strconv.Atoi(line[:i])
+	if err != nil {
+		return
+	}
 	spec = line[i+1:]
 	trace("n=%d, spec=%s", n, spec)
 	return
@@ -295,53 +309,58 @@ func (p *Parser) readTagCond() []TagCondition {
 			return list
 		}
 		line = trim(line)
-		
+
 		cond := TagCondition{}
 		cond.Id = fmt.Sprintf("%s:%d", p.name, no)
 		var spec string
-		
+		var err os.Error
+
 		if false {
 		} else if hp(line, "!=") {
 			cond.Cond = CountNotEqual
-			cond.Count, spec = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2, no)
 		} else if hp(line, "!>=") {
 			cond.Cond = CountLess
-			cond.Count, spec = numStr(line, 3, no)
+			cond.Count, spec, err = numStr(line, 3, no)
 		} else if hp(line, "!>") {
 			cond.Cond = CountLessEqual
-			cond.Count, spec = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2, no)
 		} else if hp(line, "!<=") {
 			cond.Cond = CountGreater
-			cond.Count, spec = numStr(line, 3, no)
+			cond.Count, spec, err = numStr(line, 3, no)
 		} else if hp(line, "!<") {
 			cond.Cond = CountGreaterEqual
-			cond.Count, spec = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2, no)
 		} else if hp(line, "!") {
 			cond.Cond = TagForbidden
 			spec = line[1:]
 		} else if hp(line, "==") {
 			cond.Cond = CountEqual
-			cond.Count, spec = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2, no)
 		} else if hp(line, "=") {
 			cond.Cond = CountEqual
-			cond.Count, spec = numStr(line, 1, no)
+			cond.Count, spec, err = numStr(line, 1, no)
 		} else if hp(line, ">=") {
 			cond.Cond = CountGreaterEqual
-			cond.Count, spec = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2, no)
 		} else if hp(line, ">") {
 			cond.Cond = CountGreater
-			cond.Count, spec = numStr(line, 1, no)
+			cond.Count, spec, err = numStr(line, 1, no)
 		} else if hp(line, "<=") {
 			cond.Cond = CountLessEqual
-			cond.Count, spec = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2, no)
 		} else if hp(line, "<") {
 			cond.Cond = CountLess
-			cond.Count, spec = numStr(line, 1, no)
+			cond.Count, spec, err = numStr(line, 1, no)
 		} else {
 			cond.Cond = TagExpected
 			spec = line
 		}
-		
+		if err != nil {
+			p.okay = false
+			return list
+		}
+
 		spec = trim(spec)
 		if hp(spec, "[") { // multiline tag spec
 			trace("Multiline tag spec")
@@ -352,6 +371,7 @@ func (p *Parser) readTagCond() []TagCondition {
 				trace("Next line: %s", line)
 				if !hp(line, "\t") {
 					error("Nonindented line in multiline tag spec on line %d", no)
+					p.okay = false
 					break
 				}
 				if hs(trim(line), "]") {
@@ -368,7 +388,7 @@ func (p *Parser) readTagCond() []TagCondition {
 			}
 			//fmt.Printf("\n-------------------\n%s\n----------------------\n", spec)
 		}
-		
+
 		ts := tag.ParseTagSpec(spec)
 		if ts != nil {
 			cond.Spec = *ts
@@ -376,10 +396,55 @@ func (p *Parser) readTagCond() []TagCondition {
 			trace("Added to tag condition (line %d): %s", no, cond.String())
 		} else {
 			error("Problems parsing '%s'.", spec)
+			p.okay = false
 		}
 	}
 	return list
 }
+
+
+func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
+	for k, v := range *settings {
+		switch k {
+		case "Repeat":
+			i, e := strconv.Atoi(v)
+			if e != nil {
+				error("No in value given as Repeat count (was '%s') on line %s.", v, lineid)
+				p.okay = false
+			} else if i > 100 {
+				warn("More than 100 repetitions of one test on line %s.", lineid)
+			}
+		case "Max-Time":
+			_, e := strconv.Atoi(v)
+			if e != nil {
+				error("No in value given as Max-Time miliseconds (was '%s') on line %s.", v, lineid)
+				p.okay = false
+			}
+		case "Sleep":
+			i, e := strconv.Atoi(v)
+			if e != nil {
+				error("No in value given as Sleep miliseconds (was '%s') on line %s.", v, lineid)
+				p.okay = false
+			} else if i < 0 {
+				error("Sleep is < 0 on line %s.", lineid)
+				p.okay = false
+			}
+		case "Keep-Cookies":
+			switch v {
+			case "true", "1", "True", "TRUE", "keep", "Keep":
+				(*settings)[k] = "1"
+			case "false", "0", "False", "FALSE", "drop", "DROP":
+				(*settings)[k] = "0"
+			default:
+				error("Unknown value for Keep-Cookies: must be 0 or 1 (was '%s') on line %s.", v, lineid)
+				p.okay = false
+			}
+		default:
+			warn("Unknown Setting '%s' (check spelling and capitalization).", k)
+		}
+	}
+}
+
 
 // Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
@@ -430,7 +495,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 
 		if hp(line, "\t") || hp(line, " ") {
 			error("Misplaced indented stuff in line %d", no)
-			err = ParserError{"Mispalced indented stuff"}
+			err = ParserError{"Misplaced indented stuff"}
 			return
 		}
 
@@ -446,6 +511,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.readMultiMap(&test.Param)
 		case "SETTING", "SETTINGS":
 			p.readMap(&test.Setting)
+			p.checkSettings(&test.Setting, fmt.Sprintf("%d", no))
 		case "CONST":
 			p.readMap(&test.Const)
 		case "RAND":
@@ -455,7 +521,9 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "TAG", "TAGS":
 			test.Tag = p.readTagCond()
 		default:
-			error("Unknow element '%s' in line %d. Skipped.", line, no)
+			error("Unknow section '%s' in line %d. Skipped.", line, no)
+			err = ParserError{"Unknown Section"}
+			return
 		}
 
 	}
@@ -464,6 +532,10 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		suite.Test = append(suite.Test, *test)
 		trace("Append test to suite: \n%s", test.String())
 		trace("len(suite.Test) == %d", len(suite.Test))
+	}
+
+	if !p.okay {
+		err = ParserError{"General problems."}
 	}
 	return
 }

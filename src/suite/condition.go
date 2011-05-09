@@ -23,9 +23,9 @@ const (
 
 type TagCondition struct {
 	Spec  tag.TagSpec
-	Cond  int      // one from TagExpected, ... CountGreaterEqual		
-	Count int      // used for Count... Cond only
-	Id	  string   // used for error reporting if failed
+	Cond  int    // one from TagExpected, ... CountGreaterEqual		
+	Count int    // used for Count... Cond only
+	Id    string // used for error reporting if failed
 }
 
 func (tc *TagCondition) String() (s string) {
@@ -55,7 +55,7 @@ func (tc *TagCondition) String() (s string) {
 		s = fmt.Sprintf(">%d\t%s", tc.Count, ts)
 	case CountGreaterEqual:
 		s = fmt.Sprintf(">=%d\t%s", tc.Count, ts)
-	default :
+	default:
 		fmt.Printf("No such case: %d\n", tc.Cond)
 	}
 	return
@@ -67,11 +67,11 @@ func (tc *TagCondition) String() (s string) {
 // occurences of the tag. Key is "Text", "Bin" or "Tag" for body-testing.
 // Line contains the line number in the source
 type Condition struct {
-	Key  string
-	Op   string
-	Val  string
-	Neg  bool
-	Id   string
+	Key string
+	Op  string
+	Val string
+	Neg bool
+	Id  string
 }
 
 func atoi(s, line string, fallback int) int {

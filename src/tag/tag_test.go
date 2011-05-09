@@ -82,7 +82,6 @@ var testSimpleHtml = `<!DOCTYPE html>
 </html>`
 
 
-
 func TestBasics(t *testing.T) {
 	doc, err := ParseHtml(testSimpleHtml)
 	if err != nil {
@@ -152,21 +151,21 @@ func TestCounting(t *testing.T) {
 		t.Error("Unparsabel html: " + err.String())
 		t.FailNow()
 	}
-	
-	counts := map[string]int{"html": 1, "body": 1, "div": 6, "p": 13, "h1": 4, "h2": 1, "span": 5 }
+
+	counts := map[string]int{"html": 1, "body": 1, "div": 6, "p": 13, "h1": 4, "h2": 1, "span": 5}
 	for q, n := range counts {
 		m := CountTag(ParseTagSpec(q), doc)
 		if m != n {
 			t.Errorf("Found %d instances of %s but expected %d.", m, q, n)
 		}
 	}
-	
+
 	root := FindTag(ParseTagSpec("div id=div1"), doc)
 	if root == nil {
 		t.Error("No div id=div1 found")
 		t.FailNow()
 	}
-	counts = map[string]int{"html": 0, "body": 0, "div": 1, "p": 8, "h1": 4, "h2": 0, "span": 1 }
+	counts = map[string]int{"html": 0, "body": 0, "div": 1, "p": 8, "h1": 4, "h2": 0, "span": 1}
 	for q, n := range counts {
 		m := CountTag(ParseTagSpec(q), root)
 		if m != n {

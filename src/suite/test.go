@@ -8,6 +8,7 @@ import (
 	"dobler/webtest/tag"
 	"encoding/hex"
 	"time"
+	"strconv"
 )
 
 var (
@@ -29,17 +30,14 @@ type Test struct {
 	BodyCond []Condition
 	Tag      []TagCondition
 	Pre      []string
-	// MaxTime  int // -1: unset, 0=no limit, >0: limit in ms
-	// Sleep    int // -1: unset, >=0: sleep after in ms
-	// Repeat   int // -1: unset, 0=disabled, >0: count
-	Param   map[string][]string
-	Setting map[string]string
-	Const   map[string]string
-	Rand    map[string][]string
-	Seq     map[string][]string
-	SeqCnt  map[string]int
-	Vars    map[string]string
-	Result  []string
+	Param    map[string][]string
+	Setting  map[string]string
+	Const    map[string]string
+	Rand     map[string][]string
+	Seq      map[string][]string
+	SeqCnt   map[string]int
+	Vars     map[string]string
+	Result   []string
 }
 
 // Make a deep copy of src. dest will not share any data structures with src.
@@ -146,8 +144,9 @@ func NewTest(title string) *Test {
 	t.Vars = make(map[string]string)
 
 	t.Setting["Repeat"] = "1"
-	t.Setting["MaxTime"] = "unlimited"
+	t.Setting["Max-Time"] = "-1"
 	t.Setting["Sleep"] = "0"
+	t.Setting["Keep-Cookies"] = "0"
 
 	return &t
 }
@@ -244,7 +243,7 @@ func (t *Test) String() (s string) {
 		s += "TAG\n"
 		for i, tagCond := range t.Tag {
 			fts := tagCond.String()
-			if i>0 && strings.Contains(fts, "\n") {
+			if i > 0 && strings.Contains(fts, "\n") {
 				s += "\t\n"
 			}
 			s += "\t" + fts + "\n"
@@ -332,33 +331,51 @@ func testTags(t, orig *Test, doc *tag.Node) {
 		case TagExpected, TagForbidden:
 			n := tag.FindTag(&tc.Spec, doc)
 			if tc.Cond == TagExpected {
-				if n != nil { 
-					orig.Report(true, "%s", cs) 
-				} else { 
-					orig.Report(false, "%s: Missing", cs) 
+				if n != nil {
+					orig.Report(true, "%s", cs)
+				} else {
+					orig.Report(false, "%s: Missing", cs)
 				}
 			} else {
-				if n == nil { 
-					orig.Report(true, "%s", cs) 
-				} else { 
-					orig.Report(false, "%s: Forbidden", cs) 
+				if n == nil {
+					orig.Report(true, "%s", cs)
+				} else {
+					orig.Report(false, "%s: Forbidden", cs)
 				}
-			}			
+			}
 		case CountEqual, CountNotEqual, CountLess, CountLessEqual, CountGreater, CountGreaterEqual:
 			got, exp := tag.CountTag(&tc.Spec, doc), tc.Count
 			switch tc.Cond {
 			case CountEqual:
-				if got != exp { orig.Report(false, "%s: Found %d expected %d", cs, got, exp); continue }
+				if got != exp {
+					orig.Report(false, "%s: Found %d expected %d", cs, got, exp)
+					continue
+				}
 			case CountNotEqual:
-				if got == exp { orig.Report(false, "%s: Found %d expected != %d", cs, got, exp); continue }
-			case CountLess: 
-				if got >= exp { orig.Report(false, "%s: Found %d expected < %d", cs, got, exp); continue }
+				if got == exp {
+					orig.Report(false, "%s: Found %d expected != %d", cs, got, exp)
+					continue
+				}
+			case CountLess:
+				if got >= exp {
+					orig.Report(false, "%s: Found %d expected < %d", cs, got, exp)
+					continue
+				}
 			case CountLessEqual:
-				if got > exp { orig.Report(false, "%s: Found %d expected <= %d", cs, got, exp); continue }
+				if got > exp {
+					orig.Report(false, "%s: Found %d expected <= %d", cs, got, exp)
+					continue
+				}
 			case CountGreater:
-				if got <= exp { orig.Report(false, "%s: Found %d expected > %d", cs, got, exp); continue }
+				if got <= exp {
+					orig.Report(false, "%s: Found %d expected > %d", cs, got, exp)
+					continue
+				}
 			case CountGreaterEqual:
-				if got < exp { orig.Report(false, "%s: Found %d expected >= %d", cs, got, exp); continue }
+				if got < exp {
+					orig.Report(false, "%s: Found %d expected >= %d", cs, got, exp)
+					continue
+				}
 			}
 			orig.Report(true, "%s", cs)
 		default:
@@ -512,19 +529,19 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 
 	starttime := time.Nanoseconds()
 	var (
-			response *http.Response
-			url      string
-			cookies  []string
-			reqerr   os.Error
-		)
-		
+		response *http.Response
+		url      string
+		cookies  []string
+		reqerr   os.Error
+	)
+
 	if ti.Method == "GET" {
 		response, url, cookies, reqerr = Get(ti)
 	} else if ti.Method == "POST" {
 		response, url, cookies, reqerr = Post(ti)
 	}
 	endtime := time.Nanoseconds()
-	duration = int(endtime-starttime) / 1000000
+	duration = int(endtime-starttime) / 1000000 // in milli seconds (ms)
 
 	if reqerr != nil {
 		test.Report(false, reqerr.String())
@@ -535,15 +552,17 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 	for _, cookie := range cookies {
 		trace("New cookie %s", cookie)
 	}
-	
-	// Add special fields to header befor testing
+
+	// Response: Add special fields to header befor testing
 	response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
 	response.Header.Set("Final-Url", url)
 	testHeader(response, ti, test)
 
+	// Body:
 	body := readBody(response.Body)
 	testBody(body, ti, test)
 
+	// Tag:
 	if len(ti.Tag) > 0 {
 		var doc *tag.Node
 		if parsableBody(response) {
@@ -562,6 +581,17 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 			test.Report(false, "Problems parsing Body. Skipped testing Tags.")
 		}
 	}
+
+	// Timing:
+	if v, ok := ti.Setting["Max-Time"]; ok {
+		max, err := strconv.Atoi(v)
+		if err != nil {
+			error("This should not happen: Max-Time is not an int.")
+		} else if max > 0 && duration > max {
+			test.Report(false, "Response exeeded Max-Time of %d (was %d).", max, duration)
+		}
+	}
+
 	_, _, failed := test.Stat()
 	if failed != 0 {
 		err = Error("Failure: " + test.Status())

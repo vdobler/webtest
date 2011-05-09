@@ -48,7 +48,7 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 	// TODO: set referrer header on redirects.
 
 	info("%s %s", req.Method, req.URL.String())
-	
+
 	r, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return
@@ -57,22 +57,22 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 	if sc := r.Header.Get("Set-Cookie"); sc != "" {
 		cookies = append(cookies, sc)
 	}
-	
+
 	if !shouldRedirect(r.StatusCode) {
 		return
 	}
-	
+
 	// Start redirecting to final destination
 	r.Body.Close()
 	var base = req.URL
-	
+
 	// Following the redirect chain is done with a clean/empty new GET request
 	req = new(http.Request)
 	req.Method = "GET"
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
-		
-	for redirect:=0; redirect<10; redirect++ {
+
+	for redirect := 0; redirect < 10; redirect++ {
 		var url string
 		if url = r.Header.Get("Location"); url == "" {
 			fmt.Printf("Header:\n%v", r.Header)
@@ -97,7 +97,7 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 		if sc := r.Header.Get("Set-Cookie"); sc != "" {
 			cookies = append(cookies, sc)
 		}
-		
+
 		if !shouldRedirect(r.StatusCode) {
 			return
 		}
@@ -131,8 +131,8 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.E
 		err = &http.URLError{"Get", url, err}
 		return
 	}
-	
-	addHeaders(&req, t)  
+
+	addHeaders(&req, t)
 	url = req.URL.String()
 	debug("Will post to %s", req.URL.String())
 	r, finalUrl, cookies, err = DoAndFollow(&req)
@@ -146,7 +146,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.E
 // Caller should close r.Body when done reading from it.
 func Post(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
 	var req http.Request
-	var url = t.Url  //  <-- Patched
+	var url = t.Url //  <-- Patched
 	req.Method = "POST"
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
@@ -162,7 +162,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.
 		"Content-Type":   {"application/x-www-form-urlencoded"},
 		"Content-Length": {strconv.Itoa(body.Len())},
 	}
-	addHeaders(&req, t)  // <-- Patched
+	addHeaders(&req, t) // <-- Patched
 
 	req.ContentLength = int64(body.Len())
 
@@ -172,7 +172,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.
 	}
 	debug("Will post to %s", req.URL.String())
 	r, finalUrl, cookies, err = DoAndFollow(&req)
-	return 
+	return
 }
 
 type nopCloser struct {
@@ -180,4 +180,3 @@ type nopCloser struct {
 }
 
 func (nopCloser) Close() os.Error { return nil }
-

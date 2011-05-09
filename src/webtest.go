@@ -147,7 +147,7 @@ func main() {
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
 	flag.StringVar(&testsToRun, "tests", "", "Run just some tests (numbers or name)")
 	flag.Usage = help
-	
+
 	flag.Parse()
 	if helpme {
 		help()
@@ -160,8 +160,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, -test, -bench")
 		os.Exit(1)
 	}
-	
-	
+
 	if tagLogLevel < 0 {
 		tagLogLevel = LogLevel
 	}
@@ -180,7 +179,7 @@ func main() {
 	var result string = "\n================================= Results =================================\n"
 
 	var passed bool = true
-		
+
 	for _, filename := range flag.Args() {
 		file, err := os.Open(filename, os.O_RDONLY, 777)
 		if err != nil {
@@ -188,7 +187,7 @@ func main() {
 			continue
 		}
 		basename := filename
-		if j := strings.LastIndex(basename,"/"); j != -1 {
+		if j := strings.LastIndex(basename, "/"); j != -1 {
 			basename = basename[j+1:]
 		}
 		parser := suite.NewParser(file, basename)
