@@ -1,13 +1,14 @@
 package tag
 
+
+
+
 import (
 	"fmt"
 	"regexp"
 	"os"
 	"html"
 	"log"
-	"strings"
-	"path"
 )
 
 var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -160,7 +161,7 @@ func regexpMatches(s, exp string) bool {
 
 // Do shell like pattern globing via package path. Return true if str matches pattern exp
 func wildcardMatches(str, exp string) bool {
-	matches, err := path.Match(exp, str)
+	matches, err := Match(exp, str)
 	if err != nil {
 		error("Malformed pattern '%s'.", exp)
 		return false
@@ -178,14 +179,10 @@ func textMatches(s, exp string) bool {
 
 	if exp[0] == '/' && exp[len(exp)-1] == '/' {
 		return regexpMatches(s, exp[1:len(exp)-1])
-	} else if strings.Index(exp, "*") >= 0 {
+	} else {
 		return wildcardMatches(s, exp)
 	}
 
-	if exp != s {
-		trace("    --> compare mismatch")
-		return false
-	}
 	return true
 }
 

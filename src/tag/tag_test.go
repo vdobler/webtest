@@ -78,6 +78,7 @@ var testSimpleHtml = `<!DOCTYPE html>
 	<div id="div4"><p id="plu">Luzern</p></div>
 	<div id="div5"><p id="pch"><span id="sch">Chiasso</span></p></div>
 	<div><p><div><p><span><div><p><span>Deeeeeep</span></p></div></span></p></div></p></div>
+	<p id="LongText" class="LongText">This is a pretty long text.</p>
 </body>
 </html>`
 
@@ -133,6 +134,14 @@ func TestTextcontent(t *testing.T) {
 	}
 
 	check(doc, "p == Luzern", "plu", t)
+	check(doc, "p == Lu?ern", "plu", t)
+	check(doc, "p == L?z?rn", "plu", t)
+	check(doc, "p == Luze*", "plu", t)
+	check(doc, "p == *zern", "plu", t)
+	check(doc, "p == /Luzern/", "plu", t)
+	check(doc, "p == /L.zern/", "plu", t)
+	check(doc, "p == /^L.zern$/", "plu", t)
+
 	check(doc, "p =D= Luzern", "plu", t)
 	check(doc, "span == Chiasso", "sch", t)
 	check(doc, "span =D= Chiasso", "sch", t)
@@ -143,6 +152,14 @@ func TestTextcontent(t *testing.T) {
 	check(doc, "p =D= AA BB CC DD EE FF GG", "nested", t)
 	checkN(doc, "div == 123 AA * GG 456", t)
 	check(doc, "div =D= 123 AA * GG 456", "div3", t)
+	
+	check(doc, "p class=LongText == This is a pretty long text.", "LongText", t)
+	check(doc, "p class=LongText == This is a * long text.", "LongText", t)
+	check(doc, "p class=LongText == This * long text.", "LongText", t)
+	check(doc, "p class=LongText == This * a pretty * text.", "LongText", t)
+	check(doc, "p class=LongText == This ?? ? pretty*text.", "LongText", t)
+	check(doc, "p id=Lon*ext == This is a pretty long text.", "LongText", t)
+	check(doc, "p id=?ong?ext == This * text.", "LongText", t)
 }
 
 func TestCounting(t *testing.T) {
@@ -152,7 +169,7 @@ func TestCounting(t *testing.T) {
 		t.FailNow()
 	}
 
-	counts := map[string]int{"html": 1, "body": 1, "div": 6, "p": 13, "h1": 4, "h2": 1, "span": 5}
+	counts := map[string]int{"html": 1, "body": 1, "div": 6, "p": 14, "h1": 4, "h2": 1, "span": 5}
 	for q, n := range counts {
 		m := CountTag(ParseTagSpec(q), doc)
 		if m != n {

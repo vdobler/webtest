@@ -9,6 +9,7 @@ import (
 	"log"
 	"sort"
 	"path"
+	"rand"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
@@ -165,7 +166,7 @@ func main() {
 	}
 	
 	if randomSeed != -1 {
-		suite.Random = rand.New(rand.NewSource(randomSeed))
+		suite.Random = rand.New(rand.NewSource(int64(randomSeed)))
 	}
 
 	if tagLogLevel < 0 {

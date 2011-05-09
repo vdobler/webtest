@@ -5,6 +5,7 @@ GOFILES=\
 	tag.go\
 	tagspec.go\
 	parser.go\
+	match.go
 
 include $(GOROOT)/src/Make.pkg
 
