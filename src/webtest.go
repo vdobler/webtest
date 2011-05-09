@@ -241,10 +241,6 @@ func testOrBenchmark(filenames []string) {
 		result += "\nSuite " + basenames[sn] + ":\n-----------------------------------------\n"
 
 		for i, t := range s.Test {
-			// do not run global
-			if i == 0 && t.Title == "Global" {
-				continue
-			}
 			at := t.Title
 			if len(at) > 20 {
 				at = at[0:18] + ".."

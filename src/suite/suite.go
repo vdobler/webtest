@@ -57,15 +57,11 @@ func NewSuite() (suite *Suite) {
 
 func (s *Suite) RunTest(n int) {
 	if n < 0 || n >= len(s.Test) {
-		error("No such test")
+		error("No such test.")
+		return
 	}
 
-	var global *Test
-	if n > 0 && s.Test[0].Title == "Global" {
-		global = &s.Test[0]
-	}
-
-	s.Test[n].Run(global)
+	s.Test[n].Run(s.Global)
 
 }
 
@@ -75,12 +71,7 @@ func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
 		error("No such test")
 	}
 
-	var global *Test
-	if n > 0 && s.Test[0].Title == "Global" {
-		global = &s.Test[0]
-	}
-
-	dur, f, err = s.Test[n].Bench(global, count)
+	dur, f, err = s.Test[n].Bench(s.Global, count)
 	return
 }
 

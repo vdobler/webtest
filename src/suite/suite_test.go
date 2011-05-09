@@ -31,6 +31,7 @@ RESPONSE
 CONST
 	URL	 %s%s
 
+# Test no 1
 ----------------------
 Basic Test
 ----------------------
@@ -60,6 +61,7 @@ TAG
 	!p class=c
 	!p == Wrong.*
 	
+# Test no 2
 ----------------------
 Binary Test 1
 ----------------------
@@ -73,6 +75,7 @@ BODY
 	Bin  =_  FFFE
 	Bin  ~=  48616c
 
+# Test no 3
 ----------------------
 Binary Test 2
 ----------------------
@@ -85,6 +88,7 @@ RESPONSE
 BODY
 	Txt  ~=  Hallo Welt!
 
+# Test no 4
 ----------------------
 Sequence Test
 ----------------------
@@ -98,6 +102,7 @@ BODY
 SETTING
 	Repeat	3
 
+# Test no 5
 ----------------------
 Random Test
 ----------------------
@@ -111,6 +116,7 @@ BODY
 SETTING
 	Repeat	3
 	
+# Test no 6
 -------------------------
 Plain Post (no Redirect)
 -------------------------
@@ -120,6 +126,7 @@ RESPONSE
 BODY
 	Txt  ~=  Post Page 
 
+# Test no 7
 -------------------------
 Post (with Redirect)
 -------------------------
@@ -131,8 +138,9 @@ RESPONSE
 TAG
 	h1 == Dummy Document *
 	p class=a == *Braunschweig Weiler
-	
 
+	
+# Test no 8
 ------------------------
 Too slow
 ------------------------
@@ -258,18 +266,18 @@ func TestBasic(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
-	theSuite.RunTest(1)
-	passed(&theSuite.Test[1], t)
+	theSuite.RunTest(0)
+	passed(&theSuite.Test[0], t)
 }
 
 func TestBin(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
+	theSuite.RunTest(1)
+	passed(&theSuite.Test[1], t)
 	theSuite.RunTest(2)
 	passed(&theSuite.Test[2], t)
-	theSuite.RunTest(3)
-	passed(&theSuite.Test[3], t)
 }
 
 
@@ -277,11 +285,19 @@ func TestSequence(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
+	theSuite.RunTest(3)
+	passed(&theSuite.Test[3], t)
+}
+
+func TestRandom(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
 	theSuite.RunTest(4)
 	passed(&theSuite.Test[4], t)
 }
 
-func TestRandom(t *testing.T) {
+func TestPlainPost(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
@@ -289,7 +305,7 @@ func TestRandom(t *testing.T) {
 	passed(&theSuite.Test[5], t)
 }
 
-func TestPlainPost(t *testing.T) {
+func TestPost(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
@@ -297,20 +313,12 @@ func TestPlainPost(t *testing.T) {
 	passed(&theSuite.Test[6], t)
 }
 
-func TestPost(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(7)
-	passed(&theSuite.Test[7], t)
-}
-
 func TestTooSlow(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
-	theSuite.RunTest(8)
-	failed(&theSuite.Test[8], t)
+	theSuite.RunTest(7)
+	failed(&theSuite.Test[7], t)
 }
 
 
