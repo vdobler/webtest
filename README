@@ -4,15 +4,18 @@ README
 This project shall provide reliable, easy to use and fast methods and tools 
 to check websites and webinterfaces.
 
-It currently implements tag to check the presence of tags and tag-structures
-in html/xml documents.
-
 Web test suites can be set up and run. A test can set header information
 to send to the server and check the response: Returned header values and
-the body (by use of above tag, text and binary matching)
+the body. To facilliate tests for tags a tag-language allows to find/count
+tags matching certain conditions.
 
-Next steps:
- - parser to read tests and whole test suites from file
- - tag counting
- - local unit test
+webtest itself needs to packages: tag and suite which might be usefull
+as standalone packages.
+
+Building
+--------
+cd src/tag && make install
+cd src/suite && make install
+make
+
  

@@ -164,7 +164,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, -test, -bench")
 		os.Exit(1)
 	}
-	
+
 	if randomSeed != -1 {
 		suite.Random = rand.New(rand.NewSource(int64(randomSeed)))
 	}

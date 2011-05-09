@@ -2,40 +2,40 @@ package tag
 
 /*
 	This package helps testing for occurenc of tags in html/xml documents.
-	
+
 	Tags are described by a plaintext strings. The following examples show
 	most of the possibilities
-	
+
 	  tagspec:
 		tagname [ { attr } ] [ contentOp content ]
-	 
+
 	  attr:
 	    [ class | attribute ]
-		
+
 	  class:
 	  	[ '!' ] 'class' [ '=' fixed ]
-		
+
 	  attribute:
 	  	[ '!' ] name [ '=' content ]
-		
+
 	  contentOp:
 		[ '==' | '=D=' ]               '==' is normal matching of text content
 		                               'wheras '=D=' is deep matching of nested
 									   text content.
-		
+
 	  content:
 		[ pattern | '/' regexp '/' ]   pattern may contain '*' and '?' and works
 		                               like shell globing. regexp is what it is.
-									   
+
 	Only specified classes, attributes and content is considered when finding
 	tags in a html/xml document. E.g.:
 	  "p lang=en"
 	will match any p-tag with lang="en" regardless of any other classes, 
 	attributes and content of the p-tag.
-	
+
 	Values for attributes may be ommitted: Such test just check wether the
 	tag has the attribute (value does not matter).
-	
+
 	The difference between class and "normal" attribute testing is: Attributes
 	may be specified only once and their value is optional wheras classes can
 	be specified multiple times and must contain a value. Think of a tag like
@@ -43,7 +43,7 @@ package tag
 	As beeing something like
 	  <p class="important" class="news" class="wide">Some Text</p>
 	For finding tags.
-	
+
 
 
 

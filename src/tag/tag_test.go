@@ -152,7 +152,7 @@ func TestTextcontent(t *testing.T) {
 	check(doc, "p =D= AA BB CC DD EE FF GG", "nested", t)
 	checkN(doc, "div == 123 AA * GG 456", t)
 	check(doc, "div =D= 123 AA * GG 456", "div3", t)
-	
+
 	check(doc, "p class=LongText == This is a pretty long text.", "LongText", t)
 	check(doc, "p class=LongText == This is a * long text.", "LongText", t)
 	check(doc, "p class=LongText == This * long text.", "LongText", t)
