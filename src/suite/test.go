@@ -437,7 +437,7 @@ func prepareTest(t, global *Test) *Test {
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	}
 	substituteVariables(test, global, t)
-	debug("Test to execute = \n%s", test.String())
+	supertrace("Test to execute = \n%s", test.String())
 	return test
 }
 
@@ -470,22 +470,27 @@ func (test *Test) Init() {
 }
 
 
+
 // Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
 // field in Param. If global is non nil it will be used as "template" for the
 // test. The test.Result field is updated.
-func (test *Test) Run(global *Test) {
+func (test *Test) Run(global *Test, skipTests bool) {
 	test.Init()
 
 	if test.Repeat() == 0 {
 		info("Test no '%s' is disabled.", test.Title)
 	} else {
 		for i := 1; i <= test.Repeat(); i++ {
-			info("Test '%s': Round %d of %d.", test.Title, i, test.Repeat())
-			test.RunSingle(global)
+			if !skipTests {
+				info("Test '%s': Round %d of %d.", test.Title, i, test.Repeat())
+			}
+			test.RunSingle(global, skipTests)
 		}
 	}
 
-	info("Test '%s': %s", test.Title, test.Status())
+	if !skipTests {
+		info("Test '%s': %s", test.Title, test.Status())
+	}
 	return
 }
 
@@ -507,7 +512,7 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 			return
 		}
 		info("Bench '%s':", test.Title)
-		dur, e := test.RunSingle(global)
+		dur, e := test.RunSingle(global, false)
 		total++
 		if e != nil {
 			warn("Failure during bench")
@@ -523,7 +528,7 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 }
 
 // Perform a single run of the test.  Return duration for server response in ms.
-func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
+func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.Error) {
 
 	ti := prepareTest(test, global)
 
@@ -541,7 +546,7 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 		response, url, cookies, reqerr = Post(ti)
 	}
 	endtime := time.Nanoseconds()
-	duration = int(endtime-starttime) / 1000000 // in milli seconds (ms)
+	duration = int((endtime-starttime) / 1000000) // in milli seconds (ms)
 
 	if reqerr != nil {
 		test.Report(false, reqerr.String())
@@ -553,50 +558,52 @@ func (test *Test) RunSingle(global *Test) (duration int, err os.Error) {
 		trace("New cookie %s", cookie)
 	}
 
-	// Response: Add special fields to header befor testing
-	response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
-	response.Header.Set("Final-Url", url)
-	testHeader(response, ti, test)
+	if !skipTests {
+		// Response: Add special fields to header befor testing
+		response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
+		response.Header.Set("Final-Url", url)
+		testHeader(response, ti, test)
 
-	// Body:
-	body := readBody(response.Body)
-	testBody(body, ti, test)
+		// Body:
+		body := readBody(response.Body)
+		testBody(body, ti, test)
 
-	// Tag:
-	if len(ti.Tag) > 0 {
-		var doc *tag.Node
-		if parsableBody(response) {
-			var e os.Error
-			doc, e = tag.ParseHtml(body)
-			if e != nil {
-				error("Problems parsing html: " + e.String())
+		// Tag:
+		if len(ti.Tag) > 0 {
+			var doc *tag.Node
+			if parsableBody(response) {
+				var e os.Error
+				doc, e = tag.ParseHtml(body)
+				if e != nil {
+					error("Problems parsing html: " + e.String())
+				}
+			} else {
+				error("Unparsable body ")
+				test.Report(false, "Unparsabel Body. Skipped testing Tags.")
 			}
-		} else {
-			error("Unparsable body ")
-			test.Report(false, "Unparsabel Body. Skipped testing Tags.")
+			if doc != nil {
+				testTags(ti, test, doc)
+			} else {
+				test.Report(false, "Problems parsing Body. Skipped testing Tags.")
+			}
 		}
-		if doc != nil {
-			testTags(ti, test, doc)
-		} else {
-			test.Report(false, "Problems parsing Body. Skipped testing Tags.")
+
+		// Timing:
+		if v, ok := ti.Setting["Max-Time"]; ok {
+			max, err := strconv.Atoi(v)
+			if err != nil {
+				error("This should not happen: Max-Time is not an int.")
+			} else if max > 0 && duration > max {
+				test.Report(false, "Response exeeded Max-Time of %d (was %d).", max, duration)
+			}
+		}
+
+		_, _, failed := test.Stat()
+		if failed != 0 {
+			err = Error("Failure: " + test.Status())
 		}
 	}
-
-	// Timing:
-	if v, ok := ti.Setting["Max-Time"]; ok {
-		max, err := strconv.Atoi(v)
-		if err != nil {
-			error("This should not happen: Max-Time is not an int.")
-		} else if max > 0 && duration > max {
-			test.Report(false, "Response exeeded Max-Time of %d (was %d).", max, duration)
-		}
-	}
-
-	_, _, failed := test.Stat()
-	if failed != 0 {
-		err = Error("Failure: " + test.Status())
-	}
-
-	time.Sleep(1000 * int64(test.Sleep()))
+	
+	time.Sleep(1000000 * int64(test.Sleep()))
 	return
 }

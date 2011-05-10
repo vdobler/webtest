@@ -19,7 +19,7 @@ CONST
 google.com --> google.ch
 --------------------------------
 # Test redirect from google.com to swiss version under google.ch
-GET http://www.google.ch
+GET http://www.google.com
 RESPONSE
 	Final-Url  == http://www.google.ch
 BODY

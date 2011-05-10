@@ -18,7 +18,7 @@ func readBody(r io.ReadCloser) string {
 		r.Close()
 	}
 	body := bb.String()
-	trace("Read body with len = %d:\n%s\n", len(body), body)
+	supertrace("Read body with len = %d:\n%s\n", len(body), body)
 	return body
 }
 
@@ -134,7 +134,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.E
 
 	addHeaders(&req, t)
 	url = req.URL.String()
-	debug("Will post to %s", req.URL.String())
+	debug("Will get from %s", req.URL.String())
 	r, finalUrl, cookies, err = DoAndFollow(&req)
 	return
 }

@@ -147,7 +147,7 @@ func main() {
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
 	flag.BoolVar(&benchmarkMode, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.BoolVar(&testmode, "test", true, "Perform normal testing")
-	flag.BoolVar(&checkOnly, "stress", false, "Use background-suite as stress suite for tests.")
+	flag.BoolVar(&stresstestMode, "stress", false, "Use background-suite as stress suite for tests.")
 	flag.IntVar(&LogLevel, "log", 3, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
@@ -159,10 +159,6 @@ func main() {
 	flag.Parse()
 	if helpme {
 		help()
-	}
-	if stresstestMode {
-		fmt.Fprintf(os.Stderr, "Stress Testing not implemented")
-		os.Exit(1)
 	}
 	if benchmarkMode && stresstestMode {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, and -bench")
@@ -300,11 +296,12 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 } 
 
 func stresstest(bgfilename, testfilename string) {
+	
 	background, _, berr := readSuite(bgfilename)
 	testsuite, _, serr := readSuite(bgfilename)
 	if berr != nil || serr != nil {
 		error("Cannot parse given suites.")
 		return
 	}
-	testsuite.Stress(background, 2, 3)
+	testsuite.Stress(background, suite.ConstantStep{10, 10})
 }

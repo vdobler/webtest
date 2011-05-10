@@ -326,3 +326,68 @@ func TestStayAlife(t *testing.T) {
 	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
 	time.Sleep(1000000000 * testserverStayAlive)
 }
+
+
+
+var backgroundSuite = `
+----------------------
+html
+----------------------
+GET ${URL}/html.html
+SETTING
+	Repeat 5
+	Sleep  1
+	
+----------------------
+bin
+----------------------
+GET ${URL}/bin.bin
+SETTING
+	Repeat 5
+	Sleep  1
+`
+
+var stressSuite = `
+----------------------
+Basic
+----------------------
+GET ${URL}/html.html
+RESPONSE
+	Status-Code  ==  200
+BODY
+	 Txt  ~= Braunschweig
+TAG
+	 title == Dummy HTML 1
+	 p class=a
+	
+----------------------
+Binary
+----------------------
+GET ${URL}/bin.bin
+RESPONSE
+	Content-Type  ==  application/data
+BODY
+	Txt  ~=  Hallo Welt!
+`
+
+func TestStresstest(t *testing.T) {
+	LogLevel = 1
+	bgText := strings.Replace(backgroundSuite, "${URL}", host+port, -1)
+	suiteText := strings.Replace(stressSuite, "${URL}", host+port, -1)
+	p := NewParser(strings.NewReader(bgText), "background")
+	var background *Suite
+	var err os.Error
+	background, err = p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+	p = NewParser(strings.NewReader(suiteText), "suite")
+	var suite *Suite
+	suite, err = p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+	
+	LogLevel = 3
+	suite.Stress(background, ConstantStep{2, 4})
+}

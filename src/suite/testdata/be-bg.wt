@@ -1,0 +1,54 @@
+#
+# A very basic example
+#
+
+-------------------------------
+Global
+-------------------------------
+GET realy.unused
+HEADER
+	User-Agent   Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
+RESPONSE
+	Status-Code == 200
+CONST
+	Url	http://www.erz.be.ch/erz/de
+SETTING
+	Sleep 100
+	
+
+--------------------------------
+Startseite
+--------------------------------
+GET ${Url}/index.html?a=0
+BODY
+	Txt ~= Kanton Bern
+
+----------------------------------
+Sitemap Closed
+----------------------------------
+GET ${Url}/tools/sitemap.html?a=0
+BODY
+	Txt ~= Kanton Bern
+	Txt ~= Alle Ebenen
+	
+
+----------------------------------
+Sitemap Open
+----------------------------------
+GET ${Url}/tools/sitemap.hochschule.kindergarten_volksschule.html?a=0
+BODY
+	Txt ~= Kanton Bern
+	Txt ~= Alle Ebenen
+
+----------------------------------
+Deep Page
+----------------------------------
+GET ${Url}/index/berufsbildung/hoehere_berufsbildung/hoehere_fachschulen.html?a=0
+BODY
+	Txt ~= Kanton Bern
+	Txt ~= Positionierung
+
+----------------------------------
+Image
+----------------------------------
+GET ${Url}/index/berufsbildung/berufsbildung_intern/_jcr_content/middlePar/textbild/image.328!.156!.jpg?a=0
