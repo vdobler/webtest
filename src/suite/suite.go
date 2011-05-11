@@ -8,7 +8,7 @@ import (
 )
 
 // Log level of suite. 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace, 6:supertrace
-var LogLevel int = 3 
+var LogLevel int = 3
 
 
 var logger *log.Logger
@@ -100,25 +100,25 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 	done = make(chan bool)
 	var i int = 0
 	debug("Initializing bgnoise")
-	for ; i<n; i++ {
-		go bgRun(&(bg.Test[i % m]), bg.Global, done)
+	for ; i < n; i++ {
+		go bgRun(&(bg.Test[i%m]), bg.Global, done)
 	}
 
 	var killed bool
 	for {
 		select {
-		case killed = <- kill:
+		case killed = <-kill:
 			debug("bgnoise killed")
-		case _ = <- done:
+		case _ = <-done:
 			// trace("bg process done")
 			if !killed {
 				i++
 				// trace("Next bg test %s.", bg.Test[i % m].Title)
-				go bgRun(&(bg.Test[i % m]), bg.Global, done)
+				go bgRun(&(bg.Test[i%m]), bg.Global, done)
 			} else {
 				n--
 				// trace("Left running %d:", n)
-				if n==0 {
+				if n == 0 {
 					// trace("begnois done all work: returning")
 					return
 				}
@@ -129,15 +129,15 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 
 
 type StressResult struct {
-	Load int
-	N int
-	Err int
+	Load  int
+	N     int
+	Err   int
 	AvgRT int64
 	MaxRT int64
 	MinRT int64
 	Total int
-	Pass int
-	Fail int
+	Pass  int
+	Fail  int
 }
 
 func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result StressResult) {
@@ -147,11 +147,11 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 		go bgnoise(load, bg, kill)
 		// start bg load
 	}
-	
+
 	result.MaxRT = -9999999999999
 	result.MinRT = 100000000000
 	result.Load = load
-	
+
 	for rep := 1; rep <= reps; rep++ {
 		info("Repetition %d of %d of test suite:", rep, reps)
 		for _, t := range s.Test {
@@ -167,7 +167,7 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 			}
 			rt := int64(duration)
 			total, passed, failed := tc.Stat()
-		
+
 			result.N++
 			if rt < result.MinRT {
 				result.MinRT = rt
@@ -184,8 +184,8 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 	result.AvgRT /= int64(result.N)
 
 	debug("Load %d: Response Time %d / %d (avg/max). Status %d / %d / %d (err/pass/fail). %d / %d (tests/checks).",
-		  load, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
-	
+		load, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
+
 	if load > 0 {
 		kill <- true
 	}
@@ -201,7 +201,7 @@ type Stepper interface {
 
 type ConstantStep struct {
 	Start int
-	Step int
+	Step  int
 }
 
 func (cs ConstantStep) Next(current int) int {
@@ -212,7 +212,7 @@ func (cs ConstantStep) Next(current int) int {
 }
 
 type FactorStep struct {
-	Start int
+	Start  int
 	Factor float32
 }
 
@@ -226,6 +226,3 @@ func (fs FactorStep) Next(current int) int {
 	}
 	return n
 }
-
-
-

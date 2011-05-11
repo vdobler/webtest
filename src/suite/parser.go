@@ -453,7 +453,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	var test *Test
 	suite = NewSuite()
 	var first bool = true
-	
+
 	for p.i = 0; p.i < len(p.line); p.i++ {
 		line, no := p.line[p.i].line, p.line[p.i].no
 

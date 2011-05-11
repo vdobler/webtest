@@ -496,14 +496,13 @@ func (test *Test) RunWithoutTest(global *Test) {
 		info("Test no '%s' is disabled.", test.Title)
 		return
 	}
-	
+
 	test.Init()
 	for i := 1; i <= test.Repeat(); i++ {
 		test.RunSingle(global, true)
 	}
 	return
 }
-
 
 
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
@@ -558,7 +557,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 		response, url, cookies, reqerr = Post(ti)
 	}
 	endtime := time.Nanoseconds()
-	duration = int((endtime-starttime) / 1000000) // in milli seconds (ms)
+	duration = int((endtime - starttime) / 1000000) // in milli seconds (ms)
 
 	if reqerr != nil {
 		test.Report(false, reqerr.String())
@@ -615,7 +614,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 			err = Error("Failure: " + test.Status())
 		}
 	}
-	
+
 	time.Sleep(1000000 * int64(test.Sleep()))
 	return
 }

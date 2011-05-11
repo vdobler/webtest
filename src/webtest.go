@@ -11,6 +11,7 @@ import (
 	"path"
 	"rand"
 	"time"
+	"http"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
@@ -31,14 +32,14 @@ var rampStep int = 5
 var rampSleep int64 = 1000 // one second
 var rampRep int = 1
 
-var stopFF float64 = 0.1  // 10% Failures --> stop
+var stopFF float64 = 0.1       // 10% Failures --> stop
 var stopART int64 = 120 * 1000 // two minutes
 var stopMRT int64 = 240 * 1000 // four minutes
 
-var stopRTJ int = 5    // five fold increase in avg resp time in one ramp step   
-var stopRTI int = 50   // 
+var stopRTJ int = 5  // five fold increase in avg resp time in one ramp step   
+var stopRTI int = 50 // 
 
-var stopMPR = 250 
+var stopMPR = 250
 
 var logger *log.Logger
 
@@ -98,7 +99,7 @@ func shouldRun(s *suite.Suite, no int) bool {
 const MaxInt = int(^uint(0) >> 1)
 const MinInt = -MaxInt - 1
 
-func fiveval(data []int) (min, lq, med, avg, uq, max int) {
+func sixval(data []int) (min, lq, med, avg, uq, max int) {
 	min, max = MaxInt, MinInt
 	sum, n := 0, len(data)
 	for _, v := range data {
@@ -167,7 +168,7 @@ func help() {
 
 func main() {
 	logger = log.New(os.Stderr, "Webtest ", log.Ldate|log.Ltime)
-	
+
 	var helpme bool
 	flag.BoolVar(&helpme, "help", false, "Print usage info and exit.")
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
@@ -240,14 +241,15 @@ func main() {
 }
 
 func testOrBenchmark(filenames []string) {
-	
-	var result string = "\n================================= Results =================================\n"
+
+	var result string = "\n======== Results ==========================================================\n"
+	var charts string = "\n======== Charts ===========================================================\n"
 
 	var passed bool = true
 	var suites []*suite.Suite = make([]*suite.Suite, 0, 20)
 	var basenames []string = make([]string, 0, 20)
 	var allReadable bool = true
-	
+
 	for _, filename := range filenames {
 		s, basename, err := readSuite(filename)
 		if err != nil {
@@ -269,10 +271,11 @@ func testOrBenchmark(filenames []string) {
 	if !allReadable {
 		os.Exit(1)
 	}
-	
+
 	for sn, s := range suites {
-	
-		result += "\nSuite " + basenames[sn] + ":\n-----------------------------------------\n"
+
+		result += "Suite " + basenames[sn] + ":\n----------------------------\n"
+		charts += "Suite " + basenames[sn] + ":\n----------------------------\n"
 
 		for i, t := range s.Test {
 			at := t.Title
@@ -285,15 +288,16 @@ func testOrBenchmark(filenames []string) {
 				info("Skipped test %d.", i)
 				continue
 			}
-			
+
 			if benchmarkMode {
 				dur, f, err := s.BenchTest(i, numRuns)
 				if err != nil {
 					result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
 				} else {
-					min, lq, med, avg, uq, max := fiveval(dur)
+					min, lq, med, avg, uq, max := sixval(dur)
 					result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
 						at, min, lq, med, avg, uq, max, len(dur), f)
+					charts += benchChartUrl(dur, t.Title) + "\n"
 				}
 			} else {
 				s.RunTest(i)
@@ -303,10 +307,13 @@ func testOrBenchmark(filenames []string) {
 				}
 			}
 		}
+		result += "\n"
+		charts += "\n"
 
 	}
 	// Summary
-	fmt.Printf(result)
+	fmt.Print(result)
+	fmt.Print(charts)
 	if passed {
 		fmt.Printf("PASS\n")
 		os.Exit(0)
@@ -332,26 +339,28 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 		error("Problems parsing '%s': %s\n", filename, err.String())
 	}
 	return
-} 
+}
 
-func chartUrl(data []suite.StressResult) (url string) {
+func stressChartUrl(data []suite.StressResult) (url string) {
 	url = "http://chart.googleapis.com/chart?cht=lxy&chs=500x300&chxs=0,676767,11.5,0,lt,676767&chxt=x,y,r"
 	url += "&chls=2|2|2&chco=0000FF,00FF00,FF0000&chm=s,000000,0,-1,4|s,000000,1,-1,4|s,000000,2,-1,4"
-	url += "&chdlp=b&chdl=Max RT|Avg RT|Err Rate"
+	url += "&chdlp=b&chdl=Max+RT|Avg+RT|Err+Rate"
 	var mrt int64 = -1
-	for _, d := range(data) {
-		if d.MaxRT > mrt { mrt = d.MaxRT }
+	for _, d := range data {
+		if d.MaxRT > mrt {
+			mrt = d.MaxRT
+		}
 	}
-	mrt = 100 * ((mrt+99)/100)
-	
+	mrt = 100 * ((mrt + 99) / 100)
+
 	url += fmt.Sprintf("&chxr=1,0,%d", mrt)
-	
+
 	var chd string = "&chd=t:"
 	var maxd string
 	var avgd string
 	var ld string
 	var errd string
-	for i, d := range(data) {
+	for i, d := range data {
 		if i > 0 {
 			ld += ","
 			maxd += ","
@@ -364,8 +373,8 @@ func chartUrl(data []suite.StressResult) (url string) {
 		errd += fmt.Sprintf("%d", int(100*d.Fail/d.Total))
 	}
 	chd += ld + "|" + maxd + "|" + ld + "|" + avgd + "|" + ld + "|" + errd
-	
-	url += chd
+
+	url += chd + "\n"
 	return
 }
 
@@ -373,26 +382,26 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	var load int = 0
 	var lastRespTime int64 = -1
 	var plainRespTime int64 = -1
-	var text string = "================== Stresstest Results =====================\n"
+	var text string = "============================ Stresstest Results ==================================\n"
 	var data []suite.StressResult = make([]suite.StressResult, 0, 5)
-	
+
 	for {
 		info("Stresstesting with background load of %d || requests.", load)
-		result := s.Stresstest(bg, load, rampRep, rampSleep) 
+		result := s.Stresstest(bg, load, rampRep, rampSleep)
 		data = append(data, result)
-		
+
 		if plainRespTime == -1 {
 			plainRespTime = result.AvgRT
 		}
 		text += fmt.Sprintf("Load %3d: Response Time %5d / %5d / %5d (min/avg/max). Status %2d / %2d / %2d (err/pass/fail). %2d / %2d (tests/checks).\n",
-							load, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
+			load, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
+		fmt.Printf(stressChartUrl(data))
 		fmt.Printf(text)
-		fmt.Printf(chartUrl(data))
 		if result.Err > 0 {
 			info("Test Error: Aborting Stresstest.")
 			break
 		}
-		if lastRespTime != -1 && result.AvgRT > int64(stopRTJ) * lastRespTime {
+		if lastRespTime != -1 && result.AvgRT > int64(stopRTJ)*lastRespTime {
 			info("Dramatic Single Average Response Time Increase: Aborting Stresstest.")
 			break
 		}
@@ -412,20 +421,20 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 			info("To Many Failures: Aborting Stresstest.")
 			break
 		}
-		
+
 		lastRespTime = result.AvgRT
 		load = stepper.Next(load)
-		
+
 		if load > stopMPR {
 			info("To Many Background Request: Aborting Stresstest.")
 			break
 		}
-		
+
 		time.Sleep(rampSleep * 1000000)
 	}
 
+	fmt.Printf(stressChartUrl(data))
 	fmt.Printf(text)
-	fmt.Printf(chartUrl(data))
 }
 
 
@@ -439,13 +448,59 @@ func stresstest(bgfilename, testfilename string) {
 	}
 
 	// Disable test which should not run by setting their Repet to 0
-	for i :=0;i<len(testsuite.Test); i++ {
+	for i := 0; i < len(testsuite.Test); i++ {
 		if !shouldRun(testsuite, i) {
 			warn("Disabeling test %s", testsuite.Test[i].Title)
 			testsuite.Test[i].Setting["Repeat"] = "0"
 		}
 	}
-		
+
 	// perform increasing stresstests
 	stressramp(background, testsuite, suite.ConstantStep{rampStart, rampStep})
+}
+
+
+func benchChartUrl(d []int, title string) (url string) {
+	url = "http://chart.googleapis.com/chart?cht=bvg&chs=600x300&chxs=0,676767,11.5,0,lt,676767&chxt=x&chdlp=b"
+	url += "&chbh=a&chco=404040&chtt=" + http.URLEscape(strings.Trim(title, " \t\n")) + "&chdl=Response+Times+[ms]"
+
+	// Decide on number of bins
+	min, _, _, _, _, max := sixval(d)
+	cnt := 10
+	if len(d) <= 10 {
+		cnt = 3
+	} else if len(d) <= 15 {
+		cnt = 5
+	} else if len(d) > 40 {
+		cnt = 15
+	}
+	step := (max - min) / cnt
+
+	// Binify and scale largest bar to 100
+	var bin []int = make([]int, cnt)
+	mc := 0
+	for _, n := range d {
+		b := (n - min) / step
+		if b >= cnt {
+			b = cnt - 1
+		}
+		bin[b] = bin[b] + 1
+		if bin[b] > mc {
+			mc = bin[b]
+		}
+	}
+	for i, n := range bin {
+		bin[i] = 100 * n / mc
+	}
+
+	// Output data to url
+	url += fmt.Sprintf("&chxr=0,%d,%d", min+step/2, max-step/2)
+	url += "&chd=t:"
+	for i, n := range bin {
+		if i > 0 {
+			url += ","
+		}
+		url += fmt.Sprintf("%d", n)
+	}
+	return
 }
