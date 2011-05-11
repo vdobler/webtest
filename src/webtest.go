@@ -334,22 +334,60 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 	return
 } 
 
+func chartUrl(data []suite.StressResult) (url string) {
+	url = "http://chart.googleapis.com/chart?cht=lxy&chs=500x300&chxs=0,676767,11.5,0,lt,676767&chxt=x,y,r"
+	url += "&chls=2|2|2&chco=0000FF,00FF00,FF0000&chm=s,000000,0,-1,4|s,000000,1,-1,4|s,000000,2,-1,4"
+	url += "&chdlp=b&chdl=Max RT|Avg RT|Err Rate"
+	var mrt int64 = -1
+	for _, d := range(data) {
+		if d.MaxRT > mrt { mrt = d.MaxRT }
+	}
+	mrt = 100 * ((mrt+99)/100)
+	
+	url += fmt.Sprintf("&chxr=1,0,%d", mrt)
+	
+	var chd string = "&chd=t:"
+	var maxd string
+	var avgd string
+	var ld string
+	var errd string
+	for i, d := range(data) {
+		if i > 0 {
+			ld += ","
+			maxd += ","
+			avgd += ","
+			errd += ","
+		}
+		ld += fmt.Sprintf("%d", d.Load)
+		maxd += fmt.Sprintf("%d", int(100*d.MaxRT/mrt))
+		avgd += fmt.Sprintf("%d", int(100*d.AvgRT/mrt))
+		errd += fmt.Sprintf("%d", int(100*d.Fail/d.Total))
+	}
+	chd += ld + "|" + maxd + "|" + ld + "|" + avgd + "|" + ld + "|" + errd
+	
+	url += chd
+	return
+}
 
 func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	var load int = 0
 	var lastRespTime int64 = -1
 	var plainRespTime int64 = -1
 	var text string = "================== Stresstest Results =====================\n"
+	var data []suite.StressResult = make([]suite.StressResult, 0, 5)
 	
 	for {
 		info("Stresstesting with background load of %d || requests.", load)
 		result := s.Stresstest(bg, load, rampRep, rampSleep) 
+		data = append(data, result)
+		
 		if plainRespTime == -1 {
 			plainRespTime = result.AvgRT
 		}
 		text += fmt.Sprintf("Load %3d: Response Time %5d / %5d / %5d (min/avg/max). Status %2d / %2d / %2d (err/pass/fail). %2d / %2d (tests/checks).\n",
 							load, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
 		fmt.Printf(text)
+		fmt.Printf(chartUrl(data))
 		if result.Err > 0 {
 			info("Test Error: Aborting Stresstest.")
 			break
@@ -387,6 +425,7 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	}
 
 	fmt.Printf(text)
+	fmt.Printf(chartUrl(data))
 }
 
 
@@ -402,6 +441,7 @@ func stresstest(bgfilename, testfilename string) {
 	// Disable test which should not run by setting their Repet to 0
 	for i :=0;i<len(testsuite.Test); i++ {
 		if !shouldRun(testsuite, i) {
+			warn("Disabeling test %s", testsuite.Test[i].Title)
 			testsuite.Test[i].Setting["Repeat"] = "0"
 		}
 	}

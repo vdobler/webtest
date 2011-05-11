@@ -129,6 +129,7 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 
 
 type StressResult struct {
+	Load int
 	N int
 	Err int
 	AvgRT int64
@@ -149,10 +150,15 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 	
 	result.MaxRT = -9999999999999
 	result.MinRT = 100000000000
+	result.Load = load
 	
 	for rep := 1; rep <= reps; rep++ {
 		info("Repetition %d of %d of test suite:", rep, reps)
 		for _, t := range s.Test {
+			if t.Repeat() == 0 {
+				info("Test no '%s' is disabled.", t.Title)
+				continue
+			}
 			time.Sleep(rampSleep * 1000000)
 			tc := t.Copy()
 			duration, err := tc.RunSingle(s.Global, false)
