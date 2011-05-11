@@ -10,6 +10,7 @@ import (
 	"sort"
 	"path"
 	"rand"
+	"time"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
@@ -22,8 +23,22 @@ var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var tagLogLevel int = -1
 var suiteLogLevel int = -1
-var testsToRun string = ""
-var randomSeed int = -1
+var testsToRun string = "*"
+var randomSeed int64 = -1
+
+var rampStart int = 5
+var rampStep int = 5
+var rampSleep int64 = 1000 // one second
+var rampRep int = 1
+
+var stopFF float64 = 0.1  // 10% Failures --> stop
+var stopART int64 = 120 * 1000 // two minutes
+var stopMRT int64 = 240 * 1000 // four minutes
+
+var stopRTJ int = 5    // five fold increase in avg resp time in one ramp step   
+var stopRTI int = 50   // 
+
+var stopMPR = 250 
 
 var logger *log.Logger
 
@@ -63,7 +78,7 @@ func shouldRun(s *suite.Suite, no int) bool {
 	for _, x := range sp {
 		i, err := strconv.Atoi(x)
 		if err == nil {
-			if (i == 0 && s.Test[0].Title != "Global") || (i > 0 && i < len(s.Test)) && no == i {
+			if i > 0 && i < len(s.Test) && no == i {
 				return true
 			}
 		} else {
@@ -115,23 +130,34 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test is the default mode and will run all test in the given suites.\n")
 	fmt.Fprintf(os.Stderr, "Check will just read the testsuite, parse ist and output warning/erros found.\n")
-	fmt.Fprintf(os.Stderr, "Benchmarking and Stress-Test (not implemented) are selected by -test or -stres.\n")
+	fmt.Fprintf(os.Stderr, "Benchmarking and Stress-Test are selected by -test or -stres.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Common Options:\n")
-	fmt.Fprintf(os.Stderr, "\tcheck      do not run \n")
-	fmt.Fprintf(os.Stderr, "\tlog <n>        General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
-	fmt.Fprintf(os.Stderr, "\tlog.tag <n>    Log level for Tag test (tag package)\n")
-	fmt.Fprintf(os.Stderr, "\tlog.suite <n>  Log level for suite package\n")
-	fmt.Fprintf(os.Stderr, "\ttests <list>   select which tests to run: Comma seperated list of numbers or\n")
-	fmt.Fprintf(os.Stderr, "\t               uniq test names prefixes.\n")
-	fmt.Fprintf(os.Stderr, "\tseed <n>       use n as random ssed (instead of current time)\n")
+	fmt.Fprintf(os.Stderr, "\tcheck            do not run, just print suites \n")
+	fmt.Fprintf(os.Stderr, "\tlog <n>          General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
+	fmt.Fprintf(os.Stderr, "\tlog.tag <n>      Log level for Tag test (tag package)\n")
+	fmt.Fprintf(os.Stderr, "\tlog.suite <n>    Log level for suite package\n")
+	fmt.Fprintf(os.Stderr, "\ttests <list>     select which tests to run: Comma seperated list of numbers or\n")
+	fmt.Fprintf(os.Stderr, "\t                 namepattern. E.g. '3,7,External*,9,*-Special-??,15'\n")
+	fmt.Fprintf(os.Stderr, "\tseed <n>         use n as random ssed (instead of current time)\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
-	fmt.Fprintf(os.Stderr, "\truns\tnumber of repetitions of each test (mus be >= 5).\n")
+	fmt.Fprintf(os.Stderr, "\truns             number of repetitions of each test (mus be >= 5).\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Stress Test Options:\n")
+	fmt.Fprintf(os.Stderr, "\tramp.start <n>   Start with n as parallel background load\n")
+	fmt.Fprintf(os.Stderr, "\tramp.step <n>    Increase parallel background load by n on each iteration\n")
+	fmt.Fprintf(os.Stderr, "\tramp.sleep <ms>  Sleep tim in ms around iterations.\n")
+	fmt.Fprintf(os.Stderr, "\tramp.rep <n>     Repetitions of testsuite during one ramp step\n")
+	fmt.Fprintf(os.Stderr, "\tstop.ff <frac>   Stop stresstest if fraction (e.g. 0.2) of conditions fail\n")
+	fmt.Fprintf(os.Stderr, "\tstop.art <ms>    Stop if Average Response Time exeeds ms.\n")
+	fmt.Fprintf(os.Stderr, "\tstop.mrt <ms>    Stop if Maximum Response Time exeeds ms. \n")
+	fmt.Fprintf(os.Stderr, "\tstop.rtj <n>     Stop if resp.time jumbs by factor of at least n. \n")
+	fmt.Fprintf(os.Stderr, "\tstop.rti <n>     Stop if resp.time exeeds n * plain resp. time.\n")
+	fmt.Fprintf(os.Stderr, "\tstop.mpr <n>     Stop if n maximum parallel requests reached.\n")
+	fmt.Fprintf(os.Stderr, "\t\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Defaults:\n")
 	fmt.Fprintf(os.Stderr, "\n")
@@ -152,8 +178,20 @@ func main() {
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
-	flag.StringVar(&testsToRun, "tests", "", "Run just some tests (numbers or name)")
-	flag.IntVar(&randomSeed, "seed", 15, "Number of runs for each test in benchmark.")
+	flag.StringVar(&testsToRun, "tests", "*", "Run just some tests (numbers or name)")
+	flag.Int64Var(&randomSeed, "seed", 15, "Number of runs for each test in benchmark.")
+
+	flag.IntVar(&rampStart, "ramp.start", 5, "Ramp start")
+	flag.IntVar(&rampStep, "ramp.step", 5, "Ramp step")
+	flag.Int64Var(&rampSleep, "ramp.sleep", 1000, "Ramp sleep")
+	flag.IntVar(&rampRep, "ramp.rep", 1, "Ramp repetition")
+	flag.Float64Var(&stopFF, "stop.FF", 0.2, "Stop failed fraction limit")
+	flag.Int64Var(&stopART, "stop.art", 120*1000, "Stop average repsonste time limit")
+	flag.Int64Var(&stopMRT, "stop.mrt", 240*1000, "Stop maximum responste time limit ")
+	flag.IntVar(&stopRTJ, "stop.rtj", 5, "Stop avg resptime step increase factor limit")
+	flag.IntVar(&stopRTI, "stop.rti", 50, "Stop avg resptime total increas factor limit")
+	flag.IntVar(&stopMPR, "stop.mpr", 250, "Stop if parallel request exeds this limit.")
+
 	flag.Usage = help
 
 	flag.Parse()
@@ -243,25 +281,26 @@ func testOrBenchmark(filenames []string) {
 			}
 			at = fmt.Sprintf("Test %2d: %-20s", i, at)
 
-			if shouldRun(s, i) {
-				if benchmarkMode {
-					dur, f, err := s.BenchTest(i, numRuns)
-					if err != nil {
-						result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
-					} else {
-						min, lq, med, avg, uq, max := fiveval(dur)
-						result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
-							at, min, lq, med, avg, uq, max, len(dur), f)
-					}
+			if !shouldRun(s, i) {
+				info("Skipped test %d.", i)
+				continue
+			}
+			
+			if benchmarkMode {
+				dur, f, err := s.BenchTest(i, numRuns)
+				if err != nil {
+					result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
 				} else {
-					s.RunTest(i)
-					result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
-					if _, _, failed := s.Test[i].Stat(); failed > 0 {
-						passed = false
-					}
+					min, lq, med, avg, uq, max := fiveval(dur)
+					result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
+						at, min, lq, med, avg, uq, max, len(dur), f)
 				}
 			} else {
-				info("Skipped test %d.", i)
+				s.RunTest(i)
+				result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
+				if _, _, failed := s.Test[i].Stat(); failed > 0 {
+					passed = false
+				}
 			}
 		}
 
@@ -295,13 +334,78 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 	return
 } 
 
-func stresstest(bgfilename, testfilename string) {
+
+func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
+	var load int = 0
+	var lastRespTime int64 = -1
+	var plainRespTime int64 = -1
+	var text string = "================== Stresstest Results =====================\n"
 	
+	for {
+		info("Stresstesting with background load of %d || requests.", load)
+		result := s.Stresstest(bg, load, rampRep, rampSleep) 
+		if plainRespTime == -1 {
+			plainRespTime = result.AvgRT
+		}
+		text += fmt.Sprintf("Load %3d: Response Time %5d / %5d / %5d (min/avg/max). Status %2d / %2d / %2d (err/pass/fail). %2d / %2d (tests/checks).\n",
+							load, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
+		fmt.Printf(text)
+		if result.Err > 0 {
+			info("Test Error: Aborting Stresstest.")
+			break
+		}
+		if lastRespTime != -1 && result.AvgRT > int64(stopRTJ) * lastRespTime {
+			info("Dramatic Single Average Response Time Increase: Aborting Stresstest.")
+			break
+		}
+		if result.AvgRT > int64(stopRTI)*plainRespTime {
+			info("Average Response Time Increased Too Much: Aborting Stresstest.")
+			break
+		}
+		if result.AvgRT > stopART {
+			info("Average Response Time Long: Aborting Stresstest.")
+			break
+		}
+		if result.MaxRT > stopMRT {
+			info("Maximum Response Time Long: Aborting Stresstest.")
+			break
+		}
+		if result.Fail > int(stopFF*float64(result.Total)) {
+			info("To Many Failures: Aborting Stresstest.")
+			break
+		}
+		
+		lastRespTime = result.AvgRT
+		load = stepper.Next(load)
+		
+		if load > stopMPR {
+			info("To Many Background Request: Aborting Stresstest.")
+			break
+		}
+		
+		time.Sleep(rampSleep * 1000000)
+	}
+
+	fmt.Printf(text)
+}
+
+
+func stresstest(bgfilename, testfilename string) {
+	// Read background and test suite
 	background, _, berr := readSuite(bgfilename)
 	testsuite, _, serr := readSuite(bgfilename)
 	if berr != nil || serr != nil {
 		error("Cannot parse given suites.")
 		return
 	}
-	testsuite.Stress(background, suite.ConstantStep{10, 10})
+
+	// Disable test which should not run by setting their Repet to 0
+	for i :=0;i<len(testsuite.Test); i++ {
+		if !shouldRun(testsuite, i) {
+			testsuite.Test[i].Setting["Repeat"] = "0"
+		}
+	}
+		
+	// perform increasing stresstests
+	stressramp(background, testsuite, suite.ConstantStep{rampStart, rampStep})
 }

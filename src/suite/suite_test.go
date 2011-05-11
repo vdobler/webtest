@@ -370,6 +370,11 @@ BODY
 	Txt  ~=  Hallo Welt!
 `
 
+func testPrintStResult(txt string, result StressResult) {
+	fmt.Printf("%s: Response Time %5d / %5d / %5d (min/avg/max). Status %2d / %2d / %2d (err/pass/fail). %2d / %2d (tests/checks).\n",
+				txt, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
+}
+
 func TestStresstest(t *testing.T) {
 	LogLevel = 1
 	bgText := strings.Replace(backgroundSuite, "${URL}", host+port, -1)
@@ -389,5 +394,37 @@ func TestStresstest(t *testing.T) {
 	}
 	
 	LogLevel = 3
-	suite.Stress(background, ConstantStep{2, 4})
+	r0 := suite.Stresstest(background, 0, 3, 100)
+	r10 := suite.Stresstest(background, 10, 3, 100)
+	r30 := suite.Stresstest(background, 30, 2, 100)
+	r60 := suite.Stresstest(background, 60, 1, 100)
+	r100 := suite.Stresstest(background, 100, 1, 100)
+	r150 := suite.Stresstest(background, 150, 1, 100)
+	r200 := suite.Stresstest(background, 200, 5, 100)
+	
+	testPrintStResult("Load   0", r0)
+	testPrintStResult("Load  10", r10)
+	testPrintStResult("Load  30", r30)
+	testPrintStResult("Load  60", r60)
+	testPrintStResult("Load 100", r100)
+	testPrintStResult("Load 150", r150)
+	testPrintStResult("Load 200", r200)
+	if r0.Total <=0 || r0.N <= 0 {
+		t.Error("No tests run without load")
+		t.FailNow()
+	}
+	if r0.Fail > 0 || r0.Err > 0 {
+		t.Error("Failures without load")
+		t.FailNow()
+	}	
+
+	// There will be failures in the 200 run....
+	if r200.Total <=0 || r200.N <= 0 {
+		t.Error("No tests run with load 200")
+		t.FailNow()
+	}
+	if r200.Fail == 0 || r200.Err == 0 {
+		t.Error("Expected Failures at load of 200!")
+	}	
+	
 }

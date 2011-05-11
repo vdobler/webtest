@@ -10,24 +10,6 @@ import (
 // Log level of suite. 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace, 6:supertrace
 var LogLevel int = 3 
 
-// Time in ms to sleep between runs with different background loads during stresstests
-var SleepMs1 int64 = 1000  
-
-// Allowed factor increase of average response times from one run to the next in stresstest
-var AllowedSingleRtFactor int = 5
-
-// Allowed general factor increase of average response times from no background request in stresstest
-var AllowedGeneralRtFactor int = 20
-
-// Allowed maximum response time in ms.
-var AllowedMaximumRt int = 30 * 1000
-
-// Maximum allowed fraction of tests to fail
-var AllowedFailingFraction float32 = 0.2
-
-// Maximum allowed number of background request
-var AllowedMaximumBgReq int = 250
-
 
 var logger *log.Logger
 
@@ -89,7 +71,7 @@ func (s *Suite) RunTest(n int) {
 		return
 	}
 
-	s.Test[n].Run(s.Global, false)
+	s.Test[n].Run(s.Global)
 }
 
 
@@ -106,7 +88,7 @@ func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
 // Run the request (while skipping tests) of test and reply on done when finished.
 func bgRun(test, global *Test, done chan bool) {
 	trace("Started background test %s", test.Title)
-	test.Run(global, true)
+	test.RunWithoutTest(global)
 	done <- true
 	trace("Finished background test %s.", test.Title)
 }
@@ -146,8 +128,18 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 }
 
 
-func (s *Suite) stresstest(bg *Suite, load int) (okay bool, responsetime, fail, tot int) {
-	okay = true
+type StressResult struct {
+	N int
+	Err int
+	AvgRT int64
+	MaxRT int64
+	MinRT int64
+	Total int
+	Pass int
+	Fail int
+}
+
+func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result StressResult) {
 	var kill chan bool
 	kill = make(chan bool)
 	if load > 0 {
@@ -155,28 +147,44 @@ func (s *Suite) stresstest(bg *Suite, load int) (okay bool, responsetime, fail, 
 		// start bg load
 	}
 	
-	var totaltime int
+	result.MaxRT = -9999999999999
+	result.MinRT = 100000000000
 	
-	// TODO: repeate tests n times
-	for _, t := range s.Test {
-		tc := t.Copy()
-		duration, err := tc.RunSingle(s.Global, false)
-		if err != nil {
-			okay = false
+	for rep := 1; rep <= reps; rep++ {
+		info("Repetition %d of %d of test suite:", rep, reps)
+		for _, t := range s.Test {
+			time.Sleep(rampSleep * 1000000)
+			tc := t.Copy()
+			duration, err := tc.RunSingle(s.Global, false)
+			if err != nil {
+				result.Err++
+			}
+			rt := int64(duration)
+			total, passed, failed := tc.Stat()
+		
+			result.N++
+			if rt < result.MinRT {
+				result.MinRT = rt
+			}
+			if rt > result.MaxRT {
+				result.MaxRT = rt
+			}
+			result.AvgRT += rt
+			result.Pass += passed
+			result.Total += total
+			result.Fail += failed
 		}
-		total, _, failed := tc.Stat()
-		totaltime += duration
-		fail += failed
-		tot += total
 	}
+	result.AvgRT /= int64(result.N)
 
-	responsetime = totaltime/len(s.Test)
-	info("Load %d: Average response time %d [ms]. Failures %d\n", load, responsetime, fail)
+	debug("Load %d: Response Time %d / %d (avg/max). Status %d / %d / %d (err/pass/fail). %d / %d (tests/checks).",
+		  load, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
 	
 	if load > 0 {
 		kill <- true
 	}
-	
+
+	time.Sleep(rampSleep * 1000000)
 	return
 }
 
@@ -215,52 +223,3 @@ func (fs FactorStep) Next(current int) int {
 
 
 
-
-func (s *Suite) Stress(bg *Suite, stepper Stepper) {
-	var load int = 0
-	var lastRespTime int = -1
-	var plainRespTime int = -1
-	var result string = "================== Stresstest Results =====================\n"
-	
-	for {
-		info("Stresstesting with background load of %d || requests.", load)
-		okay, resptime, failed, total := s.stresstest(bg, load)
-		if plainRespTime == -1 {
-			plainRespTime = resptime
-		}
-		result += fmt.Sprintf("Load %3d : AverageRespTime/ms = %4d , Failed = %3d , Total = %3d \n", load, resptime, failed, total)
-		fmt.Printf(result)
-		if !okay {
-			info("Test Error: Aborting Stresstest.")
-			break
-		}
-		if lastRespTime != -1 && resptime > AllowedSingleRtFactor*lastRespTime {
-			info("Dramatic Single Response Time Increase: Aborting Stresstest.")
-			break
-		}
-		if resptime > AllowedGeneralRtFactor*plainRespTime {
-			info("Response Time Increased Too Much: Aborting Stresstest.")
-			break
-		}
-		if resptime > AllowedMaximumRt {
-			info("Response Time Long: Aborting Stresstest.")
-			break
-		}
-		if failed > int(AllowedFailingFraction*float32(total)) {
-			info("To Many Failures: Aborting Stresstest.")
-			break
-		}
-		
-		lastRespTime = resptime
-		load = stepper.Next(load)
-		
-		if load > AllowedMaximumBgReq {
-			info("To Many Background Request: Aborting Stresstest.")
-			break
-		}
-		
-		time.Sleep(SleepMs1 * 1000000)
-	}
-
-	fmt.Printf(result)
-}

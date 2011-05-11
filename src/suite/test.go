@@ -470,29 +470,41 @@ func (test *Test) Init() {
 }
 
 
-
 // Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
 // field in Param. If global is non nil it will be used as "template" for the
 // test. The test.Result field is updated.
-func (test *Test) Run(global *Test, skipTests bool) {
-	test.Init()
+func (test *Test) Run(global *Test) {
 
 	if test.Repeat() == 0 {
 		info("Test no '%s' is disabled.", test.Title)
-	} else {
-		for i := 1; i <= test.Repeat(); i++ {
-			if !skipTests {
-				info("Test '%s': Round %d of %d.", test.Title, i, test.Repeat())
-			}
-			test.RunSingle(global, skipTests)
-		}
+		return
 	}
 
-	if !skipTests {
-		info("Test '%s': %s", test.Title, test.Status())
+	test.Init()
+	for i := 1; i <= test.Repeat(); i++ {
+		info("Test '%s': Round %d of %d.", test.Title, i, test.Repeat())
+		test.RunSingle(global, false)
+	}
+
+	info("Test '%s': %s", test.Title, test.Status())
+	return
+}
+
+
+func (test *Test) RunWithoutTest(global *Test) {
+	if test.Repeat() == 0 {
+		info("Test no '%s' is disabled.", test.Title)
+		return
+	}
+	
+	test.Init()
+	for i := 1; i <= test.Repeat(); i++ {
+		test.RunSingle(global, true)
 	}
 	return
 }
+
+
 
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
 	test.Init()
