@@ -22,24 +22,24 @@ func (e Error) String() string {
 }
 
 type Test struct {
-	Title    string
-	Method   string
-	Url      string
-	Header   map[string]string
-	Cookie   map[string]string
-	RespCond []Condition
+	Title      string
+	Method     string
+	Url        string
+	Header     map[string]string
+	Cookie     map[string]string
+	RespCond   []Condition
 	CookieCond []Condition
-	BodyCond []Condition
-	Tag      []TagCondition
-	Pre      []string
-	Param    map[string][]string
-	Setting  map[string]string
-	Const    map[string]string
-	Rand     map[string][]string
-	Seq      map[string][]string
-	SeqCnt   map[string]int
-	Vars     map[string]string
-	Result   []string
+	BodyCond   []Condition
+	Tag        []TagCondition
+	Pre        []string
+	Param      map[string][]string
+	Setting    map[string]string
+	Const      map[string]string
+	Rand       map[string][]string
+	Seq        map[string][]string
+	SeqCnt     map[string]int
+	Vars       map[string]string
+	Result     []string
 }
 
 // Make a deep copy of src. dest will not share any data structures with src.
@@ -310,10 +310,10 @@ func testHeader(resp *http.Response, t, orig *Test) {
 	for _, cc := range t.CookieCond {
 		var found bool = false
 		ci := cc.Info("cookie")
-		for _, sc := range(resp.SetCookie) {
+		for _, sc := range resp.SetCookie {
 			if sc.Name == cc.Key {
 				found = true
-				cv := sc.Value + "; Path=" + sc.Path  // TODO: rest
+				cv := sc.Value + "; Path=" + sc.Path // TODO: rest
 				if !cc.Fullfilled(cv) {
 					orig.Report(false, "%s: Got '%s'", ci, cv)
 				} else {

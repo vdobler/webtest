@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-var Random *rand.Rand
+// Random for RAND sections
+var Random *rand.Rand = rand.New(rand.NewSource(time.Seconds()))
 
-func init() {
-	Random = rand.New(rand.NewSource(time.Seconds()))
-}
+// Global CONST variables
+var Const map[string]string = map[string]string{}
 
 
 func isLetter(x uint8) bool {
@@ -45,14 +45,6 @@ func randomVar(list []string) string {
 
 // Retrieve the next value in list (wrapping around). The counter to decide which is the next is taken from t.
 func nextVar(list []string, v string, t *Test) (val string) {
-	/*
-		if t.SeqCnt == nil {
-			t.SeqCnt = make(map[string] int, len(t.Seq))
-			for k, _ := range t.Seq {
-				t.SeqCnt[k] = 0
-			}
-		}
-	*/
 	i, _ := t.SeqCnt[v]
 	val = list[i]
 	i++
@@ -66,6 +58,8 @@ func varValueFallback(v string, test, global, orig *Test) (value string) {
 	if val, ok := orig.Vars[v]; ok {
 		value = val
 		trace("Reusing '%s' for var '%s'.", val, v)
+	} else if val, ok := Const[v]; ok {
+		value = val
 	} else if val, ok := test.Const[v]; ok {
 		value = val
 	} else if val, ok := global.Const[v]; ok {

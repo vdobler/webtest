@@ -45,7 +45,7 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 			req.Header.Set(k, v)
 		}
 	}
-	
+
 	for cn, cv := range t.Cookie {
 		req.Cookie = append(req.Cookie, &http.Cookie{Name: cn, Value: cv})
 	}
@@ -63,11 +63,11 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 		return
 	}
 	finalUrl = req.URL.String()
-	for _, cookie := range(r.SetCookie) {
+	for _, cookie := range r.SetCookie {
 		trace("got cookie on first request: %s = %s", cookie.Name, cookie.Value)
 		cookies = append(cookies, cookie)
 	}
-	
+
 	if !shouldRedirect(r.StatusCode) {
 		return
 	}
@@ -104,7 +104,7 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 			return
 		}
 		finalUrl = url
-		for _, cookie := range(r.SetCookie) {
+		for _, cookie := range r.SetCookie {
 			// TODO chekc for overwriting/re-setting
 			trace("got cookie on %dth request: %s = %s", redirect+1, cookie.Name, cookie.Value)
 			cookies = append(cookies, cookie)

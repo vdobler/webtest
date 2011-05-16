@@ -27,19 +27,19 @@ var suiteLogLevel int = -1
 var testsToRun string = "*"
 var randomSeed int64 = -1
 
-var rampStart int = 5
-var rampStep int = 5
-var rampSleep int64 = 1000 // one second
-var rampRep int = 1
+// Stresstesting
+var rampStart int = 5      // Start with that many parallel background requests
+var rampStep int = 5       // Increase in number of parallel background requests
+var rampSleep int64 = 1000 // Time in ms to sleep before and after testing
+var rampRep int = 1        // Number of repetitions of tests in one ramp level.
 
+// Parameters determing stresstest end
 var stopFF float64 = 0.1       // 10% Failures --> stop
-var stopART int64 = 120 * 1000 // two minutes
-var stopMRT int64 = 240 * 1000 // four minutes
-
-var stopRTJ int = 5  // five fold increase in avg resp time in one ramp step   
-var stopRTI int = 50 // 
-
-var stopMPR = 250
+var stopART int64 = 120 * 1000 // two minutes Average Response Time
+var stopMRT int64 = 240 * 1000 // four minutes Maximum Response Time
+var stopRTJ int = 5            // five fold increase in avg resp time in one ramp step   
+var stopRTI int = 50           // fifty fold increase in avg resp time from value without background load 
+var stopMPR = 250              // maximum number of parallel background requests
 
 var logger *log.Logger
 
@@ -124,47 +124,63 @@ func sixval(data []int) (min, lq, med, avg, uq, max int) {
 
 func help() {
 	fmt.Fprintf(os.Stderr, "\nUsage:\n")
-	fmt.Fprintf(os.Stderr, "\twebtest -check [common options] <suite>...\n")
 	fmt.Fprintf(os.Stderr, "\twebtest [-test] [common options] [test options] <suite>...\n")
+	fmt.Fprintf(os.Stderr, "\twebtest -check [common options] <suite>...\n")
 	fmt.Fprintf(os.Stderr, "\twebtest -bench [common options] [bench options] <suite>...\n")
 	fmt.Fprintf(os.Stderr, "\twebtest -stress [common options] [stress options] <background-suite> <test-suite>\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test is the default mode and will run all test in the given suites.\n")
 	fmt.Fprintf(os.Stderr, "Check will just read the testsuite, parse ist and output warning/erros found.\n")
-	fmt.Fprintf(os.Stderr, "Benchmarking and Stress-Test are selected by -test or -stres.\n")
+	fmt.Fprintf(os.Stderr, "Benchmarking and Stress-Test are selected by -bench or -stres.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Common Options:\n")
-	fmt.Fprintf(os.Stderr, "\tcheck            do not run, just print suites \n")
-	fmt.Fprintf(os.Stderr, "\tlog <n>          General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
-	fmt.Fprintf(os.Stderr, "\tlog.tag <n>      Log level for Tag test (tag package)\n")
-	fmt.Fprintf(os.Stderr, "\tlog.suite <n>    Log level for suite package\n")
-	fmt.Fprintf(os.Stderr, "\ttests <list>     select which tests to run: Comma seperated list of numbers or\n")
-	fmt.Fprintf(os.Stderr, "\t                 namepattern. E.g. '3,7,External*,9,*-Special-??,15'\n")
-	fmt.Fprintf(os.Stderr, "\tseed <n>         use n as random ssed (instead of current time)\n")
-	fmt.Fprintf(os.Stderr, "\n")
-	fmt.Fprintf(os.Stderr, "Test Options:\n")
+	fmt.Fprintf(os.Stderr, "\t-check            do not run, just print suites\n")
+	fmt.Fprintf(os.Stderr, "\t-log <n>          General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace\n")
+	fmt.Fprintf(os.Stderr, "\t-log.tag <n>      Log level for Tag test (tag package)\n")
+	fmt.Fprintf(os.Stderr, "\t-log.suite <n>    Log level for suite package\n")
+	fmt.Fprintf(os.Stderr, "\t-tests <list>     select which tests to run: Comma seperated list of numbers or\n")
+	fmt.Fprintf(os.Stderr, "\t                  namepattern. E.g. '3,7,External*,9,*-Special-??,15'\n")
+	fmt.Fprintf(os.Stderr, "\t-seed <n>         use n as random seed (instead of current time)\n")
+	fmt.Fprintf(os.Stderr, "\t-D <n>=<v>        Set/override const variable named <n> to value <v>\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
-	fmt.Fprintf(os.Stderr, "\truns             number of repetitions of each test (mus be >= 5).\n")
+	fmt.Fprintf(os.Stderr, "\t-runs             number of repetitions of each test (must be >= 5).\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Stress Test Options:\n")
-	fmt.Fprintf(os.Stderr, "\tramp.start <n>   Start with n as parallel background load\n")
-	fmt.Fprintf(os.Stderr, "\tramp.step <n>    Increase parallel background load by n on each iteration\n")
-	fmt.Fprintf(os.Stderr, "\tramp.sleep <ms>  Sleep tim in ms around iterations.\n")
-	fmt.Fprintf(os.Stderr, "\tramp.rep <n>     Repetitions of testsuite during one ramp step\n")
-	fmt.Fprintf(os.Stderr, "\tstop.ff <frac>   Stop stresstest if fraction (e.g. 0.2) of conditions fail\n")
-	fmt.Fprintf(os.Stderr, "\tstop.art <ms>    Stop if Average Response Time exeeds ms.\n")
-	fmt.Fprintf(os.Stderr, "\tstop.mrt <ms>    Stop if Maximum Response Time exeeds ms. \n")
-	fmt.Fprintf(os.Stderr, "\tstop.rtj <n>     Stop if resp.time jumbs by factor of at least n. \n")
-	fmt.Fprintf(os.Stderr, "\tstop.rti <n>     Stop if resp.time exeeds n * plain resp. time.\n")
-	fmt.Fprintf(os.Stderr, "\tstop.mpr <n>     Stop if n maximum parallel requests reached.\n")
+	fmt.Fprintf(os.Stderr, "\t-ramp.start <n>   Start with background load of n parallel background requests\n")
+	fmt.Fprintf(os.Stderr, "\t-ramp.step <n>    Increase parallel background load by n on each iteration\n")
+	fmt.Fprintf(os.Stderr, "\t-ramp.sleep <ms>  Sleep time in ms around iterations.\n")
+	fmt.Fprintf(os.Stderr, "\t-ramp.rep <n>     Repetitions of testsuite during one ramp step\n")
+	fmt.Fprintf(os.Stderr, "\t-stop.ff <frac>   Stop stresstest if fraction (e.g. 0.2) of conditions fail\n")
+	fmt.Fprintf(os.Stderr, "\t-stop.art <ms>    Stop if Average Response Time exeeds ms.\n")
+	fmt.Fprintf(os.Stderr, "\t-stop.mrt <ms>    Stop if Maximum Response Time exeeds ms. \n")
+	fmt.Fprintf(os.Stderr, "\t-stop.rtj <n>     Stop if resp.time jumbs by factor of at least n. \n")
+	fmt.Fprintf(os.Stderr, "\t-stop.rti <n>     Stop if resp.time exeeds n * plain resp. time.\n")
+	fmt.Fprintf(os.Stderr, "\t-stop.mpr <n>     Stop if n maximum parallel requests reached.\n")
 	fmt.Fprintf(os.Stderr, "\t\n")
-	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Defaults:\n")
-	fmt.Fprintf(os.Stderr, "\n")
 	flag.PrintDefaults()
 	os.Exit(1)
 }
+
+type cmdlVar struct {
+	m map[string]string
+}
+
+func (c cmdlVar) String() (s string) {
+	return ""
+}
+
+func (c cmdlVar) Set(s string) bool {
+	part := strings.Split(s, "=", 2)
+	if len(part) != 2 {
+		warn("Bad argument '%s' to -D commandline parameter", s)
+		return false
+	}
+	c.m[part[0]] = part[1]
+	return true
+}
+
 
 func main() {
 	logger = log.New(os.Stderr, "Webtest ", log.Ldate|log.Ltime)
@@ -181,6 +197,8 @@ func main() {
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
 	flag.StringVar(&testsToRun, "tests", "*", "Run just some tests (numbers or name)")
 	flag.Int64Var(&randomSeed, "seed", 15, "Number of runs for each test in benchmark.")
+	var variables cmdlVar = cmdlVar{map[string]string{}}
+	flag.Var(variables, "D", "Set/Overwrite a const variable in the suite e.g. '-D HOST=localhost'")
 
 	flag.IntVar(&rampStart, "ramp.start", 5, "Ramp start")
 	flag.IntVar(&rampStep, "ramp.step", 5, "Ramp step")
@@ -199,6 +217,10 @@ func main() {
 	if helpme {
 		help()
 	}
+	for vn, vv := range variables.m {
+		suite.Const[vn] = vv
+	}
+
 	if benchmarkMode && stresstestMode {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, and -bench")
 		os.Exit(1)

@@ -253,7 +253,7 @@ func (p *Parser) readCond(body bool) []Condition {
 			switch k {
 			case "Txt", "Bin":
 			default:
-				error("No such condition type '%s' for body.", k)
+				error("No such condition type '%s' for body on line %d.", k, no)
 				p.okay = false
 				continue
 			}

@@ -149,7 +149,67 @@ PARAM
 	sleep	110
 SETTING
 	Max-Time	100
+	
+	
+# Test no 9
+----------------------
+Variable Subst
+----------------------
+GET ${URL}/html.html
+PARAM
+	text ${SomeGlobal}
+BODY
+	Txt  ~=  GlobalValue
 `
+
+var cookieSuite = fmt.Sprintf(`
+----------------------
+Global
+----------------------
+GET http://wont.use
+CONST
+	URL	 %s%s
+
+----------------------
+Display Cookies
+----------------------
+GET ${URL}/cookie.html
+SEND-COOKIE
+	Myfirst     MyFirstCookieValue
+	Sessionid   abc123XYZ
+	Jsessionid  5AE613FC082DEB79484C774677651164
+	
+TAG
+	li == Sessionid :: abc123XYZ
+	li == Myfirst :: MyFirstCookieValue
+	li == Jsessionid :: 5AE613FC082DEB79484C774677651164
+	
+----------------------
+Login
+----------------------
+POST ${URL}/post
+PARAM
+	# cookie parameter is added to response header by /post handler
+	cookie  Thesession=randomsessionid
+RESPONSE
+	Final-Url	==	${URL}/post
+SET-COOKIE
+	Thesession  ~=  randomsessionid
+BODY
+	Txt  ~=  Post Page 
+SETTING
+	# Store recieved Cookies in Global
+	Keep-Cookies  1
+	
+	
+---------------------
+Access
+---------------------
+GET ${URL}/cookie.html
+TAG
+	li == Thesession :: randomsessionid
+`,
+	host, port)
 
 
 func TestServer(t *testing.T) {
@@ -246,17 +306,17 @@ func binHandler(w http.ResponseWriter, req *http.Request) {
 
 
 func code(s string) string {
-	return "<code>" + s + "</code>"  // TODO: escape html
+	return "<code>" + s + "</code>" // TODO: escape html
 }
 
 func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	w.SetHeader("Content-Type", "text/html; charset=utf-8")
 	if cn := req.FormValue("set"); cn != "" {
-		cv, cp :=  req.FormValue("val"), req.FormValue("pat")
-		trace("cookieHandler recieved cookie %s=%s; path=%s.", cn,cv,cp)
-		w.SetHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=%s", cn,cv,cp))
+		cv, cp := req.FormValue("val"), req.FormValue("pat")
+		trace("cookieHandler recieved cookie %s=%s; path=%s.", cn, cv, cp)
+		w.SetHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=%s", cn, cv, cp))
 	}
-	
+
 	if t := req.FormValue("goto"); t != "" {
 		w.SetHeader("Location", host+port+"/"+t)
 		w.WriteHeader(302)
@@ -275,7 +335,6 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Flush()
 }
-
 
 
 func passed(test *Test, t *testing.T) bool {
@@ -367,6 +426,39 @@ func TestTooSlow(t *testing.T) {
 	failed(&theSuite.Test[7], t)
 }
 
+func TestGlobalSubst(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	Const["SomeGlobal"] = "GlobalValue"
+	theSuite.RunTest(8)
+	passed(&theSuite.Test[8], t)
+}
+
+
+func TestCookies(t *testing.T) {
+	LogLevel = 3
+	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
+	cs, err := p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+
+	cs.RunTest(0) // Display Cookies
+	if !passed(&cs.Test[0], t) {
+		t.FailNow()
+	}
+
+	cs.RunTest(1) // Login
+	passed(&cs.Test[1], t)
+	if !passed(&cs.Test[1], t) {
+		t.FailNow()
+	}
+
+	cs.RunTest(2) // Access
+	passed(&cs.Test[1], t)
+}
+
 
 func TestStayAlife(t *testing.T) {
 	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
@@ -441,10 +533,15 @@ func TestStresstest(t *testing.T) {
 	r0 := suite.Stresstest(background, 0, 3, 100)
 	r10 := suite.Stresstest(background, 10, 3, 100)
 	r30 := suite.Stresstest(background, 30, 2, 100)
+	time.Sleep(100000000)
 	r60 := suite.Stresstest(background, 60, 1, 100)
+	time.Sleep(100000000)
 	r100 := suite.Stresstest(background, 100, 1, 100)
+	time.Sleep(200000000)
 	r150 := suite.Stresstest(background, 150, 1, 100)
+	time.Sleep(200000000)
 	r200 := suite.Stresstest(background, 200, 5, 100)
+	time.Sleep(500000000)
 
 	testPrintStResult("Load   0", r0)
 	testPrintStResult("Load  10", r10)
@@ -472,77 +569,3 @@ func TestStresstest(t *testing.T) {
 	}
 
 }
-
-
-var cookieSuite = fmt.Sprintf(`
-----------------------
-Global
-----------------------
-GET http://wont.use
-CONST
-	URL	 %s%s
-
-----------------------
-Display Cookies
-----------------------
-GET ${URL}/cookie.html
-SEND-COOKIE
-	Myfirst     MyFirstCookieValue
-	Sessionid   abc123XYZ
-	Jsessionid  5AE613FC082DEB79484C774677651164
-	
-TAG
-	li == Sessionid :: abc123XYZ
-	li == Myfirst :: MyFirstCookieValue
-	li == Jsessionid :: 5AE613FC082DEB79484C774677651164
-	
-----------------------
-Login
-----------------------
-POST ${URL}/post
-PARAM
-	# cookie parameter is added to response header by /post handler
-	cookie  Thesession=randomsessionid
-RESPONSE
-	Final-Url	==	${URL}/post
-SET-COOKIE
-	Thesession  ~=  randomsessionid
-BODY
-	Txt  ~=  Post Page 
-SETTING
-	# Store recieved Cookies in Global
-	Keep-Cookies  1
-	
-	
----------------------
-Access
----------------------
-GET ${URL}/cookie.html
-TAG
-	li == Thesession :: randomsessionid
-`, host, port)
-
-
-func TestCookies(t *testing.T) {
-	LogLevel = 3
-	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
-	cs, err := p.ReadSuite()
-	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
-	}
-
-	cs.RunTest(0)  // Display Cookies
-	if !passed(&cs.Test[0], t) {
-		t.FailNow()
-	}
-	
-	cs.RunTest(1)  // Login
-	passed(&cs.Test[1], t)
-	if !passed(&cs.Test[1], t) {
-		t.FailNow()
-	}
-	
-	cs.RunTest(2)  // Access
-	passed(&cs.Test[1], t)
-}
-
