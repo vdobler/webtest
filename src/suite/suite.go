@@ -70,7 +70,7 @@ func (s *Suite) RunTest(n int) {
 		error("No such test.")
 		return
 	}
-
+	trace("Running test no %d (global = %p)", n, s.Global)
 	s.Test[n].Run(s.Global)
 }
 

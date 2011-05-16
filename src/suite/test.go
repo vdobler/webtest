@@ -26,7 +26,9 @@ type Test struct {
 	Method   string
 	Url      string
 	Header   map[string]string
+	Cookie   map[string]string
 	RespCond []Condition
+	CookieCond []Condition
 	BodyCond []Condition
 	Tag      []TagCondition
 	Pre      []string
@@ -47,8 +49,11 @@ func (src *Test) Copy() (dest *Test) {
 	dest.Method = src.Method
 	dest.Url = src.Url
 	dest.Header = copyMap(src.Header)
+	dest.Cookie = copyMap(src.Cookie)
 	dest.RespCond = make([]Condition, len(src.RespCond))
 	copy(dest.RespCond, src.RespCond)
+	dest.CookieCond = make([]Condition, len(src.CookieCond))
+	copy(dest.CookieCond, src.CookieCond)
 	dest.BodyCond = make([]Condition, len(src.BodyCond))
 	copy(dest.BodyCond, src.BodyCond)
 	dest.Tag = make([]TagCondition, len(src.Tag))
@@ -135,6 +140,7 @@ func NewTest(title string) *Test {
 	t := Test{Title: title}
 
 	t.Header = make(map[string]string)
+	t.Cookie = make(map[string]string)
 	t.Param = make(map[string][]string)
 	t.Setting = make(map[string]string)
 	t.Const = make(map[string]string)
@@ -232,7 +238,9 @@ func (t *Test) String() (s string) {
 	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
 	s += t.Method + " " + t.Url + "\n"
 	s += formatMap("HEADER", &t.Header)
+	s += formatMap("SEND-COOKIE", &t.Cookie)
 	s += formatCond("RESPONSE", &t.RespCond)
+	s += formatCond("SET-COOKIE", &t.CookieCond)
 	s += formatCond("BODY", &t.BodyCond)
 	s += formatMultiMap("PARAM", &t.Param)
 	s += formatMap("CONST", &t.Const)
@@ -276,6 +284,16 @@ func (t *Test) Sleep() (i int) {
 	return atoi(r, "", 0)
 }
 
+func (t *Test) KeepCookies() bool {
+	if t.Setting == nil {
+		return false
+	}
+	kc, ok := t.Setting["Keep-Cookies"]
+	if ok && (kc == "1" || kc == "true" || kc == "keep") {
+		return true
+	}
+	return false
+}
 
 func testHeader(resp *http.Response, t, orig *Test) {
 	debug("Testing Header")
@@ -286,6 +304,26 @@ func testHeader(resp *http.Response, t, orig *Test) {
 			orig.Report(false, "%s: Got '%s'", cs, v)
 		} else {
 			orig.Report(true, "%s.", cs)
+		}
+	}
+	debug("Testing Cookies")
+	for _, cc := range t.CookieCond {
+		var found bool = false
+		ci := cc.Info("cookie")
+		for _, sc := range(resp.SetCookie) {
+			if sc.Name == cc.Key {
+				found = true
+				cv := sc.Value + "; Path=" + sc.Path  // TODO: rest
+				if !cc.Fullfilled(cv) {
+					orig.Report(false, "%s: Got '%s'", ci, cv)
+				} else {
+					orig.Report(true, "%s", ci)
+				}
+				break
+			}
+		}
+		if !found {
+			orig.Report(false, "Cookie '%s' not set", cc.Key)
 		}
 	}
 	return
@@ -394,6 +432,15 @@ func addMissingHeader(test, global *map[string]string) {
 	}
 }
 
+func addMissingCookies(test, global *map[string]string) {
+	for k, v := range *global {
+		if _, ok := (*test)[k]; !ok {
+			(*test)[k] = v
+			trace("Adding missing cookie %s =%s", k, v)
+		}
+	}
+}
+
 func addMissingCond(test, global []Condition) []Condition {
 	a := len(test)
 	for _, cond := range global {
@@ -433,6 +480,7 @@ func prepareTest(t, global *Test) *Test {
 	test := t.Copy()
 	if global != nil {
 		addMissingHeader(&test.Header, &global.Header)
+		addMissingCookies(&test.Cookie, &global.Cookie)
 		test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	}
@@ -547,7 +595,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 	var (
 		response *http.Response
 		url      string
-		cookies  []string
+		cookies  []*http.Cookie
 		reqerr   os.Error
 	)
 
@@ -565,8 +613,17 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 		return
 	}
 
-	for _, cookie := range cookies {
-		trace("New cookie %s", cookie)
+	trace("Recieved cookies: %v", cookies)
+	if len(cookies) > 0 && test.KeepCookies() && global != nil {
+		if global.Cookie == nil {
+			global.Cookie = make(map[string]string)
+		}
+
+		for _, c := range cookies {
+			// TODO: Test for overwrite/modify
+			global.Cookie[c.Name] = c.Value
+			trace("kept cookie %s = %s (global = %p)", c.Name, c.Value, global)
+		}
 	}
 
 	if !skipTests {

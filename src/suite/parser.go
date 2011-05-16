@@ -509,8 +509,12 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		switch line {
 		case "HEADER":
 			p.readMap(&test.Header)
+		case "SEND-COOKIE", "SEND-COOKIES", "COOKIE", "COOKIES":
+			p.readMap(&test.Cookie)
 		case "RESPONSE":
 			test.RespCond = p.readCond(false)
+		case "SET-COOKIE", "RECIEVED-COOKIE":
+			test.CookieCond = p.readCond(false)
 		case "BODY":
 			test.BodyCond = p.readCond(true)
 		case "PARAM", "PARAMETERS":

@@ -35,29 +35,39 @@ func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, er
 
 }
 
-func addHeaders(req *http.Request, t *Test) {
+func addHeadersAndCookies(req *http.Request, t *Test) {
+	trace("req.Header = %v", req.Header)
 	for k, v := range t.Header {
-		trace("req.Header = %v", req.Header)
-		req.Header.Set(k, v)
+		if k == "Cookie" {
+			trace("Should not send Cookies in HEADER: skipped")
+		} else {
+			trace("added %s = %s", k, v)
+			req.Header.Set(k, v)
+		}
+	}
+	
+	for cn, cv := range t.Cookie {
+		req.Cookie = append(req.Cookie, &http.Cookie{Name: cn, Value: cv})
 	}
 }
 
-func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
+func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	// TODO: if/when we add cookie support, the redirected request shouldn't
 	// necessarily supply the same cookies as the original.
 	// TODO: set referrer header on redirects.
 
 	info("%s %s", req.Method, req.URL.String())
-
+	trace("::: req = %v", req)
 	r, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return
 	}
 	finalUrl = req.URL.String()
-	if sc := r.Header.Get("Set-Cookie"); sc != "" {
-		cookies = append(cookies, sc)
+	for _, cookie := range(r.SetCookie) {
+		trace("got cookie on first request: %s = %s", cookie.Name, cookie.Value)
+		cookies = append(cookies, cookie)
 	}
-
+	
 	if !shouldRedirect(r.StatusCode) {
 		return
 	}
@@ -94,9 +104,13 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 			return
 		}
 		finalUrl = url
-		if sc := r.Header.Get("Set-Cookie"); sc != "" {
-			cookies = append(cookies, sc)
+		for _, cookie := range(r.SetCookie) {
+			// TODO chekc for overwriting/re-setting
+			trace("got cookie on %dth request: %s = %s", redirect+1, cookie.Name, cookie.Value)
+			cookies = append(cookies, cookie)
 		}
+
+		cookies = r.SetCookie
 
 		if !shouldRedirect(r.StatusCode) {
 			return
@@ -109,7 +123,7 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 	return
 }
 
-func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
+func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	var url = t.Url // <-- Patched
 
 	var req http.Request
@@ -132,7 +146,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.E
 		return
 	}
 
-	addHeaders(&req, t)
+	addHeadersAndCookies(&req, t)
 	url = req.URL.String()
 	debug("Will get from %s", req.URL.String())
 	r, finalUrl, cookies, err = DoAndFollow(&req)
@@ -144,7 +158,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.E
 // with data's keys and values urlencoded as the request body.
 //
 // Caller should close r.Body when done reading from it.
-func Post(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.Error) {
+func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	var req http.Request
 	var url = t.Url //  <-- Patched
 	req.Method = "POST"
@@ -162,7 +176,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []string, err os.
 		"Content-Type":   {"application/x-www-form-urlencoded"},
 		"Content-Length": {strconv.Itoa(body.Len())},
 	}
-	addHeaders(&req, t) // <-- Patched
+	addHeadersAndCookies(&req, t) // <-- Patched
 
 	req.ContentLength = int64(body.Len())
 

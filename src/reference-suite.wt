@@ -285,6 +285,21 @@ SETTING
 	# Keep (store in Global) cookies set by the server answer (Not impl.)
 	Keep-Cookies	true
 	
+
+#
+# Cookies
+# -------
+-------------------
+Cookies
+--------------------
+GET someUrl
+SEND-COOKIE
+	SESSIONID	123ABCxyz
+SET-COOKIE
+	just-present
+	has-value    ~= in-val
+	all          == value; Path=/; Secure
+	
 	
 #
 # Global
