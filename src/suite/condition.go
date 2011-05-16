@@ -86,6 +86,8 @@ func atoi(s, line string, fallback int) int {
 func (cond *Condition) Fullfilled(v string) bool {
 	ans := false
 	switch cond.Op {
+	case ".": // Empty operator: tests existance only.
+		ans = (v != "")
 	case "==":
 		ans = (cond.Val == v)
 	case "_=":
@@ -123,7 +125,10 @@ func (c *Condition) String() (s string) {
 	} else {
 		s = " "
 	}
-	s += c.Key + " " + c.Op + " " + c.Val
+	s += c.Key
+	if c.Op != "." {
+		s += " " + c.Op + " " + c.Val
+	}
 	return
 }
 

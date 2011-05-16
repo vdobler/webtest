@@ -106,7 +106,7 @@ RESPONSE
 	 # To negate a condition: Prefix the whole condition with a ! charcter.
 	!App-Field ~= Illegal
 	
-	 # To disalow the mre existence of a header field:
+	 # To disalow the mere existence of a header field:
 	!Illegal-Header
 	
 	 # Generally there is no need to quote field names or values to test
@@ -280,9 +280,9 @@ RESPONSE
 SETTING
 	# Number of repetitions of the test
 	Repeat		12
-	# Fail if answer is not recievd in less than 300 ms. (Not implemented)
+	# Fail if answer is not recievd in less than 300 ms.
 	Max-Time	300
-	# Keep (store in Global) cookies set by the server answer (Not impl.)
+	# Keep (store in Global) cookies set by the server answer
 	Keep-Cookies	true
 	
 

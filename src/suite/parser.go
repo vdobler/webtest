@@ -236,38 +236,54 @@ func (p *Parser) readCond(body bool) []Condition {
 		}
 		line = trim(line)
 		j := firstSpace(line)
+		var k, op, v string
+		var neg bool
+
 		if j == -1 {
 			error("No op or value on line %d", no)
-			p.okay = false
-			continue
-		}
-
-		var neg bool
-		k := trim(line[:j])
-		if hp(k, "!") {
-			neg = true
-			k = k[1:]
-		}
-		line = trim(line[j:])
-		if body { // only some are allowed
-			switch k {
-			case "Txt", "Bin":
-			default:
-				error("No such condition type '%s' for body on line %d.", k, no)
+			op = "."
+			k = line
+			if hp(k, "!") {
+				neg = true
+				k = k[1:]
+			}
+		} else {
+			k = trim(line[:j])
+			if hp(k, "!") {
+				neg = true
+				k = k[1:]
+			}
+			line = trim(line[j:])
+			if body { // only some are allowed
+				switch k {
+				case "Txt", "Bin":
+				default:
+					error("No such condition type '%s' for body on line %d.", k, no)
+					p.okay = false
+					continue
+				}
+			}
+			j = firstSpace(line)
+			if j == -1 {
+				error("No value on line %d (in %s) or missing operator", no, trim(p.line[p.i].line))
 				p.okay = false
 				continue
 			}
-		}
-		j = firstSpace(line)
-		if j == -1 {
-			error("No value on line %d (in %s) or missing operator", no, trim(p.line[p.i].line))
-			p.okay = false
-			continue
-		}
-		op := trim(line[:j])
-		v := trim(line[j:])
-		if k == "Bin" {
-			v = strings.ToLower(v) // our internal bin-values are lowercase
+			op = trim(line[:j])
+			switch op {
+			case "==", "_=", "=_", "~=", ">", "<", ">=", "<=", "/=":
+			case "!=":
+				warn("Operator '!=' is unsafe. Use '! Key == Val' construct in %s:%d.", p.name, no)
+				neg, op = !neg, "=="
+			default:
+				error("Unknown operator '%s' in %s:%d.", p.name, no)
+				p.okay = false
+				continue
+			}
+			v = trim(line[j:])
+			if k == "Bin" {
+				v = strings.ToLower(v) // our internal bin-values are lowercase
+			}
 		}
 		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no)}
 		list = append(list, cond)

@@ -227,7 +227,11 @@ func formatCond(s string, m *[]Condition) (f string) {
 			} else {
 				f += "\t "
 			}
-			f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
+			if c.Op != "." {
+				f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
+			} else {
+				f += c.Key + "\n" // fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
+			}
 		}
 	}
 	return
