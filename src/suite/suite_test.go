@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	// "dobler/webtest/tag"
+	"html"
 )
 
 var (
@@ -183,6 +183,30 @@ RESPONSE
 BODY
 	Txt  ~=  Post Page 
 
+# Test no 12
+----------------------
+Encoding 1
+----------------------
+GET ${URL}/html.html
+PARAM
+	text	"€ & <ÜÖÄ> = üöa" 
+BODY
+	Txt  ~=  UTF-8 Umlaute äöüÄÖÜ Euro €
+	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
+	
+# Test no 13
+-------------------------
+Encoding 2
+-------------------------
+POST ${URL}/post
+PARAM
+	datei	@file:condition.go
+	text	"€ & <ÜÖÄ> = üöa"
+RESPONSE
+	Final-Url	==	${URL}/post
+BODY
+	Txt  ~=  Post Page 
+	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
 
 `
 
@@ -270,6 +294,7 @@ var htmlPat = `<!DOCTYPE html>
 		</form>
 	</div>
 	<p class="b">Stupid stuff here.</p>
+	<span>UTF-8 Umlaute äöüÄÖÜ Euro €</span>
 </body>
 `
 
@@ -285,7 +310,7 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	if len(req.Cookie) > 0 {
 		t += "\n<a href=\"/bin.bin\" title=\"TheCookieValue\">" + req.Cookie[0].Name + " = " + req.Cookie[0].Value + "</a>"
 	}
-	body := fmt.Sprintf(htmlPat, t)
+	body := fmt.Sprintf(htmlPat, html.EscapeString(t))
 	w.Write([]byte(body))
 }
 
@@ -316,8 +341,9 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Location", host+port+"/"+t)
 		w.WriteHeader(302)
 	} else {
+		text := req.FormValue("text")
 		w.WriteHeader(200)
-		body := "<html><body><h1>Post Page</h1><p>t = " + t + "</p></body></html>"
+		body := "<html><body><h1>Post Page</h1><p>t = " + html.EscapeString(text) + "</p></body></html>"
 		w.Write([]byte(body))
 	}
 }
@@ -483,6 +509,17 @@ func TestFileUpload(t *testing.T) {
 	theSuite.RunTest(10)
 	passed(&theSuite.Test[10], t)
 }
+
+func TestEncoding(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(11)
+	passed(&theSuite.Test[11], t)
+	theSuite.RunTest(12)
+	passed(&theSuite.Test[12], t)
+}
+
 
 func TestCookies(t *testing.T) {
 	LogLevel = 3

@@ -67,6 +67,7 @@ var testSimpleHtml = `<!DOCTYPE html>
 		<h1 id="h1_3" class="head">Chicago</h1>
 		<span id="SP1">Some aaaa text</span>
 	</div>
+	<h4 id="theH4">UTF-8 Umlaute äöüÄÖÜ Euro €</h4>
 	<div id="div2" class="news">
 		<h2>The <span class="red">new</span> Title</h2>
 		<p>New York Rio Tokio</p>
@@ -160,6 +161,11 @@ func TestTextcontent(t *testing.T) {
 	check(doc, "p class=LongText == This ?? ? pretty*text.", "LongText", t)
 	check(doc, "p id=Lon*ext == This is a pretty long text.", "LongText", t)
 	check(doc, "p id=?ong?ext == This * text.", "LongText", t)
+	
+	check(doc, "h4 == UTF-8 *", "theH4", t)
+	check(doc, "h4 == UTF-8 Umlaute äöüÄÖÜ Euro €", "theH4", t)
+	check(doc, "h4 == UTF-8 * äöüÄÖÜ Euro €", "theH4", t)
+	check(doc, "h4 == *€", "theH4", t)
 }
 
 func TestNestedTags(t *testing.T) {
