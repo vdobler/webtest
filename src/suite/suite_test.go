@@ -307,11 +307,8 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 		fmt.Printf("========= called /post with GET! ========\n")
 	}
 
-	file, header, err := req.FormFile("datei")
-	if err != nil {
-		error("Problems with datei: " + err.String())
-		fmt.Printf("\n%v\n\n", file)
-	} else {
+	_, header, err := req.FormFile("datei")
+	if err == nil {
 		info("Recieved datei: %s.", header.Filename)
 	}
 

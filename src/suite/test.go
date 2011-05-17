@@ -300,17 +300,24 @@ func (t *Test) KeepCookies() bool {
 }
 
 func testHeader(resp *http.Response, t, orig *Test) {
-	debug("Testing Header")
-	for _, c := range t.RespCond {
-		cs := c.Info("resp")
-		v := resp.Header.Get(c.Key)
-		if !c.Fullfilled(v) {
-			orig.Report(false, "%s: Got '%s'", cs, v)
-		} else {
-			orig.Report(true, "%s.", cs)
+	if len(t.RespCond) > 0 {
+		debug("Testing Header")
+		for _, c := range t.RespCond {
+			cs := c.Info("resp")
+			v := resp.Header.Get(c.Key)
+			if !c.Fullfilled(v) {
+				orig.Report(false, "%s: Got '%s'", cs, v)
+			} else {
+				orig.Report(true, "%s.", cs)
+			}
 		}
 	}
-	debug("Testing Cookies")
+	
+	if len(t.CookieCond) > 0 {
+		debug("Testing Cookies")
+	} else {
+		return
+	}
 	for _, cc := range t.CookieCond {
 		var found bool = false
 		ci := cc.Info("cookie")
@@ -334,7 +341,12 @@ func testHeader(resp *http.Response, t, orig *Test) {
 }
 
 func testBody(body string, t, orig *Test) {
-	debug("Testing Body")
+	if len(t.BodyCond) > 0 {
+		debug("Testing Body")
+	} else {
+		return
+	}
+	
 	var binbody *string
 	for _, c := range t.BodyCond {
 		cs := c.Info("body")
@@ -365,8 +377,12 @@ func testBody(body string, t, orig *Test) {
 }
 
 func testTags(t, orig *Test, doc *tag.Node) {
-	debug("Testing Tags")
-
+	if len(t.Tag) > 0 {
+		debug("Testing Tags")
+	} else {
+		return
+	}
+	
 	for _, tc := range t.Tag {
 		cs := tc.Info("tag")
 		switch tc.Cond {

@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"strconv"
 	"mime"
+	"rand"
+	"time"
 )
 
 
@@ -39,7 +41,6 @@ func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, er
 }
 
 func addHeadersAndCookies(req *http.Request, t *Test) {
-	trace("req.Header = %v", req.Header)
 	for k, v := range t.Header {
 		if k == "Cookie" {
 			trace("Should not send Cookies in HEADER: skipped")
@@ -54,9 +55,11 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 	}
 }
 
+// Perform the request and follow up to 10 redirects.
+// All cookie setting are collected, the final URL is reported.
 func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	// TODO: if/when we add cookie support, the redirected request shouldn't
-	// necessarily supply the same cookies as the original.
+	// TODO: redirectrs should use basically the same header information as the
+	// original request.
 	// TODO: set referrer header on redirects.
 
 	info("%s %s", req.Method, req.URL.String())
@@ -66,7 +69,7 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 	}
 	finalUrl = req.URL.String()
 	for _, cookie := range r.SetCookie {
-		trace("got cookie on first request: %s = %s", cookie.Name, cookie.Value)
+		trace("Got cookie on first request: %s = %s", cookie.Name, cookie.Value)
 		cookies = append(cookies, cookie)
 	}
 
@@ -79,6 +82,7 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 	var base = req.URL
 
 	// Following the redirect chain is done with a clean/empty new GET request
+	// TODO: use current set of cookies, referer and original header.
 	req = new(http.Request)
 	req.Method = "GET"
 	req.ProtoMajor = 1
@@ -107,12 +111,20 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 		}
 		finalUrl = url
 		for _, cookie := range r.SetCookie {
-			// TODO check for overwriting/re-setting
-			trace("got cookie on %dth request: %s = %s", redirect+1, cookie.Name, cookie.Value)
-			cookies = append(cookies, cookie)
+			var exists bool
+			for i, c := range cookies {
+				if c.Name == cookie.Name {
+					trace("Re-set cookie on %dth redirection: %s = %s", redirect+1, cookie.Name, cookie.Value)
+					cookies[i] = cookie
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				trace("New cookie on %dth redirection: %s = %s", redirect+1, cookie.Name, cookie.Value)
+				cookies = append(cookies, cookie)
+			}
 		}
-
-		cookies = r.SetCookie
 
 		if !shouldRedirect(r.StatusCode) {
 			return
@@ -121,10 +133,11 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 		base = req.URL
 
 	}
-	err = os.ErrorString("stopped after 10 redirects")
+	err = os.ErrorString("Too many redirects.")
 	return
 }
 
+// Perform a GET request for the test t.
 func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	var url = t.Url // <-- Patched
 
@@ -155,8 +168,9 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 	return
 }
 
-func hasFile(p map[string][]string) bool {
-	for _, v := range p {
+// Return true if the parameters contain a file
+func hasFile(param *map[string][]string) bool {
+	for _, v := range *param {
 		if len(v) == 0 {
 			continue
 		}
@@ -165,6 +179,79 @@ func hasFile(p map[string][]string) bool {
 		}
 	}
 	return false
+}
+
+// allowed characters in a multipart boundary and own random numner generator
+var multipartChars []byte = []byte("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var boundaryRand *rand.Rand = rand.New(rand.NewSource(time.Seconds()))
+
+// Consruct a new random boundary for multipart messages
+func newBoundary() string {
+	n := 15 + boundaryRand.Intn(20)
+	b := [60]byte{}
+	for i:=0; i<60-n; i++ {
+		b[i] = '-'
+	}
+	for i:=60-n; i<60; i++ {
+		b[i] = multipartChars[boundaryRand.Intn(46)]
+	}
+	boundary := string(b[:])
+	trace("New boundary: %s", boundary)
+	return boundary
+}
+
+// Format the parameter map as a multipart message body.
+func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
+	var body *bytes.Buffer = &bytes.Buffer{}
+	var boundary = newBoundary()
+	
+	// All non-file parameters come first
+	for n, v := range *param {
+		if len(v) > 0 && strings.HasPrefix(v[0], "@file:") {
+			continue
+		}
+		if len(v) > 0 {
+			for _, vv := range v {
+				trace("Added parameter %s with value '%s' to request body.", n, vv)
+				var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n", boundary, n, vv) // TODO: maybe escape value?
+				body.WriteString(part)
+			}
+		} else {
+			trace("Adding empty parameter %s to request body.", n)
+			var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n\r\n", boundary, n)
+			body.WriteString(part)
+		}
+	}
+	
+	// File parameters at bottom
+	for n, v := range *param {
+		if !(len(v) > 0 && strings.HasPrefix(v[0], "@file:")) {
+			continue
+		}
+		filename := v[0][6:]
+		trace("Adding file '%s' as %s to request body.", filename, n)
+		var ct string = "application/octet-stream"
+		if i := strings.LastIndex(filename, "."); i != -1 {
+			ct = mime.TypeByExtension(filename[i:])
+			if ct == "" {
+				ct = "application/octet-stream"
+			}
+		}
+		var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n", boundary, n, filename)
+		part += fmt.Sprintf("Content-Type: %s\r\n\r\n", ct)
+		file, err := os.Open(filename)
+		defer file.Close()
+		if err != nil {
+			warn("Cannot read from file '%s': ", filename, err.String())
+			continue
+		}
+		body.WriteString(part)
+		body.ReadFrom(file)
+		body.WriteString("\r\n")
+	}
+	body.WriteString("--" + boundary + "--\r\n")
+	
+	return body, boundary
 }
 
 // PostForm issues a POST to the specified URL, 
@@ -180,50 +267,10 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 	req.Close = true
 	var body *bytes.Buffer
 	var contentType string
-	if hasFile(t.Param) {
-		body = &bytes.Buffer{}
-		contentType = "multipart/form-data; "
-
-		var boundary = fmt.Sprintf("---------------------------20718350314867") // TODO make safe
-		for n, v := range t.Param {
-			if len(v) > 0 && strings.HasPrefix(v[0], "@file:") {
-				filename := v[0][6:]
-				trace("Adding file '%s' as %s to request body.", filename, n)
-				var ct string = "application/octet-stream"
-				if i := strings.LastIndex(filename, "."); i != -1 {
-					ct = mime.TypeByExtension(filename[i:])
-					if ct == "" {
-						ct = "application/octet-stream"
-					}
-				}
-				var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n", boundary, n, filename)
-				part += fmt.Sprintf("Content-Type: %s\r\n\r\n", ct)
-				var file *os.File
-				file, err = os.Open(filename)
-				defer file.Close()
-				if err != nil {
-					warn("Cannot read from file '%s'.", filename)
-					continue
-				}
-				body.WriteString(part)
-				body.ReadFrom(file)
-				body.WriteString("\r\n")
-			} else {
-				if len(v) > 0 {
-					for _, vv := range v {
-						trace("Added parameter %s with value '%s' to request body.", n, vv)
-						var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n", boundary, n, vv) // TODO: maybe escape value?
-						body.WriteString(part)
-					}
-				} else {
-					trace("Adding empty parameter %s to request body.", n)
-					var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n\r\n", boundary, n)
-					body.WriteString(part)
-				}
-			}
-		}
-		body.WriteString("--" + boundary + "--\r\n")
-		contentType += "boundary=" + boundary
+	if hasFile(&t.Param) {
+		var boundary string
+		body, boundary = multipartBody(&t.Param)
+		contentType = "multipart/form-data; boundary=" + boundary
 	} else {
 		contentType = "application/x-www-form-urlencoded"
 		bodystr := http.EncodeQuery(t.Param)
