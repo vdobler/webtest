@@ -220,8 +220,19 @@ Post a Comment
 ---------------------------------
 POST http://my.blog/comment.html
 PARAM
-	name	Grigori Perelman
-	text	A Proof of the Poincare Conjecture
+	# Parameter name and value are given like this.
+	date    2010-03-04
+	
+	# As a parameter may have seveal values you need to quote values
+	# with spaces as a space is the delimiter for the different values.
+	name	"Grigori Perelman"
+	text	"A Proof of the Poincare Conjecture"
+	
+	# Sending multiple values of a parameter (e.g. checkbox)
+	categorie  proof topology
+	
+	# To send a file use the following (note: no space in filename!):
+	file	@file:document.pdf
 
 	
 #

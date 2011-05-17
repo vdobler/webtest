@@ -18,7 +18,7 @@ var (
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
-var testserverStayAlive int64 = 0
+var testserverStayAlive int64 = 100
 
 
 var suiteTmpl = `
@@ -160,6 +160,30 @@ PARAM
 	text ${SomeGlobal}
 BODY
 	Txt  ~=  GlobalValue
+	
+	
+# Test no 10
+----------------------
+Multiple Parameters
+----------------------
+GET ${URL}/html.html
+PARAM
+	text 	Hund Katze "Anna Berta"
+	
+	
+# Test no 11
+-------------------------
+Filepost
+-------------------------
+POST ${URL}/post
+PARAM
+	datei	@file:condition.go
+RESPONSE
+	Final-Url	==	${URL}/post
+BODY
+	Txt  ~=  Post Page 
+
+
 `
 
 var cookieSuite = fmt.Sprintf(`
@@ -239,8 +263,9 @@ var htmlPat = `<!DOCTYPE html>
 	<p class="a">Some fancy text Braunschweig Weiler</p>
 	%s
 	<div>
-		<form action="/post" method="post">
+		<form action="/post" method="post" enctype="multipart/form-data">
 			Go to: <input type="text" name="q" value="Search" />
+			File <input type="file" name="file-upload">
 			<input type="submit" />
 		</form>
 	</div>
@@ -249,8 +274,8 @@ var htmlPat = `<!DOCTYPE html>
 `
 
 func htmlHandler(w http.ResponseWriter, req *http.Request) {
-	w.SetHeader("Content-Type", "text/html; charset=utf-8")
-	w.SetHeader("Fancy-Header", "Important Value")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Fancy-Header", "Important Value")
 	w.WriteHeader(200)
 	t := req.FormValue("text")
 	s := req.FormValue("sleep")
@@ -262,35 +287,47 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	body := fmt.Sprintf(htmlPat, t)
 	w.Write([]byte(body))
-	w.Flush()
 }
 
 func postHandler(w http.ResponseWriter, req *http.Request) {
-	w.SetHeader("Content-Type", "text/html; charset=utf-8")
+	df, _ := os.Create("post.log")
+	d, _ := http.DumpRequest(req, true)
+	df.Write(d)
+	df.Close()
+	
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
 		cp := strings.Split(cv, "=", 2)
-		w.SetHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=/", cp[0], cp[1]))
+		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/", cp[0], cp[1]))
 	}
 	t := req.FormValue("q")
 	if req.Method != "POST" {
 		fmt.Printf("========= called /post with GET! ========\n")
 	}
+	
+	file, header, err := req.FormFile("datei")
+	if err != nil {
+		error("Problems with datei: " + err.String())
+		fmt.Printf("\n%v\n\n", file)
+	} else {
+		info("Recieved datei: %s.", header.Filename)
+	}
+	
 	if t != "" {
-		w.SetHeader("Location", host+port+"/"+t)
+		w.Header().Set("Location", host+port+"/"+t)
 		w.WriteHeader(302)
 	} else {
 		w.WriteHeader(200)
 		body := "<html><body><h1>Post Page</h1><p>t = " + t + "</p></body></html>"
 		w.Write([]byte(body))
 	}
-	w.Flush()
 }
 
 
 func binHandler(w http.ResponseWriter, req *http.Request) {
-	w.SetHeader("Content-Type", "application/data")
-	w.SetHeader("Fancy-Header", "Arbitary Value")
+	w.Header().Set("Content-Type", "application/data")
+	w.Header().Set("Fancy-Header", "Arbitary Value")
 	var c int = 200
 	if sc := req.FormValue("sc"); sc != "" {
 		var e os.Error
@@ -301,7 +338,6 @@ func binHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	w.WriteHeader(c)
 	w.Write([]byte("\001\007Hallo Welt!\n\377\376"))
-	w.Flush()
 }
 
 
@@ -310,15 +346,15 @@ func code(s string) string {
 }
 
 func cookieHandler(w http.ResponseWriter, req *http.Request) {
-	w.SetHeader("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cn := req.FormValue("set"); cn != "" {
 		cv, cp := req.FormValue("val"), req.FormValue("pat")
 		trace("cookieHandler recieved cookie %s=%s; path=%s.", cn, cv, cp)
-		w.SetHeader("Set-Cookie", fmt.Sprintf("%s=%s; Path=%s", cn, cv, cp))
+		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=%s", cn, cv, cp))
 	}
 
 	if t := req.FormValue("goto"); t != "" {
-		w.SetHeader("Location", host+port+"/"+t)
+		w.Header().Set("Location", host+port+"/"+t)
 		w.WriteHeader(302)
 	} else {
 		w.WriteHeader(200)
@@ -333,7 +369,6 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 		body += "</body></html>"
 		w.Write([]byte(body))
 	}
-	w.Flush()
 }
 
 
@@ -435,6 +470,21 @@ func TestGlobalSubst(t *testing.T) {
 	passed(&theSuite.Test[8], t)
 }
 
+func TestParameters(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(9)
+	passed(&theSuite.Test[9], t)
+}
+
+func TestFileUpload(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(10)
+	passed(&theSuite.Test[10], t)
+}
 
 func TestCookies(t *testing.T) {
 	LogLevel = 3

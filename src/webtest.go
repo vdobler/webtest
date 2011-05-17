@@ -347,7 +347,7 @@ func testOrBenchmark(filenames []string) {
 
 func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) {
 	var file *os.File
-	file, err = os.Open(filename, os.O_RDONLY, 777)
+	file, err = os.Open(filename)
 	defer file.Close()
 
 	if err != nil {
