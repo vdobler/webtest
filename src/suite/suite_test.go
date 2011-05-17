@@ -18,7 +18,7 @@ var (
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
-var testserverStayAlive int64 = 100
+var testserverStayAlive int64 = 0
 
 
 var suiteTmpl = `
@@ -199,14 +199,14 @@ Display Cookies
 ----------------------
 GET ${URL}/cookie.html
 SEND-COOKIE
-	Myfirst     MyFirstCookieValue
+	MyFirst     MyFirstCookieValue
 	Sessionid   abc123XYZ
-	Jsessionid  5AE613FC082DEB79484C774677651164
+	JSESSIONID  5AE613FC082DEB79484C774677651164
 	
 TAG
 	li == Sessionid :: abc123XYZ
-	li == Myfirst :: MyFirstCookieValue
-	li == Jsessionid :: 5AE613FC082DEB79484C774677651164
+	li == MyFirst :: MyFirstCookieValue
+	li == JSESSIONID :: 5AE613FC082DEB79484C774677651164
 	
 ----------------------
 Login
@@ -290,11 +290,12 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func postHandler(w http.ResponseWriter, req *http.Request) {
+	/*
 	df, _ := os.Create("post.log")
 	d, _ := http.DumpRequest(req, true)
 	df.Write(d)
 	df.Close()
-
+	*/
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
