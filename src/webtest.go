@@ -335,7 +335,9 @@ func testOrBenchmark(filenames []string) {
 	}
 	// Summary
 	fmt.Print(result)
-	fmt.Print(charts)
+	if benchmarkMode {
+		fmt.Print(charts)
+	}
 	if passed {
 		fmt.Printf("PASS\n")
 		os.Exit(0)

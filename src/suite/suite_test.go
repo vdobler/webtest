@@ -294,7 +294,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	d, _ := http.DumpRequest(req, true)
 	df.Write(d)
 	df.Close()
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
@@ -305,7 +305,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
 		fmt.Printf("========= called /post with GET! ========\n")
 	}
-	
+
 	file, header, err := req.FormFile("datei")
 	if err != nil {
 		error("Problems with datei: " + err.String())
@@ -313,7 +313,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	} else {
 		info("Recieved datei: %s.", header.Filename)
 	}
-	
+
 	if t != "" {
 		w.Header().Set("Location", host+port+"/"+t)
 		w.WriteHeader(302)

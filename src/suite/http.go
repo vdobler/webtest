@@ -173,7 +173,7 @@ func hasFile(p map[string][]string) bool {
 // Caller should close r.Body when done reading from it.
 func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	var req http.Request
-	var url = t.Url 
+	var url = t.Url
 	req.Method = "POST"
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
@@ -222,7 +222,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 				}
 			}
 		}
-		body.WriteString("--" + boundary + "--\r\n") 
+		body.WriteString("--" + boundary + "--\r\n")
 		contentType += "boundary=" + boundary
 	} else {
 		contentType = "application/x-www-form-urlencoded"
@@ -236,7 +236,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 		"Content-Type":   {contentType},
 		"Content-Length": {strconv.Itoa(body.Len())},
 	}
-	addHeadersAndCookies(&req, t) 
+	addHeadersAndCookies(&req, t)
 
 	req.ContentLength = int64(body.Len())
 	req.URL, err = http.ParseURL(url)
@@ -245,17 +245,17 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 	}
 	debug("Will post to %s", req.URL.String())
 
-	
-	dump, _ := http.DumpRequest(&req, true)
-	df, err := os.Create("req.log")  // TODO filename
-	if err == nil {
-		df.Write(dump)
-		df.Close()
-	} else {
-		error("Cannot open req.log: %s", err.String())
+	if LogLevel > 5 {
+		dump, _ := http.DumpRequest(&req, true)
+		df, err := os.Create("req.log") // TODO filename
+		if err == nil {
+			df.Write(dump)
+			df.Close()
+		} else {
+			error("Cannot open req.log: %s", err.String())
+		}
 	}
-	
-	
+
 	r, finalUrl, cookies, err = DoAndFollow(&req)
 	return
 }
