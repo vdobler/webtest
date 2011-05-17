@@ -10,7 +10,7 @@
 # not be the very first character on a line: # is considered 'start of
 # comment' iff it is the first non-whitespace charater on a line.
 #
-# Individual test cases are intruduced like this (test case name surrounded
+# Individual test cases are introduced like this (test case name surrounded
 # by lines of - signs):
 # ------------------------------------
 # The Name of the Test Case
@@ -123,7 +123,8 @@ RESPONSE
 # -----------------------------
 #
 # You may specify any request header field in the HEADER section by just
-# naming them and their value.
+# naming them and their value.  There is a special syntac for sending
+# cookies: Refere to section Cookies.
 ---------------------------------
 Ping With Header
 ---------------------------------
@@ -173,7 +174,7 @@ TAG
 	# 'Quality' is present
 	h2 class=home == Quality
 		
-	# Fail if a h1 tag with content 'WRONG' is present
+	# Fail if a h5 tag with content 'WRONG' is present
 	! h5 == WRONG
 	
 	# Count occurences of this div tag with CSS class teaser: 
@@ -227,7 +228,7 @@ PARAM
 # Variable Subtitutions
 # ---------------------
 #
-# There are three types of variable substitutions, all can be used shell
+# There are three types of variable substitutions, all can be used like shell
 # variables: A variable can be asigned a value and used as part of the URL,
 # part of header, response, body or parameter values.  The usage is allways
 # the same: Occurences of ${varname} are replaced by the value of the 
@@ -269,7 +270,7 @@ SETTING
 # --------
 #
 # Various setting can be applied to each and every test in the SETTING
-# section. Currently the following are (or will be) implemented.
+# section. Currently the following are implemented.
 #
 ---------------------------------
 Repeated Ping
@@ -279,27 +280,48 @@ RESPONSE
 	Status-Code	 ==  200
 SETTING
 	# Number of repetitions of the test
-	Repeat		12
+	Repeat     12
+	# Time in ms to sleep after test
+	Sleep      25
 	# Fail if answer is not recievd in less than 300 ms.
-	Max-Time	300
+	Max-Time   300
 	# Keep (store in Global) cookies set by the server answer
-	Keep-Cookies	true
+	Keep-Cookies  1
 	
 
 #
 # Cookies
 # -------
+#
+# Cookies can be sent along with the request and recieved cookies
+# (Set-Cookie) can be checked.  Both have their own section 
 -------------------
 Cookies
 --------------------
-GET someUrl
+GET http://some.url
 SEND-COOKIE
+	# Send cookie with name SESSIONID and value 123ABCxyz along with request
 	SESSIONID	123ABCxyz
 SET-COOKIE
+	# Test wether server requests to set a cookie.
+	
+	# Server wants to set cookie with name "just-present"
 	just-present
+	
+	# To check for values or other parameters: Any cookie sent with the
+	# response is formated like this:
+	# <val>; Path=<path>; Expires=<exp>; MaxAge=<maxage>; Secure=<secure>
+	# Here <val> ist the value, <pat> the path, <epx> the expiration date
+	# <maxage> the max age and <secure> either "true" or "false".
+	# Note that this format is _not_ the same as the wire format as the
+	# later will not output unset fields.
 	has-value    ~= in-val
 	all          == value; Path=/; Secure
 	
+SETTING
+	# Recieved sookies can be stored in the SEND-COOKIE section of the
+	# Global test.  (Usefull for login/session cookies).
+	Keep-Cookies  1
 	
 #
 # Global
@@ -312,6 +334,9 @@ SET-COOKIE
 # checks cannot be overwritten (as the do not contain some uniq id to
 # identify them): Body and Tag conditions/checks from global are just
 # added to each test.
+#
+# Global is also used to keep cookies, e.g. login cookies which should
+# be present in subsequent tests.
 #
 # See Global-"Test" above for an example
 
