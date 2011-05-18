@@ -11,6 +11,7 @@ import (
 	"mime"
 	"rand"
 	"time"
+	"path"
 )
 
 
@@ -268,6 +269,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 				ct = "application/octet-stream"
 			}
 		}
+		filename = path.Base(filename)
 		var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n", boundary, n, filename)
 		part += fmt.Sprintf("Content-Type: %s\r\n\r\n", ct)
 		file, err := os.Open(filename)

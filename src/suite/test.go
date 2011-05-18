@@ -11,6 +11,7 @@ import (
 	"time"
 	"strconv"
 	"io"
+	"path"
 )
 
 var (
@@ -509,6 +510,7 @@ func prepareTest(t, global *Test) *Test {
 	}
 	substituteVariables(test, global, t)
 	if uc, ok := test.Header["Basic-Authorization"]; ok {
+		fmt.Printf("\n===================\n basic: %s\n=================\n", uc)
 		// replace Basic-Authorization: user:pass with Authorization: Basic=encoded
 		enc := base64.URLEncoding
 		encoded := make([]byte, enc.EncodedLen(len(uc)))
@@ -521,12 +523,18 @@ func prepareTest(t, global *Test) *Test {
 	return test
 }
 
+// Pattern (with shell/path globbing) of content types considered parsable by tag package.
+var ParsableContentTypes []string = []string{ "text/html", "text/html;*", 
+		"application/xml", "application/xhtml+xml", "application/xml; *", "application/xhtml+xml;*",
+		"text/xml", "text/xml;*", "application/*+xml*", "application/xml-*" }
+
 // Return true if body is considered parsabel (=checkable with tag)
 func parsableBody(resp *http.Response) bool {
-	if strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
-		return true
-	} else if strings.Contains(resp.Header.Get("Content-Type"), "text/xml") {
-		return true
+	ct := strings.ToLower(resp.Header.Get("Content-Type"))
+	for _, pat := range(ParsableContentTypes) {
+		if m, _ := path.Match(pat, ct); m {
+			return true
+		}
 	}
 	info("Response body is not considered parsable")
 	return false

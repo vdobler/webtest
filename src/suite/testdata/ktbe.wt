@@ -18,13 +18,16 @@ CONST
 --------------------------------
 File Post
 --------------------------------	
-POST http://ktbern-dev1-cq-pub.int.unic.com:4503/test/de/index/forms/onestep.form.formstep1.html
+POST http://localhost:4502/test/de/index/forms/onestep.form.formstep1.html
 HEADER
 	User-Agent			Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.17) Gecko/20110420 Firefox/3.6.17
 	Accept				text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
 	Accept-Language		en-us,en;q=0.5
 	Accept-Encoding		gzip,deflate
 	Accept-Charset		ISO-8859-1,utf-8;q=0.7,*;q=0.7
+	Basic-Authorization admin:admin
+SEND-COOKIE
+	wcmmode  preview
 PARAM
 	_charset_	UTF-8
 	resource	/content/test/de/index/forms/onestep/jcr:content/middlePar/form
@@ -36,7 +39,7 @@ PARAM
 	Interessen	soccer
 	Datum
 	PersID
-	Datei		@file:Makefile
+	Datei		@file:suite/testdata/file.pdf
 	next		Weiter
 BODY
 	Txt		~=  Herzlichen Dank für Ihre Daten!
