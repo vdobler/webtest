@@ -161,7 +161,7 @@ func TestTextcontent(t *testing.T) {
 	check(doc, "p class=LongText == This ?? ? pretty*text.", "LongText", t)
 	check(doc, "p id=Lon*ext == This is a pretty long text.", "LongText", t)
 	check(doc, "p id=?ong?ext == This * text.", "LongText", t)
-	
+
 	check(doc, "h4 == UTF-8 *", "theH4", t)
 	check(doc, "h4 == UTF-8 Umlaute äöüÄÖÜ Euro €", "theH4", t)
 	check(doc, "h4 == UTF-8 * äöüÄÖÜ Euro €", "theH4", t)

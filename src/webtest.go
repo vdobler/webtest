@@ -26,6 +26,7 @@ var tagLogLevel int = -1
 var suiteLogLevel int = -1
 var testsToRun string = "*"
 var randomSeed int64 = -1
+var dumpTalk string = ""
 
 // Stresstesting
 var rampStart int = 5      // Start with that many parallel background requests
@@ -143,6 +144,9 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\t-seed <n>         use n as random seed (instead of current time)\n")
 	fmt.Fprintf(os.Stderr, "\t-D <n>=<v>        Set/override const variable named <n> to value <v>\n")
 	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "Test Options:\n")
+	fmt.Fprintf(os.Stderr, "\t-dump [all|none]  Dump all wire talk or none. If unused respect indiv setting.\n")
+	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-runs             number of repetitions of each test (must be >= 5).\n")
 	fmt.Fprintf(os.Stderr, "\n")
@@ -196,6 +200,7 @@ func main() {
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
 	flag.StringVar(&testsToRun, "tests", "*", "Run just some tests (numbers or name)")
+	flag.StringVar(&dumpTalk, "dump", "", "Dump wire talk.")
 	flag.Int64Var(&randomSeed, "seed", 15, "Number of runs for each test in benchmark.")
 	var variables cmdlVar = cmdlVar{map[string]string{}}
 	flag.Var(variables, "D", "Set/Overwrite a const variable in the suite e.g. '-D HOST=localhost'")
@@ -223,7 +228,7 @@ func main() {
 
 	if benchmarkMode && stresstestMode {
 		fmt.Fprintf(os.Stderr, "Illegal combination of -stress, and -bench")
-		os.Exit(1)
+		os.Exit(2)
 	}
 	if benchmarkMode {
 		testmode = false
@@ -234,6 +239,11 @@ func main() {
 
 	if randomSeed != -1 {
 		suite.Random = rand.New(rand.NewSource(int64(randomSeed)))
+	}
+
+	if testmode && !(dumpTalk == "" || dumpTalk == "all" || dumpTalk == "none") {
+		fmt.Fprintf(os.Stderr, "Illegal argument to dump.")
+		os.Exit(2)
 	}
 
 	if tagLogLevel < 0 {
@@ -291,7 +301,7 @@ func testOrBenchmark(filenames []string) {
 		return
 	}
 	if !allReadable {
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	for sn, s := range suites {
@@ -322,6 +332,11 @@ func testOrBenchmark(filenames []string) {
 					charts += benchChartUrl(dur, t.Title) + "\n"
 				}
 			} else {
+				if dumpTalk == "all" {
+					s.Test[i].Setting["Dump"] = "1"
+				} else if dumpTalk == "none" {
+					s.Test[i].Setting["Dump"] = "0"
+				}
 				s.RunTest(i)
 				result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
 				if _, _, failed := s.Test[i].Stat(); failed > 0 {

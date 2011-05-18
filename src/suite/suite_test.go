@@ -316,10 +316,10 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 
 func postHandler(w http.ResponseWriter, req *http.Request) {
 	/*
-	df, _ := os.Create("post.log")
-	d, _ := http.DumpRequest(req, true)
-	df.Write(d)
-	df.Close()
+		df, _ := os.Create("post.log")
+		d, _ := http.DumpRequest(req, true)
+		df.Write(d)
+		df.Close()
 	*/
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cv := req.FormValue("cookie"); cv != "" {

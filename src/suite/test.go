@@ -7,8 +7,10 @@ import (
 	"os"
 	"dobler/webtest/tag"
 	"encoding/hex"
+	"encoding/base64"
 	"time"
 	"strconv"
+	"io"
 )
 
 var (
@@ -22,24 +24,25 @@ func (e Error) String() string {
 }
 
 type Test struct {
-	Title      string
-	Method     string
-	Url        string
-	Header     map[string]string
-	Cookie     map[string]string
-	RespCond   []Condition
-	CookieCond []Condition
-	BodyCond   []Condition
-	Tag        []TagCondition
-	Pre        []string
-	Param      map[string][]string
-	Setting    map[string]string
-	Const      map[string]string
-	Rand       map[string][]string
-	Seq        map[string][]string
-	SeqCnt     map[string]int
-	Vars       map[string]string
-	Result     []string
+	Title      string              // The title of the test
+	Method     string              // Method: GET or POST (in future also POST:mp for multipart posts)
+	Url        string              // full URL
+	Header     map[string]string   // key/value pairs for request header
+	Cookie     map[string]string   // cookie-name/value pairs for cookies to send in request
+	RespCond   []Condition         // list of conditions the response header must fullfill
+	CookieCond []Condition         // conditions for recieved cookies
+	BodyCond   []Condition         // conditions for the body (text or binary)
+	Tag        []TagCondition      // list of tags to look for in the body
+	Pre        []string            // currently unused: list of test which are prerequisites to this test
+	Param      map[string][]string // request parameter
+	Setting    map[string]string   // setting like repetition, sleep time, etc. for this test
+	Const      map[string]string   // const variables
+	Rand       map[string][]string // random varibales
+	Seq        map[string][]string // sequence variables
+	SeqCnt     map[string]int      // internal stuff for sequnece variables TODO: do not export
+	Vars       map[string]string   // internal stuff for variables  TODO: do not export
+	Result     []string            // list of pass/fails reports
+	Dump       io.Writer           // a writer to dump requests and responses to
 }
 
 // Make a deep copy of src. dest will not share any data structures with src.
@@ -312,7 +315,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 			}
 		}
 	}
-	
+
 	if len(t.CookieCond) > 0 {
 		debug("Testing Cookies")
 	} else {
@@ -346,7 +349,7 @@ func testBody(body string, t, orig *Test) {
 	} else {
 		return
 	}
-	
+
 	var binbody *string
 	for _, c := range t.BodyCond {
 		cs := c.Info("body")
@@ -382,7 +385,7 @@ func testTags(t, orig *Test, doc *tag.Node) {
 	} else {
 		return
 	}
-	
+
 	for _, tc := range t.Tag {
 		cs := tc.Info("tag")
 		switch tc.Cond {
@@ -505,6 +508,15 @@ func prepareTest(t, global *Test) *Test {
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	}
 	substituteVariables(test, global, t)
+	if uc, ok := test.Header["Basic-Authorization"]; ok {
+		// replace Basic-Authorization: user:pass with Authorization: Basic=encoded
+		enc := base64.URLEncoding
+		encoded := make([]byte, enc.EncodedLen(len(uc)))
+		enc.Encode(encoded, []byte(uc))
+		test.Header["Authorization"] = "Basic " + string(encoded)
+		test.Header["Basic-Authorization"] = "", false
+	}
+	test.Dump = t.Dump
 	supertrace("Test to execute = \n%s", test.String())
 	return test
 }
@@ -520,8 +532,8 @@ func parsableBody(resp *http.Response) bool {
 	return false
 }
 
-// Set up bookkeeping stuf for variable substitutions.
-func (test *Test) Init() {
+// Set up bookkeeping stuff for variable substitutions.
+func (test *Test) init() {
 	// Initialize sequenze count
 	if test.SeqCnt == nil {
 		test.SeqCnt = make(map[string]int, len(test.Seq))
@@ -537,6 +549,21 @@ func (test *Test) Init() {
 	}
 }
 
+func titleToFilename(t string) (f string) {
+	// TODO use unicode codepoints
+	for i := 0; i < len(t); i++ {
+		if t[i] == ' ' {
+			f += "_"
+		} else if (t[i] >= 'a' && t[i] <= 'z') || (t[i] >= 'A' && t[i] <= 'Z') || (t[i] >= '0' && t[i] <= '0') {
+			f += string(t[i])
+		} else if t[i] == '-' || t[i] == '+' || t[i] == '.' {
+			f += string(t[i])
+		}
+	}
+	f += ".dump"
+	return
+}
+
 
 // Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
 // field in Param. If global is non nil it will be used as "template" for the
@@ -544,13 +571,26 @@ func (test *Test) Init() {
 func (test *Test) Run(global *Test) {
 
 	if test.Repeat() == 0 {
-		info("Test no '%s' is disabled.", test.Title)
+		info("Test '%s' is disabled.", test.Title)
 		return
 	}
 
-	test.Init()
-	for i := 1; i <= test.Repeat(); i++ {
-		info("Test '%s': Round %d of %d.", test.Title, i, test.Repeat())
+	test.init()
+
+	if dd, ok := test.Setting["Dump"]; ok && dd == "1" {
+		fname := titleToFilename(test.Title)
+		file, err := os.Create(fname)
+		if err != nil {
+			error("Cannot dump to file '%s': %s.", fname, err.String())
+		} else {
+			defer file.Close()
+			test.Dump = file
+		}
+	}
+
+	reps := test.Repeat()
+	for i := 1; i <= reps; i++ {
+		info("Test '%s': Round %d of %d.", test.Title, i, reps)
 		test.RunSingle(global, false)
 	}
 
@@ -565,7 +605,7 @@ func (test *Test) RunWithoutTest(global *Test) {
 		return
 	}
 
-	test.Init()
+	test.init()
 	for i := 1; i <= test.Repeat(); i++ {
 		test.RunSingle(global, true)
 	}
@@ -574,7 +614,8 @@ func (test *Test) RunWithoutTest(global *Test) {
 
 
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
-	test.Init()
+	test.init()
+	test.Dump = nil // prevent dumping during benchmarking
 
 	if count < 5 {
 		warn("Cannot benchmark with less than 5 rounds. Will use 5.")

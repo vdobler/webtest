@@ -55,18 +55,47 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 	}
 }
 
+// Dump request req in wire format to dump if non nil.
+func dumpReq(req *http.Request, dump io.Writer) {
+	if dump != nil {
+		rd, err := http.DumpRequest(req, true)
+		if err == nil {
+			dump.Write(rd)
+			dump.Write([]byte("\r\n\r\n------------------------------------------------------------------\r\n\r\n"))
+		} else {
+			error("Cannot dump request: %s", err.String())
+		}
+	}
+}
+
+// Dump response in wire format to dump if non nil.
+func dumpRes(res *http.Response, dump io.Writer) {
+	if dump != nil {
+		rd, err := http.DumpResponse(res, true)
+		if err == nil {
+			dump.Write(rd)
+			dump.Write([]byte("\r\n\r\n==================================================================\r\n\r\n"))
+		} else {
+			error("Cannot dump response: %s", err.String())
+		}
+	}
+}
+
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
-func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
+func DoAndFollow(req *http.Request, dump io.Writer) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	// TODO: redirectrs should use basically the same header information as the
 	// original request.
 	// TODO: set referrer header on redirects.
 
 	info("%s %s", req.Method, req.URL.String())
+	dumpReq(req, dump)
 	r, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return
 	}
+	dumpRes(r, dump)
+
 	finalUrl = req.URL.String()
 	for _, cookie := range r.SetCookie {
 		trace("Got cookie on first request: %s = %s", cookie.Name, cookie.Value)
@@ -106,9 +135,11 @@ func DoAndFollow(req *http.Request) (r *http.Response, finalUrl string, cookies 
 
 		url = req.URL.String()
 		info("GET %s", url)
+		dumpReq(req, dump)
 		if r, err = http.DefaultClient.Do(req); err != nil {
 			return
 		}
+		dumpRes(r, dump)
 		finalUrl = url
 		for _, cookie := range r.SetCookie {
 			var exists bool
@@ -164,7 +195,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 	addHeadersAndCookies(&req, t)
 	url = req.URL.String()
 	debug("Will get from %s", req.URL.String())
-	r, finalUrl, cookies, err = DoAndFollow(&req)
+	r, finalUrl, cookies, err = DoAndFollow(&req, t.Dump)
 	return
 }
 
@@ -189,10 +220,10 @@ var boundaryRand *rand.Rand = rand.New(rand.NewSource(time.Seconds()))
 func newBoundary() string {
 	n := 15 + boundaryRand.Intn(20)
 	b := [60]byte{}
-	for i:=0; i<60-n; i++ {
+	for i := 0; i < 60-n; i++ {
 		b[i] = '-'
 	}
-	for i:=60-n; i<60; i++ {
+	for i := 60 - n; i < 60; i++ {
 		b[i] = multipartChars[boundaryRand.Intn(46)]
 	}
 	boundary := string(b[:])
@@ -204,7 +235,7 @@ func newBoundary() string {
 func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 	var body *bytes.Buffer = &bytes.Buffer{}
 	var boundary = newBoundary()
-	
+
 	// All non-file parameters come first
 	for n, v := range *param {
 		if len(v) > 0 && strings.HasPrefix(v[0], "@file:") {
@@ -222,7 +253,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 			body.WriteString(part)
 		}
 	}
-	
+
 	// File parameters at bottom
 	for n, v := range *param {
 		if !(len(v) > 0 && strings.HasPrefix(v[0], "@file:")) {
@@ -250,7 +281,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 		body.WriteString("\r\n")
 	}
 	body.WriteString("--" + boundary + "--\r\n")
-	
+
 	return body, boundary
 }
 
@@ -292,18 +323,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 	}
 	debug("Will post to %s", req.URL.String())
 
-	if LogLevel > 5 {
-		dump, _ := http.DumpRequest(&req, true)
-		df, err := os.Create("req.log") // TODO filename
-		if err == nil {
-			df.Write(dump)
-			df.Close()
-		} else {
-			error("Cannot open req.log: %s", err.String())
-		}
-	}
-
-	r, finalUrl, cookies, err = DoAndFollow(&req)
+	r, finalUrl, cookies, err = DoAndFollow(&req, t.Dump)
 	return
 }
 

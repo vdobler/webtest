@@ -140,6 +140,23 @@ HEADER
 
 	
 #
+# Basic Authorization
+# --------------------
+#
+# To use basic authorization you can provide the Authorization header
+# yourself, or you can use the special fake Basic-Authorization header.
+---------------------------------
+Ping With Basic Authorization
+---------------------------------
+GET http://host.to.ping/path.html
+HEADER
+	# username and password are in cleartext and will be properly
+	# base64 encoded. No "Basic-Authorization" header will be sent,
+	# instead a correct Authorization header will be sent:
+	# Authorization: Basic=<base64 encoded user credentials>
+	Basic-Authorization	username:password
+	
+#
 # Testing the Response Body
 # -------------------------
 # There are three ways to test the content of the recieved body:

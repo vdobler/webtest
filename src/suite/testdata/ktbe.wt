@@ -36,10 +36,13 @@ PARAM
 	Interessen	soccer
 	Datum
 	PersID
-	Datei		@file:fea-woodin1.pdf
+	Datei		@file:Makefile
 	next		Weiter
 BODY
 	Txt		~=  Herzlichen Dank für Ihre Daten!
+SETTING
+	Dump  1
+	
 	
 --------------------------------
 Startseite
