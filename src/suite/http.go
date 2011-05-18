@@ -26,6 +26,7 @@ func readBody(r io.ReadCloser) string {
 	return body
 }
 
+// Determine wether statusCode tells us to redirect
 func shouldRedirect(statusCode int) bool {
 	switch statusCode {
 	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect:
@@ -41,6 +42,7 @@ func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, er
 
 }
 
+// Add header fields and cookies from test t to request req.
 func addHeadersAndCookies(req *http.Request, t *Test) {
 	for k, v := range t.Header {
 		if k == "Cookie" {
@@ -62,7 +64,8 @@ func dumpReq(req *http.Request, dump io.Writer) {
 		rd, err := http.DumpRequest(req, true)
 		if err == nil {
 			dump.Write(rd)
-			dump.Write([]byte("\r\n\r\n------------------------------------------------------------------\r\n\r\n"))
+			dump.Write([]byte("\r\n\r\n--------------------------------------------------------------------------------------\r\n"))
+			dump.Write([]byte("--------------------------------------------------------------------------------------\r\n\r\n\r\n"))
 		} else {
 			error("Cannot dump request: %s", err.String())
 		}
@@ -75,54 +78,77 @@ func dumpRes(res *http.Response, dump io.Writer) {
 		rd, err := http.DumpResponse(res, true)
 		if err == nil {
 			dump.Write(rd)
-			dump.Write([]byte("\r\n\r\n==================================================================\r\n\r\n"))
+			dump.Write([]byte("\r\n\r\n======================================================================================\r\n"))
+			dump.Write([]byte("======================================================================================\r\n\r\n\r\n"))
 		} else {
 			error("Cannot dump response: %s", err.String())
 		}
 	}
 }
 
+
+// Take new cookies from recieved, and update/add to cookies 
+func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cookie {
+	for _, cookie := range recieved {
+		var found bool
+		for i, c := range cookies {
+			if c.Name == cookie.Name {
+				trace("Overwriting existing cookie %s with new Value %s.", cookie.Name, cookie.Value)
+				cookies[i].Value, found = cookie.Value, true
+				break
+			}
+		}
+		if !found {
+			trace("Adding new cookie %s with value %s.", cookie.Name, cookie.Value)
+			cookies = append(cookies, cookie)
+		}
+	}
+	return cookies
+}
+
+
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
-func DoAndFollow(req *http.Request, dump io.Writer) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
+func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	// TODO: redirectrs should use basically the same header information as the
 	// original request.
 	// TODO: set referrer header on redirects.
 
 	info("%s %s", req.Method, req.URL.String())
 	dumpReq(req, dump)
-	r, err = http.DefaultClient.Do(req)
+	response, err = http.DefaultClient.Do(req)
 	if err != nil {
 		return
 	}
-	dumpRes(r, dump)
+	dumpRes(response, dump)
 
 	finalUrl = req.URL.String()
-	for _, cookie := range r.SetCookie {
-		trace("Got cookie on first request: %s = %s", cookie.Name, cookie.Value)
-		cookies = append(cookies, cookie)
-	}
+	cookies = updateCookies(cookies, response.SetCookie)
+	req.Cookie = updateCookies(req.Cookie, response.SetCookie)
 
-	if !shouldRedirect(r.StatusCode) {
+	if !shouldRedirect(response.StatusCode) {
 		return
 	}
 
 	// Start redirecting to final destination
-	r.Body.Close()
+	response.Body.Close()
 	var base = req.URL
 
-	// Following the redirect chain is done with a clean/empty new GET request
-	// TODO: use current set of cookies, referer and original header.
-	req = new(http.Request)
+	// Following the redirect chain is done with a cleaned/empty GET request.
 	req.Method = "GET"
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
-
+	req.Header.Del("Content-Type")
+	req.Header.Del("Content-Length")
+	req.Header.Del("Accept-Encoding")
+	req.Header.Del("Connection")
+	req.Body = nil
 	for redirect := 0; redirect < 10; redirect++ {
 		var url string
-		if url = r.Header.Get("Location"); url == "" {
-			fmt.Printf("Header:\n%v", r.Header)
-			err = os.ErrorString(fmt.Sprintf("%d response missing Location header", r.StatusCode))
+
+		if url = response.Header.Get("Location"); url == "" {
+			fmt.Printf("Header:\n%v", response.Header)
+			err = os.ErrorString(fmt.Sprintf("%d response missing Location header", response.StatusCode))
 			return
 		}
 		if base == nil {
@@ -137,31 +163,20 @@ func DoAndFollow(req *http.Request, dump io.Writer) (r *http.Response, finalUrl 
 		url = req.URL.String()
 		info("GET %s", url)
 		dumpReq(req, dump)
-		if r, err = http.DefaultClient.Do(req); err != nil {
+
+		if response, err = http.DefaultClient.Do(req); err != nil {
 			return
-		}
-		dumpRes(r, dump)
-		finalUrl = url
-		for _, cookie := range r.SetCookie {
-			var exists bool
-			for i, c := range cookies {
-				if c.Name == cookie.Name {
-					trace("Re-set cookie on %dth redirection: %s = %s", redirect+1, cookie.Name, cookie.Value)
-					cookies[i] = cookie
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				trace("New cookie on %dth redirection: %s = %s", redirect+1, cookie.Name, cookie.Value)
-				cookies = append(cookies, cookie)
-			}
 		}
 
-		if !shouldRedirect(r.StatusCode) {
+		dumpRes(response, dump)
+		finalUrl = url
+		cookies = updateCookies(cookies, response.SetCookie)
+		req.Cookie = updateCookies(req.Cookie, response.SetCookie)
+		
+		if !shouldRedirect(response.StatusCode) {
 			return
 		}
-		r.Body.Close()
+		response.Body.Close()
 		base = req.URL
 
 	}
@@ -210,7 +225,7 @@ func hasFile(param *map[string][]string) bool {
 			return true
 		}
 	}
-	return false
+	return true // false
 }
 
 // allowed characters in a multipart boundary and own random numner generator
@@ -269,13 +284,13 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 				ct = "application/octet-stream"
 			}
 		}
-		filename = path.Base(filename)
-		var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n", boundary, n, filename)
+		basename := path.Base(filename)
+		var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n", boundary, n, basename)
 		part += fmt.Sprintf("Content-Type: %s\r\n\r\n", ct)
 		file, err := os.Open(filename)
 		defer file.Close()
 		if err != nil {
-			warn("Cannot read from file '%s': ", filename, err.String())
+			warn("Cannot read from file '%s': %s.", filename, err.String())
 			continue
 		}
 		body.WriteString(part)

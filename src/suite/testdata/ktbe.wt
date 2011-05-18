@@ -39,10 +39,17 @@ PARAM
 	Interessen	soccer
 	Datum
 	PersID
-	Datei		@file:suite/testdata/file.pdf
+	# Datei		@file:suite/testdata/file.pdf
 	next		Weiter
+RESPONSE
+	Status-Code  ==  200
+	Final-Url    =_  /forms/onestep.thanks.html
 BODY
 	Txt		~=  Herzlichen Dank für Ihre Daten!
+TAG
+	th colspan=2 == Persönliche Angaben
+	th == Vorname
+	td == Volker
 SETTING
 	Dump  1
 	

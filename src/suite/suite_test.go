@@ -138,6 +138,8 @@ RESPONSE
 TAG
 	h1 == Dummy Document *
 	p class=a == *Braunschweig Weiler
+SETTING
+	Dump 1
 
 	
 # Test no 8

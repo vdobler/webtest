@@ -8,7 +8,7 @@ import (
 )
 
 // Log level of suite. 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace, 6:supertrace
-var LogLevel int = 3
+var LogLevel int = 6
 
 
 var logger *log.Logger
