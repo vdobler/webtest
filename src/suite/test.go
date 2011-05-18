@@ -523,14 +523,14 @@ func prepareTest(t, global *Test) *Test {
 }
 
 // Pattern (with shell/path globbing) of content types considered parsable by tag package.
-var ParsableContentTypes []string = []string{ "text/html", "text/html;*", 
-		"application/xml", "application/xhtml+xml", "application/xml; *", "application/xhtml+xml;*",
-		"text/xml", "text/xml;*", "application/*+xml*", "application/xml-*" }
+var ParsableContentTypes []string = []string{"text/html", "text/html;*",
+	"application/xml", "application/xhtml+xml", "application/xml; *", "application/xhtml+xml;*",
+	"text/xml", "text/xml;*", "application/*+xml*", "application/xml-*"}
 
 // Return true if body is considered parsabel (=checkable with tag)
 func parsableBody(resp *http.Response) bool {
 	ct := strings.ToLower(resp.Header.Get("Content-Type"))
-	for _, pat := range(ParsableContentTypes) {
+	for _, pat := range ParsableContentTypes {
 		if m, _ := path.Match(pat, ct); m {
 			return true
 		}

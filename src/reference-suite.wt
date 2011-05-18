@@ -351,6 +351,21 @@ SETTING
 	# Global test.  (Usefull for login/session cookies).
 	Keep-Cookies  1
 	
+
+#
+# Debuging
+# --------
+#
+# Setting Dump to 1 will dump the whole request/response talk to a
+# .dump-file. The filename is constructed from the test name. 
+-------------------
+Debuging
+--------------------
+GET http://some.url
+SETTING
+	Dump  1
+	
+
 #
 # Global
 # ------

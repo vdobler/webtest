@@ -172,7 +172,7 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 		finalUrl = url
 		cookies = updateCookies(cookies, response.SetCookie)
 		req.Cookie = updateCookies(req.Cookie, response.SetCookie)
-		
+
 		if !shouldRedirect(response.StatusCode) {
 			return
 		}
