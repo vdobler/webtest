@@ -34,6 +34,19 @@ type TagSpec struct {
 	Sub []*TagSpec
 }
 
+func (ts *TagSpec) DeepCopy() *TagSpec {
+	cp := new(TagSpec)
+	cp.Name, cp.Content, cp.Deep = ts.Name, ts.Content, ts.Deep
+	cp.Classes, cp.XClasses = ts.Classes, ts.XClasses
+	cp.Attr, cp.XAttr = ts.Attr, ts.XAttr
+	cp.Sub = make([]*TagSpec, len(ts.Sub))
+	for i, s := range ts.Sub {
+		cp.Sub[i] = s.DeepCopy()
+	}
+
+	return cp
+}
+
 
 // Yield a string representation of a TagSpec
 func (ts *TagSpec) String() string {

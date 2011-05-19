@@ -62,6 +62,9 @@ func (src *Test) Copy() (dest *Test) {
 	copy(dest.BodyCond, src.BodyCond)
 	dest.Tag = make([]TagCondition, len(src.Tag))
 	copy(dest.Tag, src.Tag)
+	for i, tc := range dest.Tag {
+		dest.Tag[i].Spec = *((&tc.Spec).DeepCopy())
+	}
 	dest.Pre = make([]string, len(src.Pre))
 	copy(dest.Pre, src.Pre)
 	dest.Param = copyMultiMap(src.Param)
