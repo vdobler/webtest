@@ -669,7 +669,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 
 	if ti.Method == "GET" {
 		response, url, cookies, reqerr = Get(ti)
-	} else if ti.Method == "POST" {
+	} else if ti.Method == "POST" || ti.Method == "POST:mp" {
 		response, url, cookies, reqerr = Post(ti)
 	}
 	endtime := time.Nanoseconds()

@@ -230,7 +230,9 @@ TAG
 #
 # Arbitary parameters can be specified in the PARAM section. 
 # For GET requests they are appended to the given URL. POST requests 
-# are currently sent as "form-urlencoded" (multipart will be added soon).
+# are sent as "multipart/form-data" a file is uploaded and 
+# "application/x-www-form-urlencoded" if not. 
+# See below for forcing multipart posts.
 # 
 ---------------------------------
 Post a Comment
@@ -251,6 +253,22 @@ PARAM
 	# To send a file use the following (note: no space in filename!):
 	file	@file:document.pdf
 
+	
+#
+# Forcing multipart/form-data
+# ---------------------------
+#
+# To force the post to use "multipart/form-data" even if no file
+# is uploaded: Use POST:mp as method.
+#
+---------------------------------
+Force Multipart Upload
+---------------------------------
+POST:mp http://my.blog/comment.html
+PARAM
+	name     anonymous
+	comment  Cool!
+	
 	
 #
 # Variable Subtitutions

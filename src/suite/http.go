@@ -315,7 +315,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 	req.Close = true
 	var body *bytes.Buffer
 	var contentType string
-	if hasFile(&t.Param) {
+	if hasFile(&t.Param) || t.Method == "POST:mp" {
 		var boundary string
 		body, boundary = multipartBody(&t.Param)
 		contentType = "multipart/form-data; boundary=" + boundary

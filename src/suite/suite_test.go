@@ -210,6 +210,20 @@ BODY
 	Txt  ~=  Post Page 
 	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
 
+# Test no 14
+-------------------------
+Multipart Post
+-------------------------
+POST:mp ${URL}/post
+RESPONSE
+	Final-Url	==	${URL}/post
+PARAM
+	text ABCDwxyz1234
+BODY
+	Txt  ~=  Post Page
+	Txt  ~= ABCDwxyz1234
+SETTING
+	Dump 1
 `
 
 var cookieSuite = fmt.Sprintf(`
@@ -522,9 +536,16 @@ func TestEncoding(t *testing.T) {
 	passed(&theSuite.Test[12], t)
 }
 
+func TestMultipartPost(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(13)
+	passed(&theSuite.Test[13], t)
+}
+
 
 func TestCookies(t *testing.T) {
-	LogLevel = 3
 	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
 	cs, err := p.ReadSuite()
 	if err != nil {

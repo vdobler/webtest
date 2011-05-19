@@ -234,13 +234,15 @@ func (p *Parser) readCond(body bool) []Condition {
 			p.i--
 			return list
 		}
+
+		// Normal format is "[!] <field> <op> <value>", reduced format is just "[!] <field>"
 		line = trim(line)
 		j := firstSpace(line)
 		var k, op, v string
 		var neg bool
 
 		if j == -1 {
-			error("No op or value on line %d", no)
+			// reduced format  "[!] <field>"
 			op = "."
 			k = line
 			if hp(k, "!") {
@@ -248,13 +250,14 @@ func (p *Parser) readCond(body bool) []Condition {
 				k = k[1:]
 			}
 		} else {
+			// normal format "[!] <field> <op> <value>"
 			k = trim(line[:j])
 			if hp(k, "!") {
 				neg = true
 				k = k[1:]
 			}
 			line = trim(line[j:])
-			if body { // only some are allowed
+			if body { // only some fields are allowed
 				switch k {
 				case "Txt", "Bin":
 				default:
@@ -455,6 +458,7 @@ func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
 				error("Unknown value for Keep-Cookies: must be 0 or 1 (was '%s') on line %s.", v, lineid)
 				p.okay = false
 			}
+		case "Dump": // TODO check
 		default:
 			warn("Unknown Setting '%s' (check spelling and capitalization).", k)
 		}
@@ -507,6 +511,9 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 				continue
 			} else if hp(line, "POST ") {
 				test.Method, test.Url = "POST", trim(line[4:])
+				continue
+			} else if hp(line, "POST:mp ") {
+				test.Method, test.Url = "POST:mp", trim(line[7:])
 				continue
 			} else {
 				error("Method and Url missing or wrong in line %d", no)
