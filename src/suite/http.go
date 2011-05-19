@@ -22,7 +22,7 @@ func readBody(r io.ReadCloser) string {
 		r.Close()
 	}
 	body := bb.String()
-	supertrace("Read body with len = %d:\n%s\n", len(body), body)
+	trace("Read body with len = %d.", len(body))
 	return body
 }
 
@@ -324,7 +324,6 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 		bodystr := http.EncodeQuery(t.Param)
 		body = bytes.NewBuffer([]byte(bodystr))
 	}
-	supertrace("Request-Body:\n%s", body.String())
 
 	req.Body = nopCloser{body}
 	req.Header = http.Header{

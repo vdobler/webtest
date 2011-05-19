@@ -15,7 +15,7 @@ var (
 	port       = ":54123"
 	host       = "http://localhost"
 	theSuite   *Suite
-	skipStress bool = true
+	skipStress bool
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
@@ -332,12 +332,6 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func postHandler(w http.ResponseWriter, req *http.Request) {
-	/*
-		df, _ := os.Create("post.log")
-		d, _ := http.DumpRequest(req, true)
-		df.Write(d)
-		df.Close()
-	*/
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
@@ -351,7 +345,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 
 	_, header, err := req.FormFile("datei")
 	if err == nil {
-		info("Recieved datei: %s.", header.Filename)
+		info("Recieved datei: %s. %v", header.Filename, header.Filename == "file äöü 1.txt")
 	}
 
 	if t != "" {
@@ -439,6 +433,35 @@ func TestParsing(t *testing.T) {
 	theSuite, err = p.ReadSuite()
 	if err != nil {
 		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+}
+
+func TestTagStructParsing(t *testing.T) {
+	var tagSuite = `
+---------------------
+Tag Spec
+---------------------
+GET x
+TAG
+	[
+		div
+			h2
+			p
+				span
+			h3
+	]
+`
+
+	p := NewParser(strings.NewReader(tagSuite), "tagSuite")
+	s, err := p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+	erg := s.Test[0].String()
+	if !strings.Contains(erg,
+		"\t\t[\n\t\t\tdiv\n\t\t\t  h2\n\t\t\t  p\n\t\t\t    span\n\t\t\t  h3\n\t\t]\n") {
+		t.Error("Nested tags parsed wrong")
+
 	}
 }
 
@@ -679,35 +702,5 @@ func TestStresstest(t *testing.T) {
 	if r200.Fail == 0 || r200.Err == 0 {
 		t.Error("Expected Failures at load of 200!")
 	}
-
-}
-
-
-func TestTagStructParsing(t *testing.T) {
-	var tagSuite = `
----------------------
-Tag Spec
----------------------
-GET x
-TAG
-	[
-		div
-			h2
-			p
-				span
-			h3
-			h3
-			div
-				p
-				p
-	]
-`
-
-	p := NewParser(strings.NewReader(tagSuite), "tagSuite")
-	s, err := p.ReadSuite()
-	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
-	}
-	fmt.Printf("%s\n", s.Test[0].String())
 
 }
