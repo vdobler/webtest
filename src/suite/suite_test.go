@@ -15,6 +15,7 @@ var (
 	port     = ":54123"
 	host     = "http://localhost"
 	theSuite *Suite
+	skipStress bool = true
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
@@ -621,6 +622,9 @@ func testPrintStResult(txt string, result StressResult) {
 }
 
 func TestStresstest(t *testing.T) {
+	if skipStress {
+		return
+	}
 	LogLevel = 1
 	bgText := strings.Replace(backgroundSuite, "${URL}", host+port, -1)
 	suiteText := strings.Replace(stressSuite, "${URL}", host+port, -1)
@@ -675,5 +679,35 @@ func TestStresstest(t *testing.T) {
 	if r200.Fail == 0 || r200.Err == 0 {
 		t.Error("Expected Failures at load of 200!")
 	}
+
+}
+
+
+func TestTagStructParsing(t *testing.T) {
+	var tagSuite =`
+---------------------
+Tag Spec
+---------------------
+GET x
+TAG
+	[
+		div
+			h2
+			p
+				span
+			h3
+			h3
+			div
+				p
+				p
+	]
+`
+
+	p := NewParser(strings.NewReader(tagSuite), "tagSuite")
+	s, err := p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+	fmt.Printf("%s\n", s.Test[0].String())
 
 }

@@ -48,7 +48,7 @@ BODY
 	Txt		~=  Herzlichen Dank für Ihre Daten!
 TAG
 	th colspan=2 == Persönliche Angaben
-	
+	td == ${VN}
 	[
 		tr
 			th == Vorname
@@ -58,8 +58,8 @@ SEQ
 	VN  Volker Sabine Lukas
 	NN  Dobler Weidermann-Dobler
 SETTING
-	Dump   2
-	Repeat 3
+	Dump   1
+	Repeat 6
 	
 	
 --------------------------------

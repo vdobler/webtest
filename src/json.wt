@@ -1,0 +1,45 @@
+
+
+---------------------------
+JSON
+---------------------------
+GET http://host.com/json
+JSON
+	# Just object
+	{}
+	
+	# object with fields count and description
+	{count, description}
+	
+	# object with fields count and description of specified type
+	{count:int, description:string, elements:[]}
+	
+	# object with fields count and description with values
+	{count:int>=7, description:string_=FancyStuff}
+	
+	# An array
+	[]
+	
+	# An array of exaclty 3 elements
+	[3]
+	
+	# array of at most 6 elements, first and second element 17 and 4
+	# last element = 99
+	[<=6]{0:int=17, 1:int=4, -1:int=99}
+	
+	# complicated stuff
+	{
+		status:string == OKAY
+		descr:string ~= Current Objects in Workflow
+		cnt:int > 4
+		elements:[>4] 
+			2:{
+				path:string _= /etc/xy
+				okay:bool == true
+			}
+			
+			-1:{
+				path:string == /content/*/home
+				okay:bool == false
+			}
+	}

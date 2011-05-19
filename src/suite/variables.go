@@ -4,6 +4,7 @@ import (
 	"strings"
 	"rand"
 	"time"
+	"dobler/webtest/tag"
 )
 
 // Random for RAND sections
@@ -115,12 +116,19 @@ func substitute(str string, test, global, orig *Test) string {
 			val = varValue(v, test, orig)
 		}
 		trace("Will use '%s' as value for var %s.", val, v)
-		str = strings.Replace(str, "${"+v+"}", val, 1)
+		str = strings.Replace(str, "${" + v + "}", val, 1)
 	}
 	if len(used) > 0 {
 		trace("Substituted %d variables: '%s'.", len(used), str)
 	}
 	return str
+}
+
+func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {
+	ts.Content = substitute(ts.Content, test, global, orig)
+	for _, sub := range ts.Sub {
+		substituteTagContent(sub, test, global, orig)
+	}
 }
 
 // Replace all variables in test with their appropriate values.
@@ -144,5 +152,12 @@ func substituteVariables(test, global, orig *Test) {
 		}
 		test.Param[k] = sl
 	}
-	// TODO: what fileds else? in Params too?
+	
+	for i, tc := range test.Tag {
+		trace("Replacing tag content %d", i)
+		test.Tag[i].Spec.Content = substitute(tc.Spec.Content, test, global, orig)
+		for _, subts := range tc.Spec.Sub {
+			substituteTagContent(subts, test, global, orig)
+		}
+	}
 }
