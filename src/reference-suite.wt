@@ -18,6 +18,11 @@
 # See below: Global is such a testcase. Unfortunately Global is as 
 # very special testcase. So please skip to the "Ping" test case.
 #
+# Notes on test names: Test names should be uniq in one suite and they
+# should not contain commas (",") in the name.  Rational: This allows
+# to select individual tests from a suite during a webtest run with
+# the -tests option.
+#
   
 -------------------------------  
 Global
@@ -48,7 +53,7 @@ CONST
 #
 # The first section is special: It names the request method and URL and 
 # must be the first section, cannot be omitted an has no sub-elements.
-# All other section are optional and may occur in any order. Thing Ping
+# All other section are optional and may occur in any order. The Ping
 # test below contains just the RESPONSE section.
 ---------------------------------
 Ping
@@ -85,18 +90,19 @@ GET http://host.to.ping/path.html
 
 RESPONSE
 	 # Operator == is for real equality
-	 Status-Code	 ==  200
+	 Status-Code   ==  200
 	
-	 # Operator ~= test for "contains"
-	 Content-Type  ~= text/html
+	 # Operator ~= tests for "contains"
+	 Content-Type  ~=  text/html
 	 
-	 # Operator /= test for a regualr expression matching the field value
-	 Strange-Field  /= (cat?|^dog?) .+$
+	 # Operator /= tests for a regular expression matching the field value
+	 # and is considered for expert use.
+	 Strange-Field  /= (cat?|^dog?).+$
 
-	 # Operator _= test for the field value starting with the given prefix
+	 # Operator _= tests for the field value starting with the given prefix
 	 Other-Header  _= StartPrefix
 
- 	 # Operator =_ test for the field value ending with the given suffix
+ 	 # Operator =_ tests for the field value ending with the given suffix
 	 Something     =_ EndSuffix
 	 
 	 # For field which are numeric you may use <, <=, ==, >= or > with the
@@ -104,6 +110,7 @@ RESPONSE
 	 Content-Length  > 500
 	 
 	 # To negate a condition: Prefix the whole condition with a ! charcter.
+	 # Note: There is no != operator. Use !field == val.
 	!App-Field ~= Illegal
 	
 	 # To disalow the mere existence of a header field:
@@ -123,7 +130,7 @@ RESPONSE
 # -----------------------------
 #
 # You may specify any request header field in the HEADER section by just
-# naming them and their value.  There is a special syntac for sending
+# naming them and their value.  Note: There is a special syntax for sending
 # cookies: Refere to section Cookies.
 ---------------------------------
 Ping With Header
@@ -150,11 +157,13 @@ Ping With Basic Authorization
 ---------------------------------
 GET http://host.to.ping/path.html
 HEADER
+	# This is a pure convenience feature.
 	# username and password are in cleartext and will be properly
 	# base64 encoded. No "Basic-Authorization" header will be sent,
 	# instead a correct Authorization header will be sent:
 	# Authorization: Basic=<base64 encoded user credentials>
 	Basic-Authorization	username:password
+	
 	
 #
 # Testing the Response Body
@@ -179,6 +188,8 @@ BODY
 	 
 	 # The same operators (without the numerical ones) like in the response
 	 # section can be used with with Txt and Bin: ~=, _=, =_ and /=
+	 # Test if boby contains "Hello World!"
+	 Txt  ~=  Hello World
 	 
 	 # Use something like this to check if a binary file starts with the
 	 # appropriate magic key (png magic key below)
@@ -201,7 +212,7 @@ TAG
 	# span tags may not be present 2 times (0, 1, 3, .. or 17) is okay
 	!=2 span == xyz
 	
-	# Fail if there are more than 4 a tag linking to /somewhere.html.
+	# Fail if there are more than 4 a-tags linking to /somewhere.html.
 	<5  a href=/somewhere.html
 	
 	# The rest of the numerical operators are <=, >= and > and work like
@@ -223,17 +234,25 @@ TAG
 				span == Test
 	   ]
 
+	 # Currently there is a bug with same level elements, so you cannot
+	 # test for a structure like
+	 # [
+	 #    div class=teaser
+	 #       h3 == Freibier
+	 #       p  == Die ganze Woche*
+	 # ]
+	 # where the h3 and the p are direct children of the div.
 
+	 
 #
 # Sending Parameters
 # ------------------
 #
 # Arbitary parameters can be specified in the PARAM section. 
 # For GET requests they are appended to the given URL. POST requests 
-# are sent as "multipart/form-data" a file is uploaded and 
+# are sent as "multipart/form-data" iff a file is uploaded and 
 # "application/x-www-form-urlencoded" if not. 
 # See below for forcing multipart posts.
-# 
 ---------------------------------
 Post a Comment
 ---------------------------------
@@ -248,11 +267,17 @@ PARAM
 	text	"A Proof of the Poincare Conjecture"
 	
 	# Sending multiple values of a parameter (e.g. checkbox)
-	categorie  proof topology
+	categorie  genius nerd
 	
-	# To send a file use the following (note: no space in filename!):
-	file	@file:document.pdf
-
+	# If one of the multiple values contains a space: Surround _this_
+	# one with quotes
+	categorie  proof "hilbert problem" theorem
+	
+	# To send a file use the following syntax:
+	file	@file:relative/path/to/document.pdf
+	# Currently there is a bug: You may not send filenames with
+	# special characters (e.g. spaces)
+	
 	
 #
 # Forcing multipart/form-data
@@ -260,7 +285,6 @@ PARAM
 #
 # To force the post to use "multipart/form-data" even if no file
 # is uploaded: Use POST:mp as method.
-#
 ---------------------------------
 Force Multipart Upload
 ---------------------------------
@@ -275,28 +299,33 @@ PARAM
 # ---------------------
 #
 # There are three types of variable substitutions, all can be used like shell
-# variables: A variable can be asigned a value and used as part of the URL,
-# part of header, response, body or parameter values.  The usage is allways
-# the same: Occurences of ${varname} are replaced by the value of the 
-# varibale varname. But there are three ways to set a value for a variable:
-# CONST variables just take a value, there use is obious. Furthermore there
-# are SEQ (sequence) and RAND (random) values, there (reasonable) use is 
-# limited to repeated test. SEQ and RAND values take values of a given list 
-# of possible values. SEQ cycles through the list in the given order, wheras
-# RAND picks one value by random.
-#
+# variables: const variables (just sounds strange), sequence variables and
+# random variables.
+# A variable can be asigned a value and used as part of the URL, part of 
+# theheader, response, body or parameter values.  The usage is allways
+# the same for all three types:  Occurences of ${<varname>} are replaced by 
+# the value of the varibale <varname>. 
+# But there are three ways to set a value for a variable in the three
+# sections:
+#  - CONST variables just take a single value, theire use is obious. 
+#  - SEQ (sequence) variables and 
+#  - RAND (random) values, 
+# The only reasonable use for sequence and random variables is in a repeated 
+# test:  SEQ and RAND values take values of a given list of possible values. 
+# SEQ cycles through the list in the given order, wheras RAND picks one 
+# value by random for each round of the test.
 ---------------------------------
 Test Archive
 ---------------------------------
 # Usage of a variable: ${BaseUrl} is replace by const value set bolow.
-# resulting in URL beeing http://my.blog/entrieshttp://my.blog/entries
-GET ${BaseUrl}http://my.blog/entries
+# resulting in URL beeing http://my.blog/entries/show
+GET ${BaseUrl}/show
 PARAM
 	month 	${Month}
-	year	${Year
+	year	${Year}
 CONST
 	# Set value of BaseUrl to http://my.blog/entries. Note: No = sign!
-	BaseUrl http://my.blog/entries
+	BaseUrl  http://my.blog/entries
 SEQ
 	# Month will be 1 on first run of test, 2 on second, and so on.
 	# Will restart beeing 1 on 13th run of test.
@@ -304,7 +333,9 @@ SEQ
 RAND
 	# Year is one of the given four selected randomly on each test run.
 	Year 	2004 2005 2006 2007
-	# Values with spaces 'Emil Tom' must be enclosed in quotes.
+	
+	# Values with spaces like 'Emil Tom' must be enclosed in quotes as
+	# usual
 	Name	Anna "Emil Tom" Vicktoria 
 SETTING
 	# Repeat the test 7 times.
@@ -325,14 +356,22 @@ GET http://host.to.ping/path.html
 RESPONSE
 	Status-Code	 ==  200
 SETTING
-	# Number of repetitions of the test
+	# Number of repetitions of the test.  Set to 0 to "disable" this
+	# test.
 	Repeat     12
+	
 	# Time in ms to sleep after test
 	Sleep      25
+	
 	# Fail if answer is not recievd in less than 300 ms.
 	Max-Time   300
-	# Keep (store in Global) cookies set by the server answer
+	
+	# Keep (store in Global) cookies set by the server answer.  See
+	# below.  Use 0 to turn storage off.
 	Keep-Cookies  1
+	
+	# Dump (see below in Debugging)
+	Dump  0
 	
 
 #
@@ -340,7 +379,7 @@ SETTING
 # -------
 #
 # Cookies can be sent along with the request and recieved cookies
-# (Set-Cookie) can be checked.  Both have their own section 
+# (Set-Cookie) can be checked.  Both have their own section.
 -------------------
 Cookies
 --------------------
@@ -363,6 +402,8 @@ SET-COOKIE
 	# later will not output unset fields.
 	has-value    ~= in-val
 	all          == value; Path=/; Secure
+	# Bug: this functionality is not jet properly implemented. What works:
+	# Test if value contains a string:  cookiename  ~=  text in value
 	
 SETTING
 	# Recieved sookies can be stored in the SEND-COOKIE section of the
@@ -381,6 +422,7 @@ Debuging
 --------------------
 GET http://some.url
 SETTING
+	# Turn dumping on. Will dump to file "Debuging.dump"
 	Dump  1
 	
 
