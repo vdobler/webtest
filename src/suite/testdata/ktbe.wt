@@ -34,8 +34,8 @@ PARAM
 	formSchutzfeld1 f
 	formSchutzfeld2
 	Anrede		Herr
-	Vorname 	Volker
-	Nachname 	Dobler
+	Vorname 	${VN}
+	Nachname 	${NN}
 	Interessen	soccer
 	Datum
 	PersID
@@ -48,10 +48,18 @@ BODY
 	Txt		~=  Herzlichen Dank für Ihre Daten!
 TAG
 	th colspan=2 == Persönliche Angaben
-	th == Vorname
-	td == Volker
+	
+	[
+		tr
+			th == Vorname
+			td == ${VN}
+	]
+SEQ
+	VN  Volker Sabine Lukas
+	NN  Dobler Weidermann-Dobler
 SETTING
-	Dump  1
+	Dump   2
+	Repeat 3
 	
 	
 --------------------------------

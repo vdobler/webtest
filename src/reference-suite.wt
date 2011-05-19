@@ -196,7 +196,22 @@ BODY
 	 Bin  _=  89504e470d0a1a0a
 	 
 # HTML/XML tag/element checkings are placed in section TAG
-# Syntax for the tags are like checktag. See documentation in tag.go 
+# Syntax for the tags are like checktag. See documentation in tag.go.
+# The syntax is a bit like
+#   tagSpec   :=  ['!'] [ numOp number ] { simpleTag | tagStructure }
+#   numOp     :=  { '<', '<=', '==', '>=', '>' }
+#   number    :=  "any number >= 0, e.g. 4 or 17"
+#   simpleTag :=  tagName [class...] [attribute...] [ { '==' | '=D='} content]
+#   tagName   :=  "the lower case tag name: h2, div, iframe, ..."
+#   class     :=  [ '!' ] 'class='content
+#   attribute :=  [ '!' ] attrName'='content
+#   attrName  :=  "the lowercase attribute name, e.g. href, title, ..."
+#   content   :=  { '/' regexp '/' | pattern }
+#   regexp    :=  "a valid regular expression"
+#   pattern   :=  "a text pattern with * and ? as wildcards"
+#   tagStruct :=  '[' '\n' moreIndnt { simpleTag | tagStructure } '\n' ']'
+#   moreIndnt :=  "more indentation by tabs than previous/parent tagSpec."
+#
 TAG
 	# Check if any h2 tag with a class of 'home' and text content of
 	# 'Quality' is present
@@ -204,6 +219,17 @@ TAG
 		
 	# Fail if a h5 tag with content 'WRONG' is present
 	! h5 == WRONG
+	
+	# Whitespaces in text content is normalized: tabs and newlines are
+	# replaced by spaces, multiple spaces are collapsed to one and 
+	# leading/trailing spaces are trimmed.  I.e. the text content of
+	#   <p>  Hello   John Doe!
+	#     Greetings!
+	#   </p>
+	# is considered to be "Hello John Doe! Greetings!" and would be
+	# matched by
+	p == Hello John Doe! Greetings!
+	# but not by p == Hello    John Doe! Greetings!
 	
 	# Count occurences of this div tag with CSS class teaser: 
 	# Must be exactly 3
@@ -234,16 +260,32 @@ TAG
 				span == Test
 	   ]
 
-	 # Currently there is a bug with same level elements, so you cannot
-	 # test for a structure like
-	 # [
-	 #    div class=teaser
-	 #       h3 == Freibier
-	 #       p  == Die ganze Woche*
-	 # ]
-	 # where the h3 and the p are direct children of the div.
+	 # Note: The following structure would match any teaser (the div) which
+	 # contains as direct childs a h3- and a p-tag, regardless if there are
+	 # other tags present: So
+	 #   <div class="teaser>
+	 #     <h1>Super</h1>
+	 #     <h3>Freibier</h3>
+	 #     <span>Heute!</span>
+	 #     <p>Die ganze Woche Freibier für alle</p>
+	 #   </div>
+	 # Would match the following structure.
+	[
+		div class=teaser
+			h3 == Freibier
+			p  == Die ganze Woche*
+	]
 
-	 
+	# Checking for "deep" content:  Consider the following html
+	#   <h2>  Hello<span>nice</span>World</h2>
+	# The text content of the h2 is considered to be "Hello World"
+	# (note the trimming of spaces and the addition of a space
+	# between the two text nodes).
+	# To match the whole text content including nested tags use
+	# the "=D=" deep operator 
+	h2 =D= Hello nice World
+	
+
 #
 # Sending Parameters
 # ------------------
@@ -422,7 +464,8 @@ Debuging
 --------------------
 GET http://some.url
 SETTING
-	# Turn dumping on. Will dump to file "Debuging.dump"
+	# Turn dumping on with 1 or 2. Will dump to file "Debuging.dump"
+	# 1 will create a new file wheras 2 will append to an existing one.
 	Dump  1
 	
 

@@ -584,9 +584,14 @@ func (test *Test) Run(global *Test) {
 
 	test.init()
 
-	if dd, ok := test.Setting["Dump"]; ok && dd == "1" {
+	// Debuging dump
+	if dd, ok := test.Setting["Dump"]; ok && (dd == "1" || dd == "2") {
 		fname := titleToFilename(test.Title)
-		file, err := os.Create(fname)
+		var mode int = os.O_TRUNC
+		if dd == "2" {
+			mode = os.O_APPEND
+		}
+		file, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|mode,0666)
 		if err != nil {
 			error("Cannot dump to file '%s': %s.", fname, err.String())
 		} else {
