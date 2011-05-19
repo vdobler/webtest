@@ -116,7 +116,7 @@ func substitute(str string, test, global, orig *Test) string {
 			val = varValue(v, test, orig)
 		}
 		trace("Will use '%s' as value for var %s.", val, v)
-		str = strings.Replace(str, "${" + v + "}", val, 1)
+		str = strings.Replace(str, "${"+v+"}", val, 1)
 	}
 	if len(used) > 0 {
 		trace("Substituted %d variables: '%s'.", len(used), str)
@@ -152,7 +152,7 @@ func substituteVariables(test, global, orig *Test) {
 		}
 		test.Param[k] = sl
 	}
-	
+
 	for i, tc := range test.Tag {
 		trace("Replacing tag content %d", i)
 		test.Tag[i].Spec.Content = substitute(tc.Spec.Content, test, global, orig)

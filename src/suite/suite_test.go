@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	port     = ":54123"
-	host     = "http://localhost"
-	theSuite *Suite
+	port       = ":54123"
+	host       = "http://localhost"
+	theSuite   *Suite
 	skipStress bool = true
 )
 
@@ -684,7 +684,7 @@ func TestStresstest(t *testing.T) {
 
 
 func TestTagStructParsing(t *testing.T) {
-	var tagSuite =`
+	var tagSuite = `
 ---------------------
 Tag Spec
 ---------------------

@@ -344,18 +344,20 @@ PARAM
 # variables: const variables (just sounds strange), sequence variables and
 # random variables.
 # A variable can be asigned a value and used as part of the URL, part of 
-# theheader, response, body or parameter values.  The usage is allways
+# the header, response, body, tag or parameter values.  The usage is allways
 # the same for all three types:  Occurences of ${<varname>} are replaced by 
 # the value of the varibale <varname>. 
 # But there are three ways to set a value for a variable in the three
 # sections:
-#  - CONST variables just take a single value, theire use is obious. 
+#  - CONST variables just take a single value, theire use is obvious. 
 #  - SEQ (sequence) variables and 
 #  - RAND (random) values, 
 # The only reasonable use for sequence and random variables is in a repeated 
 # test:  SEQ and RAND values take values of a given list of possible values. 
-# SEQ cycles through the list in the given order, wheras RAND picks one 
-# value by random for each round of the test.
+# SEQ cycles through the list in the given order, whereas RAND picks one 
+# value by random for each round of the test.  
+#
+# Notes: Variable names consist of characters only (no numbers no _).
 ---------------------------------
 Test Archive
 ---------------------------------
@@ -365,6 +367,11 @@ GET ${BaseUrl}/show
 PARAM
 	month 	${Month}
 	year	${Year}
+	user	user-${Name}
+TAG
+	# Variable substitution is done in the content part of tags only:
+	# All other elements do not allow variables.
+	h2 == Hello ${Name}!
 CONST
 	# Set value of BaseUrl to http://my.blog/entries. Note: No = sign!
 	BaseUrl  http://my.blog/entries
@@ -390,7 +397,6 @@ SETTING
 #
 # Various setting can be applied to each and every test in the SETTING
 # section. Currently the following are implemented.
-#
 ---------------------------------
 Repeated Ping
 ---------------------------------

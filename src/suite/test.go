@@ -594,7 +594,7 @@ func (test *Test) Run(global *Test) {
 		if dd == "2" {
 			mode = os.O_APPEND
 		}
-		file, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|mode,0666)
+		file, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|mode, 0666)
 		if err != nil {
 			error("Cannot dump to file '%s': %s.", fname, err.String())
 		} else {
