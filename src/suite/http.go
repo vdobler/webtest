@@ -102,6 +102,15 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 			trace("Adding new cookie %s with value %s.", cookie.Name, cookie.Value)
 			cookies = append(cookies, cookie)
 		}
+
+		// Prevent against bug in http package which does not parse expires field properly
+		if len(cookie.Unparsed) > 0 && strings.HasPrefix(strings.ToLower(cookie.Unparsed[0]), "expires=") {
+			val := cookie.Unparsed[0][8:]
+			exptime, err := time.Parse(time.RFC1123, val)
+			if err == nil {
+				cookie.Expires = *exptime
+			}
+		}
 	}
 	return cookies
 }

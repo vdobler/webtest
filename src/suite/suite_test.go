@@ -15,7 +15,7 @@ var (
 	port       = ":54123"
 	host       = "http://localhost"
 	theSuite   *Suite
-	skipStress bool = true
+	skipStress bool
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
@@ -264,12 +264,15 @@ SET-COOKIE
 	TheSession:Path    _=  /de/
 	TheSession:Secure  ==  true
 	TheSession:Domain  =_  .org
+	TheSession:Expires  <  Sat, 21 May 2011 12:00:00 GMT
+	TheSession:Expires  >  Thu, 19 May 2011 12:00:00 GMT
 	
 BODY
 	Txt  ~=  Post Page 
 SETTING
 	# Store recieved Cookies in Global
 	Keep-Cookies  1
+	Dump          1
 	
 	
 ---------------------
@@ -341,7 +344,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
 		cp := strings.Split(cv, "=", 2)
-		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; Domain=my.domain.org; Secure;", cp[0], cp[1]))
+		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; expires=Fri, 20 May 2011 12:34:55 GMT; Domain=my.domain.org; Secure;", cp[0], cp[1]))
 	}
 	t := req.FormValue("q")
 	if req.Method != "POST" {

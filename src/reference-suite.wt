@@ -109,6 +109,12 @@ RESPONSE
 	 # usual meaning.
 	 Content-Length  > 500
 	 
+	 # For fields whose value is a RFC1123 date you may use also use
+	 # <, <=, > and >=. (Only RFC1123 dates work, but others should not
+	 # be used anyway...)
+	 Expires  >=  Fri, 20 May 2011 12:59:19 GMT
+
+	 
 	 # To negate a condition: Prefix the whole condition with a ! charcter.
 	 # Note: There is no != operator. Use !field == val.
 	!App-Field ~= Illegal
@@ -460,8 +466,6 @@ SET-COOKIE
 	name:HttpOnly ==  false
 	name:MaxAge   ==  0
 	name:Expires  ~=  Nov 2013
-	# Currently <, <= > and >= do not work on dates, so the following would
-	# result in an runtime error.
 	name:Expires   >  Mon, 02 Jan 2006 15:04:05 MST
 	
 SETTING

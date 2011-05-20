@@ -1,6 +1,8 @@
 package suite
 
 import (
+	"os"
+	"time"
 	"fmt"
 	"strings"
 	"strconv"
@@ -83,6 +85,30 @@ func atoi(s, line string, fallback int) int {
 	return i
 }
 
+func toNumber(a, b, line string) (n, m int64) {
+	var ae, be os.Error
+	// Plain numbers
+	n, ae = strconv.Atoi64(a)
+	m, be = strconv.Atoi64(a)
+	if ae == nil && be == nil {
+		return
+	}
+
+	// Timestamps according to RFC1123
+	var at, bt *time.Time
+	at, ae = time.Parse(time.RFC1123, a)
+	bt, be = time.Parse(time.RFC1123, b)
+	if ae == nil && be == nil {
+		n, m = at.Seconds(), bt.Seconds()
+		return
+	}
+
+	// Something is wrong
+	error("Unable to convert both '%s' and '%s' to number with same method on line %s.", a, b, line)
+	n, m = int64(len(a)), int64(len(b))
+	return
+}
+
 func (cond *Condition) Fullfilled(v string) bool {
 	ans := false
 	switch cond.Op {
@@ -97,13 +123,17 @@ func (cond *Condition) Fullfilled(v string) bool {
 	case "~=":
 		ans = strings.Contains(v, cond.Val)
 	case ">":
-		ans = (atoi(v, cond.Id, 0) > atoi(cond.Val, cond.Id, 0))
+		rv, lv := toNumber(v, cond.Val, cond.Id)
+		ans = rv > lv
 	case ">=":
-		ans = (atoi(v, cond.Id, 0) >= atoi(cond.Val, cond.Id, 0))
+		rv, lv := toNumber(v, cond.Val, cond.Id)
+		ans = rv >= lv
 	case "<":
-		ans = (atoi(v, cond.Id, 0) < atoi(cond.Val, cond.Id, 0))
+		rv, lv := toNumber(v, cond.Val, cond.Id)
+		ans = rv < lv
 	case "<=":
-		ans = (atoi(v, cond.Id, 0) >= atoi(cond.Val, cond.Id, 0))
+		rv, lv := toNumber(v, cond.Val, cond.Id)
+		ans = rv <= lv
 	case "/=":
 		if rexp, err := regexp.Compile(cond.Val); err == nil {
 			ans = (rexp.FindStringIndex(v) != nil)

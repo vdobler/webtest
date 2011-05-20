@@ -336,6 +336,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 	} else {
 		return
 	}
+
 	for _, cc := range t.CookieCond {
 		ci := cc.Info("cookie")
 		var name, field string
