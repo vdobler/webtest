@@ -432,26 +432,37 @@ SETTING
 Cookies
 --------------------
 GET http://some.url
+
 SEND-COOKIE
-	# Send cookie with name SESSIONID and value 123ABCxyz along with request
+	# The easier cookie stuff: Send cookie with name SESSIONID and value
+	# 123ABCxyz along with request
 	SESSIONID	123ABCxyz
+
 SET-COOKIE
-	# Test wether server requests to set a cookie.
+	# The complicated stuff: Test wether server requests to set a cookie.
 	
-	# Server wants to set cookie with name "just-present"
+	# make sure the server wants to set cookie with name "just-present"
+	# or make sure that no cookie "illegal" was set. (Values do not matter)
 	just-present
+	!illegal
 	
-	# To check for values or other parameters: Any cookie sent with the
-	# response is formated like this:
-	# <val>; Path=<path>; Expires=<exp>; MaxAge=<maxage>; Secure=<secure>
-	# Here <val> ist the value, <pat> the path, <epx> the expiration date
-	# <maxage> the max age and <secure> either "true" or "false".
-	# Note that this format is _not_ the same as the wire format as the
-	# later will not output unset fields.
-	has-value    ~= in-val
-	all          == value; Path=/; Secure
-	# Bug: this functionality is not jet properly implemented. What works:
-	# Test if value contains a string:  cookiename  ~=  text in value
+	# Two ways to check the value of the cookie, the first is just an
+	# abrevation for the later, the general form
+	name        ==  full-value
+	name:Value  ~=  contained
+	
+	# Check other fields of the cookie. Please note: As the dot '.' is not
+	# explicitely forbiden in cookie names, but ':' is, the colon is the
+	# field delimiter
+	name:Path     _=  /some/path
+	name:Secure   ==  true
+	name:Domain   ==  www.mydomain.org
+	name:HttpOnly ==  false
+	name:MaxAge   ==  0
+	name:Expires  ~=  Nov 2013
+	# Currently <, <= > and >= do not work on dates, so the following would
+	# result in an runtime error.
+	name:Expires   >  Mon, 02 Jan 2006 15:04:05 MST
 	
 SETTING
 	# Recieved sookies can be stored in the SEND-COOKIE section of the

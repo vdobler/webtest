@@ -306,6 +306,17 @@ func (t *Test) KeepCookies() bool {
 	return false
 }
 
+func cookieIndex(cookies []*http.Cookie, name string) int {
+	idx := -1
+	for i, c := range cookies {
+		if c.Name == name {
+			idx = i
+			break
+		}
+	}
+	return idx
+}
+
 func testHeader(resp *http.Response, t, orig *Test) {
 	if len(t.RespCond) > 0 {
 		debug("Testing Header")
@@ -326,22 +337,60 @@ func testHeader(resp *http.Response, t, orig *Test) {
 		return
 	}
 	for _, cc := range t.CookieCond {
-		var found bool = false
 		ci := cc.Info("cookie")
-		for _, sc := range resp.SetCookie {
-			if sc.Name == cc.Key {
-				found = true
-				cv := sc.Value + "; Path=" + sc.Path // TODO: rest
-				if !cc.Fullfilled(cv) {
-					orig.Report(false, "%s: Got '%s'", ci, cv)
-				} else {
-					orig.Report(true, "%s", ci)
-				}
-				break
-			}
+		var name, field string
+		if fi := strings.Index(cc.Key, ":"); fi != -1 {
+			name = cc.Key[:fi]
+			field = cc.Key[fi+1:]
+		} else {
+			name = cc.Key
 		}
-		if !found {
-			orig.Report(false, "Cookie '%s' not set", cc.Key)
+		idx := cookieIndex(resp.SetCookie, name)
+
+		if cc.Op == "." {
+			// just test existence
+			if field != "" {
+				error("Ooooops: field but op==.")
+			}
+			if idx != -1 && cc.Neg {
+				orig.Report(false, "%s: Cookie _was_ set.", ci)
+			} else if (idx != -1 && !cc.Neg) || (idx == -1 && cc.Neg) {
+				orig.Report(true, "%s", ci)
+			} else if idx == -1 && !cc.Neg {
+				orig.Report(false, "%s: Cookie was not set.", ci)
+			} else {
+				error("Oooops: This cannot happen....")
+			}
+		} else {
+			if idx == -1 {
+				orig.Report(false, "%s: Cookie was not set at all.", ci)
+				continue
+			}
+			rc := resp.SetCookie[idx]
+			var v string
+			switch field {
+			case "Value":
+				v = rc.Value
+			case "Path":
+				v = rc.Path
+			case "Domain":
+				v = rc.Domain
+			case "Expires":
+				v = rc.Expires.Format(time.RFC1123)
+			case "Secure":
+				v = fmt.Sprintf("%t", rc.Secure)
+			case "HttpOnly":
+				v = fmt.Sprintf("%t", rc.HttpOnly)
+			case "MaxAge":
+				v = fmt.Sprintf("%d", rc.MaxAge)
+			default:
+				error("Oooops: Unknown cookie field %s.", field)
+			}
+			if !cc.Fullfilled(v) {
+				orig.Report(false, "%s: Got '%s'", ci, v)
+			} else {
+				orig.Report(true, "%s.", ci)
+			}
 		}
 	}
 	return

@@ -223,8 +223,15 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 	}
 }
 
+const (
+	mode_other     = iota
+	mode_body      = iota
+	mode_setcookie = iota
+)
+
+
 // Read a Header or Body Condition
-func (p *Parser) readCond(body bool) []Condition {
+func (p *Parser) readCond(mode int) []Condition {
 	var list []Condition = make([]Condition, 0, 3)
 
 	for p.i < len(p.line)-1 {
@@ -243,11 +250,23 @@ func (p *Parser) readCond(body bool) []Condition {
 
 		if j == -1 {
 			// reduced format  "[!] <field>"
+			if mode == mode_body {
+				error("Missing value for body condition on line %d.", no)
+				p.okay = false
+				continue
+			}
 			op = "."
 			k = line
 			if hp(k, "!") {
 				neg = true
 				k = k[1:]
+			}
+			if mode == mode_setcookie {
+				if strings.Contains(k, ":") {
+					error("Missing value cookie:field condition on line %d.", no)
+					p.okay = false
+					continue
+				}
 			}
 		} else {
 			// normal format "[!] <field> <op> <value>"
@@ -257,13 +276,28 @@ func (p *Parser) readCond(body bool) []Condition {
 				k = k[1:]
 			}
 			line = trim(line[j:])
-			if body { // only some fields are allowed
+			switch mode { // checkspecial requirements
+			case mode_body:
 				switch k {
 				case "Txt", "Bin":
 				default:
 					error("No such condition type '%s' for body on line %d.", k, no)
 					p.okay = false
 					continue
+				}
+			case mode_setcookie:
+				if ci := strings.Index(k, ":"); ci != -1 {
+					switch k[ci+1:] {
+					case "Value", "Path", "Expires", "Secure", "Domain", "HttpOnly", "MaxAge":
+						// fine: allwed field
+					default:
+						error("No such cookie field '%s' on line %d.", k[ci+1], no)
+						p.okay = false
+						continue
+					}
+				} else {
+					// Auto-append :Value
+					k += ":Value"
 				}
 			}
 			j = firstSpace(line)
@@ -535,11 +569,11 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "SEND-COOKIE", "SEND-COOKIES", "COOKIE", "COOKIES":
 			p.readMap(&test.Cookie)
 		case "RESPONSE":
-			test.RespCond = p.readCond(false)
+			test.RespCond = p.readCond(mode_other)
 		case "SET-COOKIE", "RECIEVED-COOKIE":
-			test.CookieCond = p.readCond(false)
+			test.CookieCond = p.readCond(mode_setcookie)
 		case "BODY":
-			test.BodyCond = p.readCond(true)
+			test.BodyCond = p.readCond(mode_body)
 		case "PARAM", "PARAMETERS":
 			p.readMultiMap(&test.Param)
 		case "SETTING", "SETTINGS":

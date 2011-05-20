@@ -15,7 +15,7 @@ var (
 	port       = ":54123"
 	host       = "http://localhost"
 	theSuite   *Suite
-	skipStress bool
+	skipStress bool = true
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
@@ -255,11 +255,16 @@ Login
 POST ${URL}/post
 PARAM
 	# cookie parameter is added to response header by /post handler
-	cookie  Thesession=randomsessionid
+	cookie  TheSession=randomsessionid
 RESPONSE
 	Final-Url	==	${URL}/post
 SET-COOKIE
-	Thesession  ~=  randomsessionid
+	TheSession         ~=  randomsessionid
+	TheSession:Value   ==  randomsessionid
+	TheSession:Path    _=  /de/
+	TheSession:Secure  ==  true
+	TheSession:Domain  =_  .org
+	
 BODY
 	Txt  ~=  Post Page 
 SETTING
@@ -336,7 +341,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
 		cp := strings.Split(cv, "=", 2)
-		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/", cp[0], cp[1]))
+		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; Domain=my.domain.org; Secure;", cp[0], cp[1]))
 	}
 	t := req.FormValue("q")
 	if req.Method != "POST" {
@@ -385,7 +390,7 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	if cn := req.FormValue("set"); cn != "" {
 		cv, cp := req.FormValue("val"), req.FormValue("pat")
 		trace("cookieHandler recieved cookie %s=%s; path=%s.", cn, cv, cp)
-		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=%s", cn, cv, cp))
+		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; Domain=my.domain.org; Secure;", cn, cv))
 	}
 
 	if t := req.FormValue("goto"); t != "" {
@@ -570,6 +575,7 @@ func TestMultipartPost(t *testing.T) {
 
 
 func TestCookies(t *testing.T) {
+	LogLevel = 4
 	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
 	cs, err := p.ReadSuite()
 	if err != nil {
