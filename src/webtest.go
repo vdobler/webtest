@@ -82,7 +82,8 @@ func shouldRun(s *suite.Suite, no int) bool {
 	for _, x := range sp {
 		i, err := strconv.Atoi(x)
 		if err == nil {
-			if i > 0 && i < len(s.Test) && no == i {
+			i--
+			if i >= 0 && i < len(s.Test) && no == i {
 				return true
 			}
 		} else {
@@ -308,11 +309,20 @@ func testOrBenchmark(filenames []string) {
 	}
 
 	if checkOnly {
+		var list string = "List of tests:\n"
+		var w int
 		for _, s := range suites {
-			for _, t := range s.Test {
-				fmt.Printf("\n%s\n", t.String())
+			if len(s.Name) > w {
+				w = len(s.Name)
 			}
 		}
+		for _, s := range suites {
+			for n, t := range s.Test {
+				fmt.Printf("\n%s\n", t.String())
+				list += fmt.Sprintf("%3d: %-*s: %s\n", n+1, w, s.Name, t.Title)
+			}
+		}
+		fmt.Printf("\n%s", list)
 		return
 	}
 	if !allReadable {
@@ -329,7 +339,7 @@ func testOrBenchmark(filenames []string) {
 			if len(at) > 25 {
 				at = at[0:23] + ".."
 			}
-			at = fmt.Sprintf("Test %2d: %-20s", i, at)
+			at = fmt.Sprintf("Test %2d: %-25s", i, at)
 
 			if !shouldRun(s, i) {
 				info("Skipped test %d.", i)
@@ -398,6 +408,7 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 	if err != nil {
 		error("Problems parsing '%s': %s\n", filename, err.String())
 	}
+	s.Name = basename
 	return
 }
 

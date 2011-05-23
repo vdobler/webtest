@@ -54,6 +54,7 @@ func supertrace(f string, m ...interface{}) {
 type Suite struct {
 	Global *Test
 	Test   []Test
+	Name   string
 	bgload int
 }
 
