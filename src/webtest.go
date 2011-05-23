@@ -274,8 +274,8 @@ func main() {
 
 func testOrBenchmark(filenames []string) {
 
-	var result string = "\n======== Results ==========================================================\n"
-	var charts string = "\n======== Charts ===========================================================\n"
+	var result string = "\n======== Results ===============================================================\n"
+	var charts string = "\n======== Charts ================================================================\n"
 
 	var passed bool = true
 	var suites []*suite.Suite = make([]*suite.Suite, 0, 20)
@@ -306,13 +306,13 @@ func testOrBenchmark(filenames []string) {
 
 	for sn, s := range suites {
 
-		result += "Suite " + basenames[sn] + ":\n----------------------------\n"
-		charts += "Suite " + basenames[sn] + ":\n----------------------------\n"
+		result += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+		charts += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
 
 		for i, t := range s.Test {
 			at := t.Title
-			if len(at) > 20 {
-				at = at[0:18] + ".."
+			if len(at) > 25 {
+				at = at[0:23] + ".."
 			}
 			at = fmt.Sprintf("Test %2d: %-20s", i, at)
 

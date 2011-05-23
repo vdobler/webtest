@@ -157,6 +157,7 @@ func NewTest(title string) *Test {
 	t.Vars = make(map[string]string)
 
 	t.Setting["Repeat"] = "1"
+	t.Setting["Tries"] = "1"
 	t.Setting["Max-Time"] = "-1"
 	t.Setting["Sleep"] = "0"
 	t.Setting["Keep-Cookies"] = "0"
@@ -183,9 +184,10 @@ func quote(s string, containedSpacesNeedQuotes bool) string {
 }
 
 
-func formatMap(s string, m *map[string]string) (f string) {
+// Prety print a map m with title. 
+func formatMap(title string, m *map[string]string) (f string) {
 	if len(*m) > 0 {
-		f = s + "\n"
+		f = title + "\n"
 		longest := 0
 		for k, _ := range *m {
 			if len(k) > longest {
@@ -199,9 +201,10 @@ func formatMap(s string, m *map[string]string) (f string) {
 	return
 }
 
-func formatMultiMap(s string, m *map[string][]string) (f string) {
+// Pretty print a multi-map m.
+func formatMultiMap(title string, m *map[string][]string) (f string) {
 	if len(*m) > 0 {
-		f = s + "\n"
+		f = title + "\n"
 		longest := 0
 		for k, _ := range *m {
 			if len(k) > longest {
@@ -219,9 +222,11 @@ func formatMultiMap(s string, m *map[string][]string) (f string) {
 	return
 }
 
-func formatCond(s string, m *[]Condition) (f string) {
+
+// Pretty print a list of Conditions m.
+func formatCond(title string, m *[]Condition) (f string) {
 	if len(*m) > 0 {
-		f = s + "\n"
+		f = title + "\n"
 		longest := 0
 		for _, c := range *m {
 			if len(c.Key) > longest {
@@ -237,7 +242,7 @@ func formatCond(s string, m *[]Condition) (f string) {
 			if c.Op != "." {
 				f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
 			} else {
-				f += c.Key + "\n" // fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
+				f += c.Key + "\n"
 			}
 		}
 	}
@@ -272,40 +277,62 @@ func (t *Test) String() (s string) {
 	return
 }
 
-func (t *Test) Repeat() int {
+// Helper to safely read an integer setting of a test.
+func (t *Test) intSetting(name string, dflt int) int {
 	if t.Setting == nil {
-		return 1
+		return dflt
 	}
-	r, ok := t.Setting["Repeat"]
-	if !ok {
-		warn("Test '%s' does not have Repeat parameter! Will use 1", t.Title)
-		r = "1"
+	var r string
+	var ok bool
+	if r, ok = t.Setting[name]; !ok {
+		debug("Test '%s' does not have setting %s! Will use %d.", t.Title, name, dflt)
+		return dflt
 	}
-	return atoi(r, "", 1)
+
+	if i, err := strconv.Atoi(r); err != nil {
+		error("Cannot convert '%s' to integer on setting %s! Will use %d.", r, name, dflt)
+		return dflt
+	} else {
+		return i
+	}
+	return dflt
 }
 
-func (t *Test) Sleep() (i int) {
+// Helper to safely read a boolean seting in a test.
+func (t *Test) boolSetting(name string, dflt bool) bool {
 	if t.Setting == nil {
-		return 1
+		return dflt
 	}
-	r, ok := t.Setting["Sleep"]
-	if !ok {
-		r = "0"
+	var r string
+	var ok bool
+	if r, ok = t.Setting[name]; !ok {
+		debug("Test '%s' does not have setting %s! Will use %t.", t.Title, name, dflt)
+		return dflt
 	}
-	return atoi(r, "", 0)
+	r = strings.ToLower(r)
+	if r == "1" || r == "yes" || r == "true" {
+		return true
+	}
+	return dflt
+}
+
+func (t *Test) Repeat() int {
+	return t.intSetting("Repeat", 1)
+}
+
+func (t *Test) Sleep() int {
+	return t.intSetting("Sleep", 0)
+}
+
+func (t *Test) Tries() int {
+	return t.intSetting("Tries", 1)
 }
 
 func (t *Test) KeepCookies() bool {
-	if t.Setting == nil {
-		return false
-	}
-	kc, ok := t.Setting["Keep-Cookies"]
-	if ok && (kc == "1" || kc == "true" || kc == "keep") {
-		return true
-	}
-	return false
+	return t.boolSetting("Keep-Cookies", false)
 }
 
+// Look for name in cookies. Return index if found and -1 otherwise.
 func cookieIndex(cookies []*http.Cookie, name string) int {
 	idx := -1
 	for i, c := range cookies {
@@ -317,6 +344,8 @@ func cookieIndex(cookies []*http.Cookie, name string) int {
 	return idx
 }
 
+
+// Test response header and (set-)cookies.
 func testHeader(resp *http.Response, t, orig *Test) {
 	if len(t.RespCond) > 0 {
 		debug("Testing Header")
@@ -397,6 +426,8 @@ func testHeader(resp *http.Response, t, orig *Test) {
 	return
 }
 
+
+// Test response body.
 func testBody(body string, t, orig *Test) {
 	if len(t.BodyCond) > 0 {
 		debug("Testing Body")
@@ -433,6 +464,8 @@ func testBody(body string, t, orig *Test) {
 	return
 }
 
+
+// Perform tag test on response body.
 func testTags(t, orig *Test, doc *tag.Node) {
 	if len(t.Tag) > 0 {
 		debug("Testing Tags")
@@ -500,6 +533,7 @@ func testTags(t, orig *Test, doc *tag.Node) {
 }
 
 
+// Add header conditions from global to test.
 func addMissingHeader(test, global *map[string]string) {
 	for k, v := range *global {
 		if _, ok := (*test)[k]; !ok {
@@ -509,6 +543,8 @@ func addMissingHeader(test, global *map[string]string) {
 	}
 }
 
+
+// Add cookie conditions from global to test.  TODO: used/usefull/???
 func addMissingCookies(test, global *map[string]string) {
 	for k, v := range *global {
 		if _, ok := (*test)[k]; !ok {
@@ -518,6 +554,8 @@ func addMissingCookies(test, global *map[string]string) {
 	}
 }
 
+
+// Add missing response conditions from global.
 func addMissingCond(test, global []Condition) []Condition {
 	a := len(test)
 	for _, cond := range global {
@@ -537,6 +575,8 @@ func addMissingCond(test, global []Condition) []Condition {
 	return test
 }
 
+
+// Add all body conditions from global to test.
 func addAllCond(test, global []Condition) []Condition {
 	for _, cond := range global {
 		trace("Adding body condition '%s'", cond.String())
@@ -554,6 +594,8 @@ func prepareTest(t, global *Test) *Test {
 	for k, _ := range t.Vars {
 		t.Vars[k] = "", false
 	}
+
+	// deep copy, add stuff from global
 	test := t.Copy()
 	if global != nil {
 		addMissingHeader(&test.Header, &global.Header)
@@ -561,6 +603,7 @@ func prepareTest(t, global *Test) *Test {
 		test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	}
+
 	substituteVariables(test, global, t)
 	if uc, ok := test.Header["Basic-Authorization"]; ok {
 		// replace Basic-Authorization: user:pass with Authorization: Basic=encoded
@@ -574,6 +617,7 @@ func prepareTest(t, global *Test) *Test {
 	supertrace("Test to execute = \n%s", test.String())
 	return test
 }
+
 
 // Pattern (with shell/path globbing) of content types considered parsable by tag package.
 var ParsableContentTypes []string = []string{"text/html", "text/html;*",
@@ -592,6 +636,7 @@ func parsableBody(resp *http.Response) bool {
 	return false
 }
 
+
 // Set up bookkeeping stuff for variable substitutions.
 func (test *Test) init() {
 	// Initialize sequenze count
@@ -608,6 +653,7 @@ func (test *Test) init() {
 		test.Vars = make(map[string]string, cnt)
 	}
 }
+
 
 func titleToFilename(t string) (f string) {
 	// TODO use unicode codepoints
@@ -671,6 +717,7 @@ func (test *Test) RunWithoutTest(global *Test) {
 	}
 
 	test.init()
+	test.Setting["Tries"] = "0" // no test -> no need to try to succeed
 	for i := 1; i <= test.Repeat(); i++ {
 		test.RunSingle(global, true)
 	}
@@ -712,92 +759,109 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 	return
 }
 
-// Perform a single run of the test.  Return duration for server response in ms.
+// Perform a single run of the test.  Return duration for server response in ms. Log results in Result field.
 func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.Error) {
-
 	ti := prepareTest(test, global)
+	tries := ti.intSetting("Tries", 1)
 
-	starttime := time.Nanoseconds()
-	var (
-		response *http.Response
-		url      string
-		cookies  []*http.Cookie
-		reqerr   os.Error
-	)
+	var tryCnt int
 
-	if ti.Method == "GET" {
-		response, url, cookies, reqerr = Get(ti)
-	} else if ti.Method == "POST" || ti.Method == "POST:mp" {
-		response, url, cookies, reqerr = Post(ti)
-	}
-	endtime := time.Nanoseconds()
-	duration = int((endtime - starttime) / 1000000) // in milli seconds (ms)
+	for {
+		starttime := time.Nanoseconds()
+		var (
+			response *http.Response
+			url      string
+			cookies  []*http.Cookie
+			reqerr   os.Error
+		)
 
-	if reqerr != nil {
-		test.Report(false, reqerr.String())
-		err = Error("Error: " + reqerr.String())
-		return
-	}
-
-	trace("Recieved cookies: %v", cookies)
-	if len(cookies) > 0 && test.KeepCookies() && global != nil {
-		if global.Cookie == nil {
-			global.Cookie = make(map[string]string)
+		if ti.Method == "GET" {
+			response, url, cookies, reqerr = Get(ti)
+		} else if ti.Method == "POST" || ti.Method == "POST:mp" {
+			response, url, cookies, reqerr = Post(ti)
 		}
+		endtime := time.Nanoseconds()
+		duration = int((endtime - starttime) / 1000000) // in milliseconds (ms)
 
-		for _, c := range cookies {
-			// TODO: Test for overwrite/modify
-			global.Cookie[c.Name] = c.Value
-			trace("kept cookie %s = %s (global = %p)", c.Name, c.Value, global)
-		}
-	}
+		if reqerr != nil {
+			test.Report(false, reqerr.String())
+			err = Error("Error: " + reqerr.String())
+		} else {
 
-	if !skipTests {
-		// Response: Add special fields to header befor testing
-		response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
-		response.Header.Set("Final-Url", url)
-		testHeader(response, ti, test)
-
-		// Body:
-		body := readBody(response.Body)
-		testBody(body, ti, test)
-
-		// Tag:
-		if len(ti.Tag) > 0 {
-			var doc *tag.Node
-			if parsableBody(response) {
-				var e os.Error
-				doc, e = tag.ParseHtml(body)
-				if e != nil {
-					error("Problems parsing html: " + e.String())
+			trace("Recieved cookies: %v", cookies)
+			if len(cookies) > 0 && test.KeepCookies() && global != nil {
+				if global.Cookie == nil {
+					global.Cookie = make(map[string]string)
 				}
-			} else {
-				error("Unparsable body ")
-				test.Report(false, "Unparsabel Body. Skipped testing Tags.")
+
+				for _, c := range cookies {
+					// TODO: Test for overwrite/modify
+					global.Cookie[c.Name] = c.Value
+					trace("kept cookie %s = %s (global = %p)", c.Name, c.Value, global)
+				}
 			}
-			if doc != nil {
-				testTags(ti, test, doc)
-			} else {
-				test.Report(false, "Problems parsing Body. Skipped testing Tags.")
+
+			if !skipTests {
+				// Response: Add special fields to header befor testing
+				response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
+				response.Header.Set("Final-Url", url)
+				testHeader(response, ti, test)
+
+				// Body:
+				body := readBody(response.Body)
+				testBody(body, ti, test)
+
+				// Tag:
+				if len(ti.Tag) > 0 {
+					var doc *tag.Node
+					if parsableBody(response) {
+						var e os.Error
+						doc, e = tag.ParseHtml(body)
+						if e != nil {
+							error("Problems parsing html: " + e.String())
+						}
+					} else {
+						error("Unparsable body ")
+						test.Report(false, "Unparsabel Body. Skipped testing Tags.")
+					}
+					if doc != nil {
+						testTags(ti, test, doc)
+					} else {
+						test.Report(false, "Problems parsing Body. Skipped testing Tags.")
+					}
+				}
+
+				// Timing:
+				if v, ok := ti.Setting["Max-Time"]; ok {
+					max, err := strconv.Atoi(v)
+					if err != nil {
+						error("This should not happen: Max-Time is not an int.")
+					} else if max > 0 && duration > max {
+						test.Report(false, "Response exeeded Max-Time of %d (was %d).", max, duration)
+					}
+				}
+
+				_, _, failed := test.Stat()
+				if failed != 0 {
+					err = Error("Failure: " + test.Status())
+				}
 			}
 		}
 
-		// Timing:
-		if v, ok := ti.Setting["Max-Time"]; ok {
-			max, err := strconv.Atoi(v)
-			if err != nil {
-				error("This should not happen: Max-Time is not an int.")
-			} else if max > 0 && duration > max {
-				test.Report(false, "Response exeeded Max-Time of %d (was %d).", max, duration)
-			}
-		}
+		time.Sleep(1000000 * int64(test.Sleep()))
 
+		tryCnt++
 		_, _, failed := test.Stat()
-		if failed != 0 {
-			err = Error("Failure: " + test.Status())
+		// fmt.Printf(">>> tryCnt: %d,  tries: %d, failed: %d\n", tryCnt, tries, failed)
+		// fmt.Printf("%s\n", test.Status()) 
+		if tryCnt >= tries || failed == 0 {
+			break
 		}
+		// clear Result and start over
+		test.Result = make([]string, 0)
+		// fmt.Printf("\n-----\n%s\n=========\n", test.Status()) 
+
 	}
 
-	time.Sleep(1000000 * int64(test.Sleep()))
 	return
 }

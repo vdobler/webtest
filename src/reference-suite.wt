@@ -428,6 +428,34 @@ RESPONSE
 	# Output is in UTC time format (to prevent bug in Go)
 	
 
+#
+# Repeating Tests
+# ---------------
+#
+# There are two different ways to "repeat" a test: Setting the the setting
+# "Repeat" or "Tries" to a number greater 0.
+#  - "Repeating" a test n times means executing the the test n times and
+#    reporting a success only if all n individual tests succeed. This is 
+#    usefull for iterating over sequence or random variables.  See above
+#    for examples.
+#  - "Trying" means trying at most n times. Pass imediately if one run
+#    succeeds and fail if all n rounds fail. This is usefull to wait for
+#    some background job to complete and check this regularely.
+# Note: Combining repetition and trying is possible, but the result is
+# currently undefined (aka buggy): The test status is solely determined
+by the last repetition.
+---------------------------------
+Wait for bg job
+---------------------------------
+GET http://some.host/job/123/detail.html
+BODY
+	Txt ~= Job 123 finished.
+SETTING
+	# Wait two seconds after each test
+	Sleep  2000
+	# Try at most 60 times: Fail if not finished after approx 2 minutes.
+	Tries  60
+
 
 #
 # Settings
@@ -439,25 +467,33 @@ RESPONSE
 Repeated Ping
 ---------------------------------
 GET http://host.to.ping/path.html
-RESPONSE
-	Status-Code	 ==  200
 SETTING
-	# Number of repetitions of the test.  Set to 0 to "disable" this
-	# test.
-	Repeat     12
+	# Number of repetitions of the test.  Set to 0 to "disable" this test.
+	Repeat    12
+	
+	# Number of tries this test is executed at most. The test passes if
+	# one try succeeds (the rest of the possible tries are skipped) and 
+	# fails if all tries fail.
+	Tries    5
+	# Setting both Tries and Repeat to values > 1 is (currently) undefined. 
 	
 	# Time in ms to sleep after test
-	Sleep      25
+	Sleep    250
 	
 	# Fail if answer is not recievd in less than 300 ms.
-	Max-Time   300
+	Max-Time    300
 	
 	# Keep (store in Global) cookies set by the server answer.  See
 	# below.  Use 0 to turn storage off.
-	Keep-Cookies  1
+	Keep-Cookies    1
 	
 	# Dump (see below in Debugging)
-	Dump  0
+	Dump    0
+	
+	# Abort test suite and fail immediately if this tests fails.
+	# Usefull to skip test which cannot be tested because some setup task
+	# failed.
+	Abort    1
 	
 
 #
@@ -504,6 +540,10 @@ SETTING
 	# Recieved sookies can be stored in the SEND-COOKIE section of the
 	# Global test.  (Usefull for login/session cookies).
 	Keep-Cookies  1
+	
+	# Note: Currently the server cannot delete a cookie he set in a 
+	# previous test (neither by Expires nor MaxAge) if Keep-Cookies
+	# was set.
 	
 
 #

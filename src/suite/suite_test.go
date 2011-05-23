@@ -291,6 +291,33 @@ BODY
 SETTING
 	Repeat	5
 	Sleep   1500
+
+----------------------
+Passing Gate
+----------------------
+GET ${URL}/html.html
+PARAM
+	xxx  ${val} 
+SEQ
+	val  foo bar
+TAG
+	h2 class=okay == Finished.
+SETTING
+	Dump   1
+	Repeat 1
+	Tries  5
+
+----------------------
+Failing Gate
+----------------------
+GET ${URL}/html.html
+PARAM
+	xxx  baz
+TAG
+	h2 class=okay == Finished.
+SETTING
+	Dump   1
+	Tries  2
 `
 
 
@@ -363,7 +390,7 @@ func StartHandlers(addr string, t *testing.T) (err os.Error) {
 	http.Handle("/post", http.HandlerFunc(postHandler))
 	http.Handle("/404.html", http.NotFoundHandler())
 	http.Handle("/cookie.html", http.HandlerFunc(cookieHandler))
-	fmt.Printf("\n\nRunning test server on %s\n\n", addr)
+	fmt.Printf("\nRunning test server on %s\n", addr)
 	err = http.ListenAndServe(addr, nil)
 	if err != nil {
 		fmt.Printf("Cannot run test server on port %s.\nFAIL\n", addr)
@@ -385,10 +412,13 @@ var htmlPat = `<!DOCTYPE html>
 			<input type="submit" />
 		</form>
 	</div>
+	%s
 	<p class="b">Stupid stuff here.</p>
 	<span>UTF-8 Umlaute äöüÄÖÜ Euro €</span>
 </body>
 `
+
+var xCounter = map[string]int{"foo": 0, "bar": 0, "baz": 0} // used for tries
 
 func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -396,13 +426,23 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(200)
 	t := req.FormValue("text")
 	s := req.FormValue("sleep")
+	x := req.FormValue("xxx")
+	t2 := ""
+	if x == "foo" || x == "bar" || x == "baz" {
+		xCounter[x] = xCounter[x] + 1
+		if xCounter[x] < 3 { // Third run succeeds....
+			t2 += "\n<h2>Still Running...</h2>"
+		} else {
+			t2 += "\n<h2 class=\"okay\">Finished.</h2>"
+		}
+	}
 	if ms, err := strconv.Atoi(s); err == nil {
 		time.Sleep(1000000 * int64(ms))
 	}
 	if len(req.Cookie) > 0 {
-		t += "\n<a href=\"/bin.bin\" title=\"TheCookieValue\">" + req.Cookie[0].Name + " = " + req.Cookie[0].Value + "</a>"
+		t2 += "\n<a href=\"/bin.bin\" title=\"TheCookieValue\">" + req.Cookie[0].Name + " = " + req.Cookie[0].Value + "</a>"
 	}
-	body := fmt.Sprintf(htmlPat, html.EscapeString(t))
+	body := fmt.Sprintf(htmlPat, html.EscapeString(t), t2)
 	w.Write([]byte(body))
 }
 
@@ -651,9 +691,18 @@ func TestNowVariable(t *testing.T) {
 	passed(&theSuite.Test[14], t)
 }
 
+func TestTries(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(15)
+	passed(&theSuite.Test[15], t)
+	theSuite.RunTest(16)
+	failed(&theSuite.Test[16], t)
+}
+
 
 func TestCookies(t *testing.T) {
-	LogLevel = 4
 	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
 	cs, err := p.ReadSuite()
 	if err != nil {

@@ -462,10 +462,21 @@ func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
 		case "Repeat":
 			i, e := strconv.Atoi(v)
 			if e != nil {
-				error("No in value given as Repeat count (was '%s') on line %s.", v, lineid)
+				error("No value given as Repeat count (was '%s') on line %s.", v, lineid)
 				p.okay = false
 			} else if i > 100 {
 				warn("More than 100 repetitions of one test on line %s.", lineid)
+			}
+		case "Tries":
+			i, e := strconv.Atoi(v)
+			if e != nil {
+				error("No value given as Tries count (was '%s') on line %s.", v, lineid)
+				p.okay = false
+			} else if i > 1000 {
+				warn("More than 1000 tries of one test on line %s.", lineid)
+			} else if i <= 0 {
+				warn("Setting Tries to values <=0 is unsensical on line %s.", lineid)
+				p.okay = false
 			}
 		case "Max-Time":
 			_, e := strconv.Atoi(v)
