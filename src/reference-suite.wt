@@ -366,8 +366,8 @@ PARAM
 # Notes: 
 #  - Variable names consist of characters only (no numbers no _).
 #  - The following variable names are reserved for future use:
-#    "GLOBALID", "RANDOM", all viariables starting with "ENV" and
-#    NOW (see below)
+#    "GLOBALID", "RANDOM", all variables starting with "ENV" and
+#    "NOW" (see below)
 ---------------------------------
 Test Archive
 ---------------------------------
@@ -406,7 +406,7 @@ SETTING
 # -----------------
 #
 # The following variables are provided by the system and cannot be
-# redefined: "NOW".
+# redefined: "NOW" (currently the only one). 
 ---------------------------------
 Special Variables
 ---------------------------------
@@ -418,11 +418,14 @@ RESPONSE
 	
 	# Now can be increased/decreased by adding/subtracting timespans.
 	# Formating remains RFC1123
-	Expires   ${NOW + 3Days}
+	Expires   ${NOW + 3days}
 	
 	# If you need a different time format: add your own fmt definition
-	# on gos time format after a '|' charcter.
-	Last-Modified  ${NOW - 5Hours + 10Minutes | Mon Jan _2 15:04:05 2006}
+	# on gos time format after a '|' charcter.  Time will be in UTC!
+	Last-Modified  ${NOW - 5 hours + 10 minutes | Mon Jan _2 15:04:05 2006}
+	# Possible modifiers are "second", "minute", "hour", "day", "week",
+	# "month" and "year" (all lower case plural accepted).
+	# Output is in UTC time format (to prevent bug in Go)
 	
 
 

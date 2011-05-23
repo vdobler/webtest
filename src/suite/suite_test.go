@@ -15,27 +15,28 @@ var (
 	port       = ":54123"
 	host       = "http://localhost"
 	theSuite   *Suite
-	skipStress bool = true
+	skipStress bool
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
 var testserverStayAlive int64 = 0
 
 
-
 func TestNextPart(t *testing.T) {
 	var nextPartER [][4]string = [][4]string{[4]string{"Hallo", "Hallo", "", ""},
 		[4]string{"Hallo ${abc}", "Hallo ", "abc", ""},
+		[4]string{"Hallo ${abc", "Hallo ${abc", "", ""},
+		[4]string{"Hallo ${abc.}", "Hallo ${abc.}", "", ""},
 		[4]string{"Hallo ${a} du", "Hallo ", "a", " du"},
 		[4]string{"Hallo ${abc} du ${da} welt", "Hallo ", "abc", " du ${da} welt"},
 		[4]string{"${xyz}", "", "xyz", ""},
 		[4]string{"${xyz} 123", "", "xyz", " 123"},
 		[4]string{"Time ${NOW +3minutes-1hour+12days} UTC", "Time ", "NOW +3minutes-1hour+12days", " UTC"},
-		}
+	}
 	for _, exp := range nextPartER {
 		pre, vn, post := nextPart(exp[0])
 		// fmt.Printf("%s:\n", exp[0])
-		if pre != exp[1] ||vn != exp[2] || post != exp[3] {
+		if pre != exp[1] || vn != exp[2] || post != exp[3] {
 			t.Error("Expected " + exp[0] + ", " + exp[1] + ", " + exp[2] + " but got " + pre + ", " + vn + ", " + post)
 		}
 	}
@@ -48,6 +49,19 @@ func TestNowValue(t *testing.T) {
 		[]string{"+2days"},
 		[]string{"+40days"},
 		[]string{"+10days - 2hours + 10 seconds"},
+		[]string{"+ 1 month"},
+		[]string{"+ 2 month"},
+		[]string{"+ 3 month"},
+		[]string{"+ 4 month"},
+		[]string{"+ 12 month"},
+		[]string{"+ 13 month"},
+		[]string{"- 4 month"},
+		[]string{"- 12 month"},
+		[]string{"- 13 month"},
+		[]string{"+ 1 year"},
+		[]string{"+ 2 year"},
+		[]string{"+ 3 year"},
+		[]string{"+ 4 year"},
 	}
 	for _, x := range nowValueER {
 		nv := x[0]
@@ -633,7 +647,6 @@ func TestNowVariable(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
 	}
-	LogLevel = 6
 	theSuite.RunTest(14)
 	passed(&theSuite.Test[14], t)
 }
