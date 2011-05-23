@@ -414,15 +414,15 @@ GET http://some.url
 RESPONSE
 	# NOW is the current time formated as RFC1123 (taht is
 	# "Mon, 02 Jan 2006 15:04:05 MST"
-	Date      ${NOW}
+	Date   ==    ${NOW}
 	
 	# Now can be increased/decreased by adding/subtracting timespans.
 	# Formating remains RFC1123
-	Expires   ${NOW + 3days}
+	Expires >  ${NOW + 3days}
 	
 	# If you need a different time format: add your own fmt definition
 	# on gos time format after a '|' charcter.  Time will be in UTC!
-	Last-Modified  ${NOW - 5 hours + 10 minutes | Mon Jan _2 15:04:05 2006}
+	Last-Modified  >=  ${NOW - 5 hours + 10 minutes | Mon Jan _2 15:04:05 2006}
 	# Possible modifiers are "second", "minute", "hour", "day", "week",
 	# "month" and "year" (all lower case plural accepted).
 	# Output is in UTC time format (to prevent bug in Go)
@@ -443,7 +443,7 @@ RESPONSE
 #    some background job to complete and check this regularely.
 # Note: Combining repetition and trying is possible, but the result is
 # currently undefined (aka buggy): The test status is solely determined
-by the last repetition.
+# by the last repetition.
 ---------------------------------
 Wait for bg job
 ---------------------------------

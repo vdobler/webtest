@@ -313,7 +313,7 @@ func (p *Parser) readCond(mode int) []Condition {
 				warn("Operator '!=' is unsafe. Use '! Key == Val' construct in %s:%d.", p.name, no)
 				neg, op = !neg, "=="
 			default:
-				error("Unknown operator '%s' in %s:%d.", p.name, no)
+				error("Unknown operator '%s' in %s:%d.", op, p.name, no)
 				p.okay = false
 				continue
 			}
