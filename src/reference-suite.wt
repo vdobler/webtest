@@ -206,17 +206,17 @@ BODY
 # The syntax is a bit like
 #   tagSpec   :=  ['!'] [ numOp number ] { simpleTag | tagStructure }
 #   numOp     :=  { '<', '<=', '==', '>=', '>' }
-#   number    :=  "any number >= 0, e.g. 4 or 17"
+#   number    :=  <any number >= 0, e.g. 4 or 17>
 #   simpleTag :=  tagName [class...] [attribute...] [ { '==' | '=D='} content]
-#   tagName   :=  "the lower case tag name: h2, div, iframe, ..."
+#   tagName   :=  <the lower case tag name: h2, div, iframe, ...>
 #   class     :=  [ '!' ] 'class='content
 #   attribute :=  [ '!' ] attrName'='content
-#   attrName  :=  "the lowercase attribute name, e.g. href, title, ..."
+#   attrName  :=  <the lowercase attribute name, e.g. href, title, ...>
 #   content   :=  { '/' regexp '/' | pattern }
-#   regexp    :=  "a valid regular expression"
-#   pattern   :=  "a text pattern with * and ? as wildcards"
+#   regexp    :=  <a valid regular expression>
+#   pattern   :=  <a text pattern with * and ? as the usual wildcards>
 #   tagStruct :=  '[' '\n' moreIndnt { simpleTag | tagStructure } '\n' ']'
-#   moreIndnt :=  "more indentation by tabs than previous/parent tagSpec."
+#   moreIndnt :=  <more indentation by tabs/spc than previous/parent tagSpec.>
 #
 TAG
 	# Check if any h2 tag with a class of 'home' and text content of
@@ -363,7 +363,11 @@ PARAM
 # SEQ cycles through the list in the given order, whereas RAND picks one 
 # value by random for each round of the test.  
 #
-# Notes: Variable names consist of characters only (no numbers no _).
+# Notes: 
+#  - Variable names consist of characters only (no numbers no _).
+#  - The following variable names are reserved for future use:
+#    "GLOBALID", "RANDOM", all viariables starting with "ENV" and
+#    NOW (see below)
 ---------------------------------
 Test Archive
 ---------------------------------
@@ -395,6 +399,31 @@ RAND
 SETTING
 	# Repeat the test 7 times.
 	Repeat	7
+
+
+#
+# Special Veriables
+# -----------------
+#
+# The following variables are provided by the system and cannot be
+# redefined: "NOW".
+---------------------------------
+Special Variables
+---------------------------------
+GET http://some.url
+RESPONSE
+	# NOW is the current time formated as RFC1123 (taht is
+	# "Mon, 02 Jan 2006 15:04:05 MST"
+	Date      ${NOW}
+	
+	# Now can be increased/decreased by adding/subtracting timespans.
+	# Formating remains RFC1123
+	Expires   ${NOW + 3Days}
+	
+	# If you need a different time format: add your own fmt definition
+	# on gos time format after a '|' charcter.
+	Last-Modified  ${NOW - 5Hours + 10Minutes | Mon Jan _2 15:04:05 2006}
+	
 
 
 #

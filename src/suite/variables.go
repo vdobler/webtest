@@ -5,6 +5,9 @@ import (
 	"rand"
 	"time"
 	"dobler/webtest/tag"
+	"regexp"
+ 	"strconv"
+//	"fmt"
 )
 
 // Random for RAND sections
@@ -17,21 +20,31 @@ var Const map[string]string = map[string]string{}
 func isLetter(x uint8) bool {
 	return (x >= 'a' && x <= 'z') || (x >= 'A' && x <= 'Z')
 }
+func isDigit(x uint8) bool {
+	return (x >= '0' && x <= '9')
+}
 
-// Return a list of all occurences of all variables in str.
-func usedVars(str string) (vars []string) {
-	m := len(str) - 1
-	for i := 0; i < m; i++ {
-		if str[i] == '$' && str[i+1] == '{' {
-			a := i + 2
-			for i = a; i < m && isLetter(str[i]); i++ {
-			}
-			// debug("Start %d, End %d, Name %s", a, i, str[a:i])
-			if str[i] == '}' {
-				vars = append(vars, str[a:i])
-			}
-		}
+type Variable struct {
+	Name string
+	Start int
+	End  int
+}
+
+
+// Split str into "pre${vn}post" parts
+func nextPart(str string) (pre, vn, post string) {
+	i := strings.Index(str, "${")
+	if i == -1 || i>=len(str)-3 {
+		pre = str
+		return
 	}
+	pre, str = str[:i], str[i+2:]  
+	j := strings.Index(str, "}") // TODO: read variables or NOW only
+	if j==-1 {
+		pre += "${" + str
+		return
+	}
+	vn, post = str[:j], str[j+1:]
 	return
 }
 
@@ -56,10 +69,7 @@ func nextVar(list []string, v string, t *Test) (val string) {
 
 
 func varValueFallback(v string, test, global, orig *Test) (value string) {
-	if val, ok := orig.Vars[v]; ok {
-		value = val
-		trace("Reusing '%s' for var '%s'.", val, v)
-	} else if val, ok := Const[v]; ok {
+	if val, ok := Const[v]; ok {
 		value = val
 	} else if val, ok := test.Const[v]; ok {
 		value = val
@@ -77,16 +87,11 @@ func varValueFallback(v string, test, global, orig *Test) (value string) {
 		error("Cannot find value for variable '%s'!", v)
 	}
 
-	// Save value
-	orig.Vars[v] = value
 	return
 }
 
 func varValue(v string, test, orig *Test) (value string) {
-	if val, ok := orig.Vars[v]; ok {
-		value = val
-		trace("Reusing '%s' for var '%s'.", val, v)
-	} else if val, ok := test.Const[v]; ok {
+	if val, ok := test.Const[v]; ok {
 		value = val
 		trace("Using const '%s' for var '%s'.", val, v)
 	} else if rnd, ok := test.Rand[v]; ok {
@@ -98,31 +103,87 @@ func varValue(v string, test, orig *Test) (value string) {
 		error("Cannot find value for variable '%s'!", v)
 	}
 
-	// Save value
-	orig.Vars[v] = value
 	return
 }
 
-// Subsitute all variables in str with their appropriate values.
-// If global is non nil, than global woll be used as fallback if test
-// does not provide the variable.
-func substitute(str string, test, global, orig *Test) string {
-	used := usedVars(str)
-	for _, v := range used {
-		var val string
-		if global != nil {
-			val = varValueFallback(v, test, global, orig)
-		} else {
-			val = varValue(v, test, orig)
+
+func nowValue(rel, tf string, utc bool) string {
+	rel = strings.Replace(rel, " ", "", -1)
+	
+	rx, err := regexp.Compile("([+\\-])([0-9]+)(second|minute|hour|day|week|month|year)s?")
+	if err != nil {
+		error("Ooooops: " + err.String())
+	}
+	all := rx.FindAllStringSubmatch(rel, -1)
+	
+	var d int64
+	for _, delta := range all {
+		n, _ := strconv.Atoi64(delta[2])
+		if delta[1] == "-" {
+			n = -n
 		}
-		trace("Will use '%s' as value for var %s.", val, v)
-		str = strings.Replace(str, "${"+v+"}", val, 1)
+		switch delta[3] {
+		case "second":
+		case "minute":
+			n *= 60
+		case "hour":
+			n *= 3600
+		case "day":
+			n *= 24 * 3600
+		case "week":
+			n *=  7 * 24 * 3600
+		case "month":
+			n *= 30 * 24 * 3600  // TODO
+		case "year":
+			n += 365 * 24 * 3600  // TODO
+		default:
+			error("Oooops: %s", delta[3])
+		}
+		d += n
 	}
-	if len(used) > 0 {
-		trace("Substituted %d variables: '%s'.", len(used), str)
+	var t *time.Time
+	if utc {
+		t = time.SecondsToUTC(time.UTC().Seconds() + d)
+	} else {
+		t = time.SecondsToLocalTime(time.LocalTime().Seconds() + d)
 	}
-	return str
+	return t.Format(tf)
 }
+
+func substitute(str string, test, global, orig *Test) string {
+	pre, vn, post := nextPart(str)
+	if vn == "" {
+		return pre
+	}
+	
+	var val string
+	if v, ok := orig.Vars[vn]; ok {
+		val = v
+		trace("Reusing '%s' for var '%s'.", val, vn)
+	} else {
+		if strings.HasPrefix(vn, "NOW") && (len(vn)==3 || !isLetter(vn[3])) {  
+			tf := time.RFC1123
+			s := strings.Trim(vn[3:], " \t")
+			if i := strings.Index(s, "|"); i!=-1 {
+				tf = strings.Trim(s[i+1:], " ")
+				s = strings.Trim(s[:i], " ")
+			}
+			val = nowValue(s,tf, true)
+		} else {
+			if global != nil {
+				val = varValueFallback(vn, test, global, orig)
+			} else {
+				val = varValue(vn, test, orig)
+			}
+		}
+		orig.Vars[vn] = val  // Save value for further use in this test
+	}
+	trace("Will use '%s' as value for var %s.", val, vn)
+	return pre + val + substitute(post, test, global, orig)
+}
+	
+
+
 
 func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {
 	ts.Content = substitute(ts.Content, test, global, orig)

@@ -15,11 +15,50 @@ var (
 	port       = ":54123"
 	host       = "http://localhost"
 	theSuite   *Suite
-	skipStress bool
+	skipStress bool = true
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
 var testserverStayAlive int64 = 0
+
+
+
+func TestNextPart(t *testing.T) {
+	var nextPartER [][4]string = [][4]string{[4]string{"Hallo", "Hallo", "", ""},
+		[4]string{"Hallo ${abc}", "Hallo ", "abc", ""},
+		[4]string{"Hallo ${a} du", "Hallo ", "a", " du"},
+		[4]string{"Hallo ${abc} du ${da} welt", "Hallo ", "abc", " du ${da} welt"},
+		[4]string{"${xyz}", "", "xyz", ""},
+		[4]string{"${xyz} 123", "", "xyz", " 123"},
+		[4]string{"Time ${NOW +3minutes-1hour+12days} UTC", "Time ", "NOW +3minutes-1hour+12days", " UTC"},
+		}
+	for _, exp := range nextPartER {
+		pre, vn, post := nextPart(exp[0])
+		// fmt.Printf("%s:\n", exp[0])
+		if pre != exp[1] ||vn != exp[2] || post != exp[3] {
+			t.Error("Expected " + exp[0] + ", " + exp[1] + ", " + exp[2] + " but got " + pre + ", " + vn + ", " + post)
+		}
+	}
+}
+
+func TestNowValue(t *testing.T) {
+	var nowValueER [][]string = [][]string{[]string{""},
+		[]string{"+1hour"},
+		[]string{"+10hours"},
+		[]string{"+2days"},
+		[]string{"+40days"},
+		[]string{"+10days - 2hours + 10 seconds"},
+	}
+	for _, x := range nowValueER {
+		nv := x[0]
+		// TODO: test...
+		fmt.Printf("%s  -- %s -->  %s\n", nowValue("", time.RFC1123, true), nv, nowValue(nv, time.RFC1123, true))
+	}
+}
+
+func TestStop(t *testing.T) {
+	// os.Exit(0)
+}
 
 
 var suiteTmpl = `
@@ -115,7 +154,7 @@ PARAM
 BODY
 	Txt  ~=  ${name}
 SETTING
-	Repeat	3
+	Repeat	10
 	
 # Test no 6
 -------------------------
@@ -225,7 +264,21 @@ BODY
 	Txt  ~= ABCDwxyz1234
 SETTING
 	Dump 1
+
+# Test no 15
+----------------------
+Now
+----------------------
+GET ${URL}/html.html
+PARAM
+	text 	"Its now ${NOW + 3hours -15minutes | 02.01.2006 15:04:05} oclock"
+BODY
+	Txt  ~=  Its now ${NOW + 3hours -15minutes | 02.01.2006 15:04:05} oclock
+SETTING
+	Repeat	5
+	Sleep   1500
 `
+
 
 var cookieSuite = fmt.Sprintf(`
 ----------------------
@@ -574,6 +627,15 @@ func TestMultipartPost(t *testing.T) {
 	}
 	theSuite.RunTest(13)
 	passed(&theSuite.Test[13], t)
+}
+
+func TestNowVariable(t *testing.T) {
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	LogLevel = 6
+	theSuite.RunTest(14)
+	passed(&theSuite.Test[14], t)
 }
 
 
