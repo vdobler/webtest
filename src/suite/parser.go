@@ -493,14 +493,14 @@ func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
 				error("Sleep is < 0 on line %s.", lineid)
 				p.okay = false
 			}
-		case "Keep-Cookies":
+		case "Keep-Cookies", "Abort":
 			switch v {
-			case "true", "1", "True", "TRUE", "keep", "Keep":
+			case "true", "1", "True", "TRUE":
 				(*settings)[k] = "1"
-			case "false", "0", "False", "FALSE", "drop", "DROP":
+			case "false", "0", "False", "FALSE":
 				(*settings)[k] = "0"
 			default:
-				error("Unknown value for Keep-Cookies: must be 0 or 1 (was '%s') on line %s.", v, lineid)
+				error("Unknown value for %s: must be 0 or 1 (was '%s') on line %s.", k, v, lineid)
 				p.okay = false
 			}
 		case "Dump":
