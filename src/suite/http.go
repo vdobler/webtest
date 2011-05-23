@@ -119,8 +119,6 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
 func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	// TODO: redirectrs should use basically the same header information as the
-	// original request.
 	// TODO: set referrer header on redirects.
 
 	info("%s %s", req.Method, req.URL.String())
@@ -269,7 +267,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 		if len(v) > 0 {
 			for _, vv := range v {
 				trace("Added parameter %s with value '%s' to request body.", n, vv)
-				var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n", boundary, n, vv) // TODO: maybe escape value?
+				var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n", boundary, n, vv)
 				body.WriteString(part)
 			}
 		} else {

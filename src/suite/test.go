@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	BenchTolerance float32 = 1.3
+	BenchTolerance float32 = 1.3 // 30% of test may fail during benchmarking without aborting the benchmark.
 )
 
 type Error string
@@ -91,6 +91,7 @@ func copyMultiMap(src map[string][]string) (dest map[string][]string) {
 	}
 	return
 }
+
 func copyMap(src map[string]string) (dest map[string]string) {
 	dest = make(map[string]string, len(src))
 	for k, v := range src {
@@ -161,6 +162,7 @@ func NewTest(title string) *Test {
 	t.Setting["Max-Time"] = "-1"
 	t.Setting["Sleep"] = "0"
 	t.Setting["Keep-Cookies"] = "0"
+	t.Setting["Abort"] = "0"
 
 	return &t
 }
@@ -330,6 +332,10 @@ func (t *Test) Tries() int {
 
 func (t *Test) KeepCookies() bool {
 	return t.boolSetting("Keep-Cookies", false)
+}
+
+func (t *Test) Abort() bool {
+	return t.boolSetting("Abort", false)
 }
 
 // Look for name in cookies. Return index if found and -1 otherwise.

@@ -481,13 +481,13 @@ func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
 		case "Max-Time":
 			_, e := strconv.Atoi(v)
 			if e != nil {
-				error("No in value given as Max-Time miliseconds (was '%s') on line %s.", v, lineid)
+				error("No value given as Max-Time miliseconds (was '%s') on line %s.", v, lineid)
 				p.okay = false
 			}
 		case "Sleep":
 			i, e := strconv.Atoi(v)
 			if e != nil {
-				error("No in value given as Sleep miliseconds (was '%s') on line %s.", v, lineid)
+				error("No value given as Sleep miliseconds (was '%s') on line %s.", v, lineid)
 				p.okay = false
 			} else if i < 0 {
 				error("Sleep is < 0 on line %s.", lineid)
@@ -503,7 +503,15 @@ func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
 				error("Unknown value for Keep-Cookies: must be 0 or 1 (was '%s') on line %s.", v, lineid)
 				p.okay = false
 			}
-		case "Dump": // TODO check
+		case "Dump":
+			i, e := strconv.Atoi(v)
+			if e != nil {
+				error("No value given for Dump (was '%s') on line %s.", v, lineid)
+				p.okay = false
+			} else if i != 0 && i != 1 && i != 2 {
+				error("Wrong setting for Dump (0: no dump, 1, create file, 2: append) on line %s.", lineid)
+				p.okay = false
+			}
 		default:
 			warn("Unknown Setting '%s' (check spelling and capitalization).", k)
 		}

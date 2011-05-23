@@ -1,5 +1,7 @@
 package main
 
+// Copyright 2011 Dr. Volker Dobler. All rights reserved.
+
 import (
 	"fmt"
 	"flag"
@@ -70,7 +72,7 @@ func trace(f string, m ...interface{}) {
 	}
 }
 
-// Determine wether test no should be run based on testsToRun
+// Determine whether test no should be run based on testsToRun
 func shouldRun(s *suite.Suite, no int) bool {
 	if testsToRun == "" {
 		return true
@@ -100,6 +102,7 @@ func shouldRun(s *suite.Suite, no int) bool {
 const MaxInt = int(^uint(0) >> 1)
 const MinInt = -MaxInt - 1
 
+// Compute minimum, 0.25 percentil, median, average, 75% percentil and maximum of values in data.
 func sixval(data []int) (min, lq, med, avg, uq, max int) {
 	min, max = MaxInt, MinInt
 	sum, n := 0, len(data)
@@ -123,6 +126,8 @@ func sixval(data []int) (min, lq, med, avg, uq, max int) {
 	return
 }
 
+
+// Print usage information and exit.
 func help() {
 	fmt.Fprintf(os.Stderr, "\nUsage:\n")
 	fmt.Fprintf(os.Stderr, "\twebtest [-test] [common options] [test options] <suite>...\n")
@@ -167,6 +172,7 @@ func help() {
 	os.Exit(1)
 }
 
+// Const-variables which can be set via the command line. Statisfied flag.Value interface.
 type cmdlVar struct {
 	m map[string]string
 }
@@ -186,7 +192,7 @@ func (c cmdlVar) Set(s string) bool {
 }
 
 
-func main() {
+func globalInitialization() {
 	logger = log.New(os.Stderr, "Webtest ", log.Ldate|log.Ltime)
 
 	var helpme bool
@@ -256,6 +262,13 @@ func main() {
 	suite.LogLevel = suiteLogLevel
 	tag.LogLevel = tagLogLevel
 
+}
+
+
+// Main method for webtest.
+func main() {
+	globalInitialization()
+
 	if stresstestMode {
 		if flag.NArg() != 2 {
 			error("Stresstest requires excatly two suites.")
@@ -272,6 +285,8 @@ func main() {
 	}
 }
 
+
+// Standard test or benchmarking.
 func testOrBenchmark(filenames []string) {
 
 	var result string = "\n======== Results ===============================================================\n"
@@ -341,6 +356,10 @@ func testOrBenchmark(filenames []string) {
 				result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
 				if _, _, failed := s.Test[i].Stat(); failed > 0 {
 					passed = false
+					if s.Test[i].Abort() {
+						fmt.Printf("Aborting suite.\n")
+						break
+					}
 				}
 			}
 		}
@@ -362,6 +381,8 @@ func testOrBenchmark(filenames []string) {
 	}
 }
 
+
+// Read a webtest suite from file.
 func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) {
 	var file *os.File
 	file, err = os.Open(filename)
@@ -380,43 +401,8 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 	return
 }
 
-func stressChartUrl(data []suite.StressResult) (url string) {
-	url = "http://chart.googleapis.com/chart?cht=lxy&chs=500x300&chxs=0,676767,11.5,0,lt,676767&chxt=x,y,r"
-	url += "&chls=2|2|2&chco=0000FF,00FF00,FF0000&chm=s,000000,0,-1,4|s,000000,1,-1,4|s,000000,2,-1,4"
-	url += "&chdlp=b&chdl=Max+RT|Avg+RT|Err+Rate"
-	var mrt int64 = -1
-	for _, d := range data {
-		if d.MaxRT > mrt {
-			mrt = d.MaxRT
-		}
-	}
-	mrt = 100 * ((mrt + 99) / 100)
 
-	url += fmt.Sprintf("&chxr=1,0,%d", mrt)
-
-	var chd string = "&chd=t:"
-	var maxd string
-	var avgd string
-	var ld string
-	var errd string
-	for i, d := range data {
-		if i > 0 {
-			ld += ","
-			maxd += ","
-			avgd += ","
-			errd += ","
-		}
-		ld += fmt.Sprintf("%d", d.Load)
-		maxd += fmt.Sprintf("%d", int(100*d.MaxRT/mrt))
-		avgd += fmt.Sprintf("%d", int(100*d.AvgRT/mrt))
-		errd += fmt.Sprintf("%d", int(100*d.Fail/d.Total))
-	}
-	chd += ld + "|" + maxd + "|" + ld + "|" + avgd + "|" + ld + "|" + errd
-
-	url += chd + "\n"
-	return
-}
-
+// Real stresstest: Ramp up load until "collaps".
 func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	var load int = 0
 	var lastRespTime int64 = -1
@@ -477,6 +463,7 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 }
 
 
+//  Perform stresstest.
 func stresstest(bgfilename, testfilename string) {
 	// Read background and test suite
 	background, _, berr := readSuite(bgfilename)
@@ -499,6 +486,7 @@ func stresstest(bgfilename, testfilename string) {
 }
 
 
+// Generate Google chart for benchmark results.
 func benchChartUrl(d []int, title string) (url string) {
 	url = "http://chart.googleapis.com/chart?cht=bvg&chs=600x300&chxs=0,676767,11.5,0,lt,676767&chxt=x&chdlp=b"
 	url += "&chbh=a&chco=404040&chtt=" + http.URLEscape(strings.Trim(title, " \t\n")) + "&chdl=Response+Times+[ms]"
@@ -541,5 +529,44 @@ func benchChartUrl(d []int, title string) (url string) {
 		}
 		url += fmt.Sprintf("%d", n)
 	}
+	return
+}
+
+
+// Generate Google chart for stresstest results.
+func stressChartUrl(data []suite.StressResult) (url string) {
+	url = "http://chart.googleapis.com/chart?cht=lxy&chs=500x300&chxs=0,676767,11.5,0,lt,676767&chxt=x,y,r"
+	url += "&chls=2|2|2&chco=0000FF,00FF00,FF0000&chm=s,000000,0,-1,4|s,000000,1,-1,4|s,000000,2,-1,4"
+	url += "&chdlp=b&chdl=Max+RT|Avg+RT|Err+Rate"
+	var mrt int64 = -1
+	for _, d := range data {
+		if d.MaxRT > mrt {
+			mrt = d.MaxRT
+		}
+	}
+	mrt = 100 * ((mrt + 99) / 100)
+
+	url += fmt.Sprintf("&chxr=1,0,%d", mrt)
+
+	var chd string = "&chd=t:"
+	var maxd string
+	var avgd string
+	var ld string
+	var errd string
+	for i, d := range data {
+		if i > 0 {
+			ld += ","
+			maxd += ","
+			avgd += ","
+			errd += ","
+		}
+		ld += fmt.Sprintf("%d", d.Load)
+		maxd += fmt.Sprintf("%d", int(100*d.MaxRT/mrt))
+		avgd += fmt.Sprintf("%d", int(100*d.AvgRT/mrt))
+		errd += fmt.Sprintf("%d", int(100*d.Fail/d.Total))
+	}
+	chd += ld + "|" + maxd + "|" + ld + "|" + avgd + "|" + ld + "|" + errd
+
+	url += chd + "\n"
 	return
 }
