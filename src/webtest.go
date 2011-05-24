@@ -77,12 +77,12 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 		return true
 	}
 	sp := strings.Split(testsToRun, ",", -1)
-	title := s.Test[no].Title
+	title := s.Test[no-1].Title
 	for _, x := range sp {
-		if x == fmt.Sprintf("%d.%d", sn+1, no+1) {
+		if x == fmt.Sprintf("%d.%d", sn, no) {
 			return true
 		}
-		if sn == 1 && x == fmt.Sprintf("%d", sn+1, no+1) {
+		if sn == 1 && x == fmt.Sprintf("%d", no) {
 			return true
 		}
 		matches, err := path.Match(x, title)
@@ -335,16 +335,17 @@ func testOrBenchmark(filenames []string) {
 		fails += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
 		
 		for i, t := range s.Test {
+			if !shouldRun(s, sn+1, i+1) {
+				info("Skipped test %d.", i+1)
+				continue
+			}
+
 			abbrTitle := t.Title
 			if len(abbrTitle) > 25 {
 				abbrTitle = abbrTitle[0:23] + ".."
 			}
 			abbrTitle = fmt.Sprintf("Test %2d: %-25s", i+1, abbrTitle)
 
-			if !shouldRun(s, sn, i) {
-				info("Skipped test %d.", i)
-				continue
-			}
 
 			if benchmarkMode {
 				dur, f, err := s.BenchTest(i, numRuns)
