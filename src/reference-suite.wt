@@ -59,7 +59,7 @@ CONST
 Ping
 ---------------------------------
 # Method may be "GET" or "POST". The URL must be a valid, full qualified 
-# URL.
+# URL.  https works like expected.
 GET http://host.to.ping/path.html
 
 # The response section: In this section the various header fields of the

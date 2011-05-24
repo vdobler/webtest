@@ -108,3 +108,15 @@ SETTING
 	Repeat		13
 TAG
 	div class=jobs == Die Suche ergab keine Resultate.
+
+	
+--------------------------------
+HTTPS
+--------------------------------
+GET http://www.jgk.be.ch/jgk/de/index/direktion/organisation/agr/kontakt.html
+RESPONSE
+	Final-Url  ==  https://www.jgk.be.ch/jgk/de/index/direktion/organisation/agr/kontakt.html
+TAG
+	h2 == Kontaktformular für das Amt für Gemeinden und Raumordnung (AGR)
+SETTING
+	Dump  1
