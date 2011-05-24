@@ -358,8 +358,8 @@ SET-COOKIE
 	TheSession:Path    _=  /de/
 	TheSession:Secure  ==  true
 	TheSession:Domain  =_  .org
-	TheSession:Expires  <  Sat, 21 May 2011 12:00:00 GMT
-	TheSession:Expires  >  Thu, 19 May 2011 12:00:00 GMT
+	TheSession:Expires  <  ${NOW + 1 year}
+	TheSession:Expires  >  ${NOW + 1 day}
 	
 BODY
 	Txt  ~=  Post Page 
@@ -374,7 +374,39 @@ Access
 ---------------------
 GET ${URL}/cookie.html
 TAG
-	li == Thesession :: randomsessionid
+	li == TheSession :: randomsessionid
+
+SETTING
+	Dump          1
+
+
+----------------------
+Logout
+----------------------
+POST ${URL}/post
+PARAM
+	# cookie parameter is added to response header by /post handler
+	cookie  TheSession=-DELETE-
+RESPONSE
+	Final-Url	==	${URL}/post
+SET-COOKIE
+	TheSession:MaxAge   <   0
+	!TheSession         ~=  randomsessionid
+BODY
+	Txt  ~=  Post Page 
+SETTING
+	# Store recieved/deleted cookies in Global
+	Keep-Cookies  1
+	Dump          1
+	
+---------------------
+Failing Access
+---------------------
+GET ${URL}/cookie.html
+TAG
+	! li == *TheSession*
+
+
 `,
 	host, port)
 
@@ -451,7 +483,13 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
 		cp := strings.Split(cv, "=", 2)
-		w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; expires=Fri, 20 May 2011 12:34:55 GMT; Domain=my.domain.org; Secure;", cp[0], cp[1]))
+		if cp[1] != "-DELETE-" {
+			exp := time.SecondsToUTC(time.UTC().Seconds() + 7 * 24 * 3600).Format(time.RFC1123) // Now + 7 days
+			w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; expires=%s; Domain=my.domain.org; Secure;", cp[0], cp[1], exp))
+		} else {
+			trace("post-handler: Deleting cookie %s\n", cp[0]) 
+			w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; MaxAge=-1; Domain=my.domain.org; Secure;", cp[0], "X"))
+		}
 	}
 	t := req.FormValue("q")
 	if req.Method != "POST" {
@@ -524,7 +562,13 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 
 func passed(test *Test, t *testing.T) bool {
 	if !strings.HasPrefix(test.Status(), "PASSED") {
-		t.Logf("Result from test %s:\n%s", test.Title, test.Result)
+		f := ""
+		for _, x := range test.Result {
+			if !strings.HasPrefix(x, "Passed") {
+				f += "  " + x + "\n"
+			}
+		}
+		t.Logf("Result from test %s:\n%s", test.Title, f)
 		t.Fail()
 		return false
 	}
@@ -721,7 +765,13 @@ func TestCookies(t *testing.T) {
 	}
 
 	cs.RunTest(2) // Access
-	passed(&cs.Test[1], t)
+	passed(&cs.Test[2], t)
+
+	cs.RunTest(3) // Logout
+	passed(&cs.Test[3], t)
+	
+	cs.RunTest(4) // Failed Access
+	passed(&cs.Test[4], t)
 }
 
 

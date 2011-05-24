@@ -801,9 +801,13 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				}
 
 				for _, c := range cookies {
-					// TODO: Test for overwrite/modify
-					global.Cookie[c.Name] = c.Value
-					trace("kept cookie %s = %s (global = %p)", c.Name, c.Value, global)
+					if c.MaxAge == -999 {  // Delete
+						trace("Deleting cookie %s from global (delete req from server).", c.Name)
+						global.Cookie[c.Name] = "", false
+					} else {
+						trace("Storing cookie %s in global.", c.Name)
+						global.Cookie[c.Name] = c.Value
+					}
 				}
 			}
 

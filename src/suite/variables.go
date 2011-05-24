@@ -223,6 +223,9 @@ func substituteVariables(test, global, orig *Test) {
 	for i, c := range test.BodyCond {
 		test.BodyCond[i].Val = substitute(c.Val, test, global, orig)
 	}
+	for i, c := range test.CookieCond {
+		test.CookieCond[i].Val = substitute(c.Val, test, global, orig)
+	}
 
 	for k, vl := range test.Param {
 		trace("Param %s: %v", k, vl)

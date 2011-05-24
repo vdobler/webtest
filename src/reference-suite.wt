@@ -369,7 +369,7 @@ PARAM
 #    "GLOBALID", "RANDOM", all variables starting with "ENV" and
 #    "NOW" (see below)
 ---------------------------------
-Test Archive
+Variables
 ---------------------------------
 # Usage of a variable: ${BaseUrl} is replace by const value set bolow.
 # resulting in URL beeing http://my.blog/entries/show
@@ -445,7 +445,7 @@ RESPONSE
 # currently undefined (aka buggy): The test status is solely determined
 # by the last repetition.
 ---------------------------------
-Wait for bg job
+Wait for Background Job
 ---------------------------------
 GET http://some.host/job/123/detail.html
 BODY
@@ -464,7 +464,7 @@ SETTING
 # Various setting can be applied to each and every test in the SETTING
 # section. Currently the following are implemented.
 ---------------------------------
-Repeated Ping
+Settings
 ---------------------------------
 GET http://host.to.ping/path.html
 SETTING
@@ -535,6 +535,13 @@ SET-COOKIE
 	name:MaxAge   ==  0
 	name:Expires  ~=  Nov 2013
 	name:Expires   >  Mon, 02 Jan 2006 15:04:05 MST
+	
+	# If the server sends a cookie which is allready expired or the max age
+	# is lower 0, this cookie is deleted and also deleted in Global if
+	# Keep-Cookies is true
+	
+	# Note: Cookies must be explicitely deleted, mere expiering will
+	# _not_ remove them.
 	
 SETTING
 	# Recieved sookies can be stored in the SEND-COOKIE section of the

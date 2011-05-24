@@ -87,32 +87,67 @@ func dumpRes(res *http.Response, dump io.Writer) {
 }
 
 
+// 
+func valid(cookie *http.Cookie) bool {
+	if cookie.MaxAge < 0 {
+		trace("Cookie %s has MaxAge < 0.", cookie.Name)
+		return false
+	}
+
+	if cookie.Expires.Year != 0 {
+		if cookie.Expires.Seconds() < time.UTC().Seconds() {
+			trace("Cookie %s has expired.", cookie.Name)
+			return false
+		}
+	}
+	
+	trace("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(time.RFC1123))
+	return true
+}
+
+
 // Take new cookies from recieved, and update/add to cookies 
 func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cookie {
+	var update []*http.Cookie = make([]*http.Cookie, 0)
+	
 	for _, cookie := range recieved {
+		// Prevent against bug in http package which does not parse expires field properly
+		for _, up := range cookie.Unparsed {
+			if strings.HasPrefix(strings.ToLower(up), "expires=") && len(up)>10 {
+				val := up[8:]
+				exptime, err := time.Parse(time.RFC1123, val)
+				if err == nil {
+					cookie.Expires = *exptime
+				}
+			}
+			if strings.HasPrefix(strings.ToLower(up), "maxage=") && len(up)>7 {
+				ma, err := strconv.Atoi(up[7:])
+				if err == nil {
+					cookie.MaxAge = ma
+				}
+			}
+		}
+		
+		if !valid(cookie) {
+			update = append(update, &http.Cookie{Name: cookie.Name, Value: cookie.Value, MaxAge: -999})
+			continue
+		}
+
 		var found bool
-		for i, c := range cookies {
+		for _, c := range cookies {
 			if c.Name == cookie.Name {
 				trace("Overwriting existing cookie %s with new Value %s.", cookie.Name, cookie.Value)
-				cookies[i].Value, found = cookie.Value, true
+				update = append(update, &http.Cookie{Name: cookie.Name, Value: cookie.Value})
 				break
 			}
 		}
-		if !found {
+		if !found && valid(cookie) {
 			trace("Adding new cookie %s with value %s.", cookie.Name, cookie.Value)
-			cookies = append(cookies, cookie)
+			update = append(update, cookie)
 		}
 
-		// Prevent against bug in http package which does not parse expires field properly
-		if len(cookie.Unparsed) > 0 && strings.HasPrefix(strings.ToLower(cookie.Unparsed[0]), "expires=") {
-			val := cookie.Unparsed[0][8:]
-			exptime, err := time.Parse(time.RFC1123, val)
-			if err == nil {
-				cookie.Expires = *exptime
-			}
-		}
 	}
-	return cookies
+	return update
 }
 
 
@@ -229,10 +264,11 @@ func hasFile(param *map[string][]string) bool {
 			continue
 		}
 		if strings.HasPrefix(v[0], "@file:") {
+			trace("File to upload present.")
 			return true
 		}
 	}
-	return true // false
+	return false
 }
 
 // allowed characters in a multipart boundary and own random numner generator

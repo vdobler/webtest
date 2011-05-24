@@ -89,8 +89,9 @@ func toNumber(a, b, line string) (n, m int64) {
 	var ae, be os.Error
 	// Plain numbers
 	n, ae = strconv.Atoi64(a)
-	m, be = strconv.Atoi64(a)
+	m, be = strconv.Atoi64(b)
 	if ae == nil && be == nil {
+		trace("Converted '%s' and '%s' to %d and %d.", a,b,n,m)
 		return
 	}
 
