@@ -31,35 +31,39 @@ type TagCondition struct {
 }
 
 func (tc *TagCondition) String() (s string) {
+	switch tc.Cond {
+	case TagExpected:
+		s = "  "
+	case TagForbidden:
+		s = "! "
+	case CountEqual:
+		s = fmt.Sprintf("=%d  ", tc.Count)
+	case CountNotEqual:
+		s = fmt.Sprintf("!=%d  ", tc.Count)
+	case CountLess:
+		s = fmt.Sprintf("<%d  ", tc.Count)
+	case CountLessEqual:
+		s = fmt.Sprintf("<=%d  ", tc.Count)
+	case CountGreater:
+		s = fmt.Sprintf(">%d  ", tc.Count)
+	case CountGreaterEqual:
+		s = fmt.Sprintf(">=%d  ", tc.Count)
+	default:
+		fmt.Printf("No such case: %d\n", tc.Cond)
+	}
+
+	pf := strings.Repeat(" ", len(s))
 	ts := tc.Spec.String()
 	if strings.Contains(ts, "\n") {
 		list := strings.Split(ts, "\n", -1)
 		ts = "["
 		for _, l := range list {
-			ts += "\n\t\t\t" + l
+			ts += "\n\t\t" + l
 		}
-		ts += "\n\t\t]"
+		ts += "\n\t" + pf + "]"
 	}
-	switch tc.Cond {
-	case TagExpected:
-		s = "\t" + ts
-	case TagForbidden:
-		s = "!\t" + ts
-	case CountEqual:
-		s = fmt.Sprintf("=%d\t%s", tc.Count, ts)
-	case CountNotEqual:
-		s = fmt.Sprintf("!=%d\t%s", tc.Count, ts)
-	case CountLess:
-		s = fmt.Sprintf("<%d\t%s", tc.Count, ts)
-	case CountLessEqual:
-		s = fmt.Sprintf("<=%d\t%s", tc.Count, ts)
-	case CountGreater:
-		s = fmt.Sprintf(">%d\t%s", tc.Count, ts)
-	case CountGreaterEqual:
-		s = fmt.Sprintf(">=%d\t%s", tc.Count, ts)
-	default:
-		fmt.Printf("No such case: %d\n", tc.Cond)
-	}
+	s += ts
+
 	return
 }
 
@@ -91,7 +95,7 @@ func toNumber(a, b, line string) (n, m int64) {
 	n, ae = strconv.Atoi64(a)
 	m, be = strconv.Atoi64(b)
 	if ae == nil && be == nil {
-		trace("Converted '%s' and '%s' to %d and %d.", a,b,n,m)
+		trace("Converted '%s' and '%s' to %d and %d.", a, b, n, m)
 		return
 	}
 

@@ -264,7 +264,17 @@ func (t *Test) String() (s string) {
 	s += formatMap("CONST", &t.Const)
 	s += formatMultiMap("SEQ", &t.Seq)
 	s += formatMultiMap("RAND", &t.Rand)
-	s += formatMap("SETTING", &t.Setting)
+	specSet := make(map[string]string) // map with non-standard settings
+	for k, v := range t.Setting {
+		switch true {
+		case k == "Repeat" && v == "1", k == "Dump" && v == "0", k == "Abort" && v == "0",
+			k == "Sleep" && v == "0", k == "Tries" && v == "1", k == "Max-Time" && v == "-1",
+			k == "Keep-Cookies" && v == "0":
+		default:
+			specSet[k] = v
+		}
+	}
+	s += formatMap("SETTING", &specSet)
 	if len(t.Tag) > 0 {
 		s += "TAG\n"
 		for i, tagCond := range t.Tag {
@@ -801,7 +811,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				}
 
 				for _, c := range cookies {
-					if c.MaxAge == -999 {  // Delete
+					if c.MaxAge == -999 { // Delete
 						trace("Deleting cookie %s from global (delete req from server).", c.Name)
 						global.Cookie[c.Name] = "", false
 					} else {

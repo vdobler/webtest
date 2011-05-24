@@ -100,7 +100,7 @@ func valid(cookie *http.Cookie) bool {
 			return false
 		}
 	}
-	
+
 	trace("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(time.RFC1123))
 	return true
 }
@@ -109,25 +109,25 @@ func valid(cookie *http.Cookie) bool {
 // Take new cookies from recieved, and update/add to cookies 
 func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cookie {
 	var update []*http.Cookie = make([]*http.Cookie, 0)
-	
+
 	for _, cookie := range recieved {
 		// Prevent against bug in http package which does not parse expires field properly
 		for _, up := range cookie.Unparsed {
-			if strings.HasPrefix(strings.ToLower(up), "expires=") && len(up)>10 {
+			if strings.HasPrefix(strings.ToLower(up), "expires=") && len(up) > 10 {
 				val := up[8:]
 				exptime, err := time.Parse(time.RFC1123, val)
 				if err == nil {
 					cookie.Expires = *exptime
 				}
 			}
-			if strings.HasPrefix(strings.ToLower(up), "maxage=") && len(up)>7 {
+			if strings.HasPrefix(strings.ToLower(up), "maxage=") && len(up) > 7 {
 				ma, err := strconv.Atoi(up[7:])
 				if err == nil {
 					cookie.MaxAge = ma
 				}
 			}
 		}
-		
+
 		if !valid(cookie) {
 			update = append(update, &http.Cookie{Name: cookie.Name, Value: cookie.Value, MaxAge: -999})
 			continue

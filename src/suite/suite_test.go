@@ -484,10 +484,10 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 		trace("postHandler recieved param cookie %s.", cv)
 		cp := strings.Split(cv, "=", 2)
 		if cp[1] != "-DELETE-" {
-			exp := time.SecondsToUTC(time.UTC().Seconds() + 7 * 24 * 3600).Format(time.RFC1123) // Now + 7 days
+			exp := time.SecondsToUTC(time.UTC().Seconds() + 7*24*3600).Format(time.RFC1123) // Now + 7 days
 			w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; expires=%s; Domain=my.domain.org; Secure;", cp[0], cp[1], exp))
 		} else {
-			trace("post-handler: Deleting cookie %s\n", cp[0]) 
+			trace("post-handler: Deleting cookie %s\n", cp[0])
 			w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; MaxAge=-1; Domain=my.domain.org; Secure;", cp[0], "X"))
 		}
 	}
@@ -769,7 +769,7 @@ func TestCookies(t *testing.T) {
 
 	cs.RunTest(3) // Logout
 	passed(&cs.Test[3], t)
-	
+
 	cs.RunTest(4) // Failed Access
 	passed(&cs.Test[4], t)
 }

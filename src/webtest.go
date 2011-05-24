@@ -289,7 +289,7 @@ func testOrBenchmark(filenames []string) {
 
 	var result string = "\n======== Results ===============================================================\n"
 	var charts string = "\n======== Charts ================================================================\n"
-	var fails  string = "\n======== Failures ==============================================================\n"
+	var fails string = "\n======== Failures ==============================================================\n"
 
 	var passed bool = true
 	var suites []*suite.Suite = make([]*suite.Suite, 0, 20)
@@ -333,7 +333,7 @@ func testOrBenchmark(filenames []string) {
 		result += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
 		charts += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
 		fails += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
-		
+
 		for i, t := range s.Test {
 			if !shouldRun(s, sn+1, i+1) {
 				info("Skipped test %d.", i+1)
@@ -345,7 +345,6 @@ func testOrBenchmark(filenames []string) {
 				abbrTitle = abbrTitle[0:23] + ".."
 			}
 			abbrTitle = fmt.Sprintf("Test %2d: %-25s", i+1, abbrTitle)
-
 
 			if benchmarkMode {
 				dur, f, err := s.BenchTest(i, numRuns)
@@ -383,20 +382,20 @@ func testOrBenchmark(filenames []string) {
 		charts += "\n"
 
 	}
-	
+
 	filename := "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
 	file, err := os.Create(filename)
 	defer file.Close()
 	if err != nil {
 		error("Cannot write to " + filename)
 	}
-	
+
 	// Summary
 	fmt.Print(result)
 	if file != nil {
 		file.Write([]byte(result))
 	}
-	
+
 	if benchmarkMode {
 		fmt.Print(charts)
 		if file != nil {
@@ -408,7 +407,7 @@ func testOrBenchmark(filenames []string) {
 			file.Write([]byte(fails))
 		}
 	}
-	
+
 	if passed {
 		fmt.Printf("PASS\n")
 		os.Exit(0)
