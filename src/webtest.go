@@ -7,7 +7,6 @@ import (
 	"flag"
 	"os"
 	"strings"
-	"strconv"
 	"log"
 	"sort"
 	"path"
@@ -72,29 +71,27 @@ func trace(f string, m ...interface{}) {
 	}
 }
 
-// Determine whether test no should be run based on testsToRun
-func shouldRun(s *suite.Suite, no int) bool {
+// Determine whether test no of suite s (number sn) should be run based on testsToRun
+func shouldRun(s *suite.Suite, sn, no int) bool {
 	if testsToRun == "" {
 		return true
 	}
 	sp := strings.Split(testsToRun, ",", -1)
 	title := s.Test[no].Title
 	for _, x := range sp {
-		i, err := strconv.Atoi(x)
-		if err == nil {
-			i--
-			if i >= 0 && i < len(s.Test) && no == i {
-				return true
-			}
-		} else {
-			matches, err := path.Match(x, title)
-			if err != nil {
-				error("Malformed pattern '%s'.", x)
-				return false
-			}
-			if matches {
-				return true
-			}
+		if x == fmt.Sprintf("%d.%d", sn+1, no+1) {
+			return true
+		}
+		if sn == 1 && x == fmt.Sprintf("%d", sn+1, no+1) {
+			return true
+		}
+		matches, err := path.Match(x, title)
+		if err != nil {
+			error("Malformed pattern '%s' in -tests.", x)
+			continue
+		}
+		if matches {
+			return true
 		}
 	}
 	return false
@@ -292,6 +289,7 @@ func testOrBenchmark(filenames []string) {
 
 	var result string = "\n======== Results ===============================================================\n"
 	var charts string = "\n======== Charts ================================================================\n"
+	var fails  string = "\n======== Failures ==============================================================\n"
 
 	var passed bool = true
 	var suites []*suite.Suite = make([]*suite.Suite, 0, 20)
@@ -316,10 +314,11 @@ func testOrBenchmark(filenames []string) {
 				w = len(s.Name)
 			}
 		}
-		for _, s := range suites {
-			for n, t := range s.Test {
+		for sn, s := range suites {
+			for tn, t := range s.Test {
 				fmt.Printf("\n%s\n", t.String())
-				list += fmt.Sprintf("%3d: %-*s: %s\n", n+1, w, s.Name, t.Title)
+				no := fmt.Sprintf("%d.%d", sn+1, tn+1)
+				list += fmt.Sprintf("%4s: %-*s: %s\n", no, w, s.Name, t.Title)
 			}
 		}
 		fmt.Printf("\n%s", list)
@@ -333,15 +332,16 @@ func testOrBenchmark(filenames []string) {
 
 		result += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
 		charts += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
-
+		fails += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+		
 		for i, t := range s.Test {
-			at := t.Title
-			if len(at) > 25 {
-				at = at[0:23] + ".."
+			abbrTitle := t.Title
+			if len(abbrTitle) > 25 {
+				abbrTitle = abbrTitle[0:23] + ".."
 			}
-			at = fmt.Sprintf("Test %2d: %-25s", i, at)
+			abbrTitle = fmt.Sprintf("Test %2d: %-25s", i+1, abbrTitle)
 
-			if !shouldRun(s, i) {
+			if !shouldRun(s, sn, i) {
 				info("Skipped test %d.", i)
 				continue
 			}
@@ -349,11 +349,11 @@ func testOrBenchmark(filenames []string) {
 			if benchmarkMode {
 				dur, f, err := s.BenchTest(i, numRuns)
 				if err != nil {
-					result += fmt.Sprintf("%s: Unable to bench: %s\n", at, err.String())
+					result += fmt.Sprintf("%s: Unable to bench: %s\n", abbrTitle, err.String())
 				} else {
 					min, lq, med, avg, uq, max := sixval(dur)
 					result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
-						at, min, lq, med, avg, uq, max, len(dur), f)
+						abbrTitle, min, lq, med, avg, uq, max, len(dur), f)
 					charts += benchChartUrl(dur, t.Title) + "\n"
 				}
 			} else {
@@ -363,9 +363,14 @@ func testOrBenchmark(filenames []string) {
 					s.Test[i].Setting["Dump"] = "0"
 				}
 				s.RunTest(i)
-				result += fmt.Sprintf("%s: %s\n", at, s.Test[i].Status())
+				result += fmt.Sprintf("%s: %s\n", abbrTitle, s.Test[i].Status())
 				if _, _, failed := s.Test[i].Stat(); failed > 0 {
 					passed = false
+					for _, res := range s.Test[i].Result {
+						if !strings.HasPrefix(res, "Passed") {
+							fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
+						}
+					}
 					if s.Test[i].Abort() {
 						fmt.Printf("Aborting suite.\n")
 						break
@@ -377,11 +382,32 @@ func testOrBenchmark(filenames []string) {
 		charts += "\n"
 
 	}
+	
+	filename := "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
+	file, err := os.Create(filename)
+	defer file.Close()
+	if err != nil {
+		error("Cannot write to " + filename)
+	}
+	
 	// Summary
 	fmt.Print(result)
+	if file != nil {
+		file.Write([]byte(result))
+	}
+	
 	if benchmarkMode {
 		fmt.Print(charts)
+		if file != nil {
+			file.Write([]byte(charts))
+		}
+	} else if !passed {
+		fmt.Print(fails)
+		if file != nil {
+			file.Write([]byte(fails))
+		}
 	}
+	
 	if passed {
 		fmt.Printf("PASS\n")
 		os.Exit(0)
@@ -486,7 +512,7 @@ func stresstest(bgfilename, testfilename string) {
 
 	// Disable test which should not run by setting their Repet to 0
 	for i := 0; i < len(testsuite.Test); i++ {
-		if !shouldRun(testsuite, i) {
+		if !shouldRun(testsuite, 0, i) {
 			warn("Disabeling test %s", testsuite.Test[i].Title)
 			testsuite.Test[i].Setting["Repeat"] = "0"
 		}
