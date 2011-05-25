@@ -162,8 +162,11 @@ func indentDepth(s string) (d int) {
 			d++
 		} else if s[i] == '\t' {
 			d += 4
+		} else {
+			break
 		}
 	}
+	// trace("Indent depth of '%#v' == %d.", s, d)
 	return
 }
 

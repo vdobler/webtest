@@ -80,6 +80,7 @@ var testSimpleHtml = `<!DOCTYPE html>
 	<div id="div5"><p id="pch"><span id="sch">Chiasso</span></p></div>
 	<div id="deep"><p><div><p><span><div><p><span>Deeeeeep</span></p></div></span></p></div></p></div>
 	<p id="LongText" class="LongText">This is a pretty long text.</p>
+	<a href="http://some.sub.domain.org/fancy/path/here" id="a123"> Link deep down </a>
 </body>
 </html>`
 
@@ -123,6 +124,9 @@ func TestBasics(t *testing.T) {
 
 	check(doc, "span == /Some.*text/", "SP1", t)
 	check(doc, "span == /Some [aeio]+ text/", "SP1", t)
+
+	check(doc, "a href=/.*domain.org/.*/", "a123", t)
+
 	// check(doc, "", "", t)
 }
 
