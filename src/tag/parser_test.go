@@ -923,7 +923,7 @@ Bernmobil ab Bahnhof Tram-Linien 6, 7, 8, 9 oder Bus-Linie 10 bis Haltestelle Zy
 `
 
 func TestAlmostOkay(t *testing.T) {
-	doc, err := ParseHtml(almostOkay)
+	_, err := ParseHtml(almostOkay)
 	if err != nil {
 		t.Error("Unparsabel html: " + err.String())
 		t.FailNow()
