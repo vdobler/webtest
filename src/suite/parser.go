@@ -437,9 +437,9 @@ func (p *Parser) readTagCond() []TagCondition {
 					spec += "\n"
 				}
 				spec += line
-				trace("Spec now: '%s'", strings.Replace(strings.Replace(spec, "\n", "\\n", -1), "\t", "  ", -1))
+				supertrace("Spec now: '%#v'", spec)
 			}
-			//fmt.Printf("\n-------------------\n%s\n----------------------\n", spec)
+			// fmt.Printf("\n-------------------\n%s\n----------------------\n", spec)
 		}
 
 		ts := tag.ParseTagSpec(spec)

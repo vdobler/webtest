@@ -596,6 +596,7 @@ func TestParsing(t *testing.T) {
 }
 
 func TestTagStructParsing(t *testing.T) {
+	LogLevel = 6
 	var tagSuite = `
 ---------------------
 Tag Spec
@@ -603,11 +604,11 @@ Tag Spec
 GET x
 TAG
 	[
-		div
-			h2
-			p
-				span
-			h3
+			div
+				h2
+				p
+					span
+				h3
 	]
 `
 
@@ -621,6 +622,34 @@ TAG
 		"  [\n\t\tdiv\n\t\t  h2\n\t\t  p\n\t\t    span\n\t\t  h3\n\t  ]\n") {
 		t.Error("Nested tags parsed wrong: " + fmt.Sprintf("%#v", erg))
 	}
+
+	tagSuite = `
+---------------------
+Tag Spec
+---------------------
+GET x
+TAG
+	==3 [
+			li
+				h3
+				div class=abc
+					span
+				p
+	]
+`
+	p = NewParser(strings.NewReader(tagSuite), "tagSuite")
+	s, err = p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+	erg = s.Test[0].String()
+	fmt.Printf("%s\n", erg)
+	if !strings.Contains(erg,
+		"  [\n\t\tdiv\n\t\t  h2\n\t\t  p\n\t\t    span\n\t\t  h3\n\t  ]\n") {
+		t.Error("Nested tags parsed wrong: " + fmt.Sprintf("%#v", erg))
+	}
+	LogLevel = 1
+
 }
 
 
