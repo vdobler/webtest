@@ -101,7 +101,7 @@ func valid(cookie *http.Cookie) bool {
 		}
 	}
 
-	trace("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(time.RFC1123))
+	trace("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(http.TimeFormat))
 	return true
 }
 
@@ -111,7 +111,7 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 	var update []*http.Cookie = make([]*http.Cookie, 0)
 
 	for _, cookie := range recieved {
-		// Prevent against bug in http package which does not parse expires field properly
+		// Prevent against bugs in http package which does not parse expires and maxage field properly
 		for _, up := range cookie.Unparsed {
 			if strings.HasPrefix(strings.ToLower(up), "expires=") && len(up) > 10 {
 				val := up[8:]
@@ -155,6 +155,12 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 // All cookie setting are collected, the final URL is reported.
 func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	// TODO: set referrer header on redirects.
+
+	// Move User-Agent from Header to Request
+	if ua := req.Header.Get("User-Agent"); ua != "" {
+		req.UserAgent = ua
+		req.Header.Del("User-Agent")
+	}
 
 	info("%s %s", req.Method, req.URL.String())
 	dumpReq(req, dump)

@@ -484,7 +484,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 		trace("postHandler recieved param cookie %s.", cv)
 		cp := strings.Split(cv, "=", 2)
 		if cp[1] != "-DELETE-" {
-			exp := time.SecondsToUTC(time.UTC().Seconds() + 7*24*3600).Format(time.RFC1123) // Now + 7 days
+			exp := time.SecondsToUTC(time.UTC().Seconds() + 7*24*3600).Format(http.TimeFormat) // Now + 7 days
 			w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; expires=%s; Domain=my.domain.org; Secure;", cp[0], cp[1], exp))
 		} else {
 			trace("post-handler: Deleting cookie %s\n", cp[0])
@@ -618,9 +618,8 @@ TAG
 	}
 	erg := s.Test[0].String()
 	if !strings.Contains(erg,
-		"\t\t[\n\t\t\tdiv\n\t\t\t  h2\n\t\t\t  p\n\t\t\t    span\n\t\t\t  h3\n\t\t]\n") {
-		t.Error("Nested tags parsed wrong")
-
+		"  [\n\t\tdiv\n\t\t  h2\n\t\t  p\n\t\t    span\n\t\t  h3\n\t  ]\n") {
+		t.Error("Nested tags parsed wrong: " + fmt.Sprintf("%#v", erg))
 	}
 }
 

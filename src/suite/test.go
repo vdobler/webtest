@@ -422,7 +422,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 			case "Domain":
 				v = rc.Domain
 			case "Expires":
-				v = rc.Expires.Format(time.RFC1123)
+				v = rc.Expires.Format(http.TimeFormat)
 			case "Secure":
 				v = fmt.Sprintf("%t", rc.Secure)
 			case "HttpOnly":

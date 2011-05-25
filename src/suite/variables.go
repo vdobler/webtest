@@ -7,7 +7,7 @@ import (
 	"dobler/webtest/tag"
 	"regexp"
 	"strconv"
-	//	"fmt"
+	"http"
 )
 
 // Random for RAND sections
@@ -182,7 +182,7 @@ func substitute(str string, test, global, orig *Test) string {
 		trace("Reusing '%s' for var '%s'.", val, vn)
 	} else {
 		if strings.HasPrefix(vn, "NOW") && (len(vn) == 3 || !isLetter(vn[3])) {
-			tf := time.RFC1123
+			tf := http.TimeFormat
 			s := strings.Trim(vn[3:], " \t")
 			if i := strings.Index(s, "|"); i != -1 {
 				tf = strings.Trim(s[i+1:], " ")
