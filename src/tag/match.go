@@ -52,7 +52,7 @@ package tag
 
 import (
 	"os"
-	"strings"
+	//	"strings"
 	"utf8"
 )
 
@@ -66,7 +66,7 @@ var ErrBadPattern = os.NewError("Syntax error in pattern")
 //	term:
 //		'*'         matches any sequence of non-/ characters
 //		'?'         matches any single non-/ character
-//		c           matches character c (c != '*', '?', '\\', '[')
+//		c           matches character c (c != '*', '?', '', '')
 //		'\\' c      matches character c
 //
 // Match requires pattern to match all of name, not just a substring.
@@ -79,8 +79,8 @@ Pattern:
 		var chunk string
 		star, chunk, pattern = scanChunk(pattern)
 		if star && chunk == "" {
-			// Trailing * matches rest of string unless it has a /.
-			return strings.Index(name, "/") < 0, nil
+			// Trailing * matches rest of string.
+			return true, nil
 		}
 		// Look for match at current position.
 		t, ok, err := matchChunk(chunk, name)
@@ -96,8 +96,7 @@ Pattern:
 		}
 		if star {
 			// Look for match skipping i+1 bytes.
-			// Cannot skip /.
-			for i := 0; i < len(name) && name[i] != '/'; i++ {
+			for i := 0; i < len(name); i++ {
 				t, ok, err := matchChunk(chunk, name[i+1:])
 				if ok {
 					// if we're the last chunk, make sure we exhausted the name
@@ -153,9 +152,6 @@ func matchChunk(chunk, s string) (rest string, ok bool, err os.Error) {
 		}
 		switch chunk[0] {
 		case '?':
-			if s[0] == '/' {
-				return
-			}
 			_, n := utf8.DecodeRuneInString(s)
 			s = s[n:]
 			chunk = chunk[1:]
@@ -177,28 +173,4 @@ func matchChunk(chunk, s string) (rest string, ok bool, err os.Error) {
 		}
 	}
 	return s, true, nil
-}
-
-// getEsc gets a possibly-escaped character from chunk, for a character class.
-func getEsc(chunk string) (r int, nchunk string, err os.Error) {
-	if len(chunk) == 0 || chunk[0] == '-' || chunk[0] == ']' {
-		err = ErrBadPattern
-		return
-	}
-	if chunk[0] == '\\' {
-		chunk = chunk[1:]
-		if len(chunk) == 0 {
-			err = ErrBadPattern
-			return
-		}
-	}
-	r, n := utf8.DecodeRuneInString(chunk)
-	if r == utf8.RuneError && n == 1 {
-		err = ErrBadPattern
-	}
-	nchunk = chunk[n:]
-	if len(nchunk) == 0 {
-		err = ErrBadPattern
-	}
-	return
 }
