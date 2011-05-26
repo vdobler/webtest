@@ -307,7 +307,7 @@ func testOrBenchmark(filenames []string) {
 	}
 
 	if checkOnly {
-		var list string = "List of tests:\n"
+		var list string = "# List of tests:\n"
 		var w int
 		for _, s := range suites {
 			if len(s.Name) > w {
@@ -318,7 +318,7 @@ func testOrBenchmark(filenames []string) {
 			for tn, t := range s.Test {
 				fmt.Printf("\n%s\n", t.String())
 				no := fmt.Sprintf("%d.%d", sn+1, tn+1)
-				list += fmt.Sprintf("%4s: %-*s: %s\n", no, w, s.Name, t.Title)
+				list += fmt.Sprintf("# %4s: %-*s: %s\n", no, w, s.Name, t.Title)
 			}
 		}
 		fmt.Printf("\n%s", list)

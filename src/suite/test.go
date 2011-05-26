@@ -868,7 +868,9 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 			}
 		}
 
-		time.Sleep(1000000 * int64(test.Sleep()))
+		if test.Sleep() > 0 {
+			time.Sleep(1000000 * int64(test.Sleep()))
+		}
 
 		tryCnt++
 		_, _, failed := test.Stat()
