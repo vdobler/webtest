@@ -1,0 +1,528 @@
+https://mail.google.com/mail/channel/bind?OSID=49C7EDA499B235A1&OAID=103&VER=8&at=AF6bupMX_f9JxHMUQvH9kTtSybfY-B6BZA&it=2100120&SID=3F8253B7AD69F6C8&RID=13848&AID=818&zx=l7x7t7ubh548&t=1
+
+POST /mail/channel/bind?OSID=49C7EDA499B235A1&OAID=103&VER=8&at=AF6bupMX_f9JxHMUQvH9kTtSybfY-B6BZA&it=2100120&SID=3F8253B7AD69F6C8&RID=13848&AID=818&zx=l7x7t7ubh548&t=1 HTTP/1.1
+Host: mail.google.com
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.17) Gecko/20110420 Firefox/3.6.17
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 115
+Connection: keep-alive
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Referer: https://mail.google.com/mail/?ui=2&view=js&name=main,tlist&ver=CIzJ7EeCcMM.en.&am=!ZbXmJFDN_0GrQv3hwuA5Ip7-ubteeiTyfB6z66OuIA-n1JEnGGJufOMbxyU&fri
+Content-Length: 74
+Cookie: GX=DQAAAMgAAABngYfbXulSUZlFh3egHz1OGyzPpA78R96-gHqVCJ-L45uxcAU176HI20E52ddBYDMkau0gCET_khCanZ8w9saEDmCnsT-C-UxJlC7LgZWFzzWNW9HItUCehC4XsmwGW3qNvDrBXB2oyMVNg6O96M681emjY4KZUdlhuyTiqtYyV0GkIVRLgYLhRgtqfyET-T_K0yc7civIMpof5M3HEBYtjCq8uF4bt1rvTuqWAbNJJmeDKyv9TGBwVwk75vl2zMgiq7qo-7CrHMcNBCtOkmwA; gmailchat=dr.volker.dobler@gmail.com/603857; S=gmail=5NWYDCjE3GEtH2mJR0cQSA:gmproxy=_Cdjcfi4Em7NiGh2hVyG9w; GMAIL_AT=AF6bupMX_f9JxHMUQvH9kTtSybfY-B6BZA; PREF=ID=8a938793ab13094d:FF=0:TM=1305896359:LM=1306092644:GM=1:S=XOJPStBj37WXa6he; SID=DQAAAMcAAACQt0nYq0_63Oj5gLc78NLb9dkRFWuF29s0ah_cKNa0I96r60OEB7d2Xo2ic-BRNZCZXMSG-DIQMRezgYjwdILDN4RJaFoXkydINhi8gPDjCw5Y5ghA4s9XtA9L4PZlWzuUHQ9pxW0rtioR15bPB9Q4Xs1MjzoI1heXdSp6bj1e3BXkyf9OCGCOeBXvJDWvMc7s8sNbaOyOr5v4wKWcIZJtu8C9htm9aDJOIVKh9EBZYcdSgsGKjL7zY9U4gePx0Yx7IjzatcgFwhcY1aAJXMb1; HSID=AU-RShsc-A948hiJN; SSID=Azl-ZUmDN4eZjq5bj
+Pragma: no-cache
+Cache-Control: no-cache
+count=1&ofs=143&req0_type=i&req0_time=2100076&req0_evtype=keyup&req0__sc=c
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: Fri, 01 Jan 1990 00:00:00 GMT
+Date: Thu, 26 May 2011 13:02:43 GMT
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Content-Length: 13
+Server: GSE
+----------------------------------------------------------
+http://validator.w3.org/check
+
+POST /check HTTP/1.1
+Host: validator.w3.org
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.17) Gecko/20110420 Firefox/3.6.17
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 115
+Connection: keep-alive
+Referer: http://validator.w3.org/
+Content-Type: multipart/form-data; boundary=---------------------------19812306489523
+Content-Length: 14490
+-----------------------------19812306489523
+Content-Disposition: form-data; name="uploaded_file"; filename="unic.html"
+Content-Type: text/html
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+
+
+
+
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+<meta http-equiv="keywords" content="" />
+<meta name="description" content="Als Full Service Webdienstleister bieten wir Qualit&auml;t f&uuml;r Sie - Konzeption, Entwicklung und Betrieb von internetbasierten L&ouml;sungen f&uuml;r E-Business, E-Commerce, Enterprise und Product Information Management" />
+
+<meta http-equiv="content-language" content="de_ch" />
+
+
+
+
+
+        
+
+    
+    
+    <meta name="DCSext.language" content="de" />
+    
+    
+    <meta name="WT.cg_n" content="startseite" />
+    
+    <meta name="DCSext.country" content="ch" />
+     
+ 
+	<meta name="google-site-verification" content="rDKf1m2_2uGfSVQEMVelsp6exoIsN7txrhYZrireC50" />
+	<meta name="msvalidate.01" content="E98300F92096773477E0467B613731C7" />
+ 
+
+
+
+<title>Unic - Entwicklung und Betrieb von internetbasierten L&ouml;sungen</title>
+
+
+
+<link rel="stylesheet" type="text/css" href="/style/static.css" />
+<!--[if lte IE 7]>
+	<link rel="stylesheet" type="text/css" href="/style/ie.css" />
+    <![endif]-->
+<link rel="stylesheet" type="text/css" href="/style/slideshow.css"
+	title="slideshow" />
+
+<link rel="stylesheet" type="text/css" media="print"
+	href="/style/print.css" />
+
+<script type="text/javascript">
+	document.documentElement.className += " jsversion";
+</script>
+</head>
+<body>
+
+  
+
+
+<div id="wrapper">
+    <div class="wrapper">
+       
+        <div id="header">       
+            <div id="logo">
+                <a href="/ch/de.html"> <img src="/img/logo.gif" alt="Unic AG" /> </a>
+            </div>
+            <div class="smallNav">
+
+
+<div id="nav-meta">
+    <ul>
+        
+
+
+
+
+
+
+<li>
+	<ul>
+
+		<li><span> de </span></li>
+
+		<li><a href="/ch/en.html> en </a></li>
+
+	</ul>
+</li>
+
+        
+
+
+
+
+
+
+
+
+
+    
+<li id="meta-countries">
+	<span class="current"> 
+        
+	    <span class="js">Schweiz </span> 
+	    <span class="nojs">Schweiz </span>
+	</span><div class="countries-chooser">
+			<ul><li>
+		        	<a href="/nl/de.html"> 
+						<span class="js">Niederlande</span>
+						<span class="nojs">Niederlande</span>
+					</a>
+				</li><li>
+		        	<a href="/be/de.html"> 
+						<span class="js">Belgien</span>
+						<span class="nojs">Belgien</span>
+					</a>
+				</li><li>
+		        	<a href="/at/de.html"> 
+						<span class="js">Österreich</span>
+						<span class="nojs">Österreich</span>
+					</a>
+				</li><li>
+		        	<a href="/international/de.html"> 
+						<spam class="js">International</span>
+						<span class="nojs">International</span>
+					</a>
+				</li></ul>
+		</div>
+</li>
+        
+
+
+
+
+
+
+
+
+
+<li> <a href="/ch/de.html">Startseite</a> </li>
+
+	<li><a href="/ch/de/unternehmen/stellenkarriere/stellenuebersicht.html">Stellen</a></li>
+
+
+	<li> <a href="/ch/de/tools/Newsletterformular.html"> Newsletter </a> </li>
+
+<li> <a href="/ch/de/unternehmen/kontaktformular.html"> Kontakt </a> </li>
+<li id="meta-search"> 
+    <form action="/content/unic/Switzerland/de/tools/suche.html">
+        <fieldset>
+            <label for="meta-searchfield" class="js">Suche</label>                   
+            <div class="">
+                <input type="text" name="q" id="meta-searchfield" class="text" title="Suchbegriff" tabindex="1" />
+                <input type="image" src="/img/icon-search.gif" class="button" />
+            </div>
+        </fieldset>
+    </form>
+</li>
+    </ul>
+</div></div>
+
+            <div class="topnav nav"><div id="nav-main">
+				<ul>
+    		<li> <a href="/ch/de/leistungen.html">Leistungen</a></li> 	<li> <a href="/ch/de/loesungen.html">Lösungen</a></li> 	<li> <a href="/ch/de/referenzen.html">Referenzen</a></li> 	<li> <a href="/ch/de/magazin.html">Magazin</a></li> 	<li> <a href="/ch/de/produkte.html">Produkte</a></li> 	<li> <a href="/ch/de/unternehmen.html">Unternehmen</a></li> </ul></div></div>
+
+            <!--empty because default pages do not have sub navigation. Should be overwritten by the pages that have subnavigation -->       
+        </div>
+
+        
+        <div id="main"><a name="content" id="content"></a>
+            
+
+<div>
+    <div class="parbase keyvisual">
+
+	<div id="keyvisual">	
+		<a href="http://magazin.unic.com/2011/05/25/making-of-sbb-ch-teil-2-fuer-kunden-zwischen-9-und-99/" class="overlay"><img id="keyvisual_media" title="" alt="Screenshot SBB Webseite" class="full" src="/content/unic/Switzerland/de/jcr%3acontent/keyvisual/image.img.jpg/1306329441605.jpg"/>
+			<span class="info" id="keyvisual_info">
+				<span class="title">sbb.ch - Der Bahnhof im Internet</span>
+				<span class="link">Lesen Sie mehr dazu</span>
+			</span>
+			<span class="overlay"></span>
+		</a>
+	</div>
+
+	</div>
+
+    
+    <!-- Columns 50:50 -->
+    <div class="cols">
+        <div class="col c50">
+            <div class="contl">
+            
+                <!-- Content Left Column -->
+                    <div class="homepagebox leftContent">
+<div class="box-bt-bold">
+
+    <h2 class="home">Qualität für Sie!</h2>
+    <p>Wir konzipieren, entwickeln und betreiben internetbasierte Lösungen für E-Business und Enterprise Content Management. </p>
+<p><br/>
+</p>
+<p>Wir sind an Ihrem Anliegen interessiert und hören Ihnen aufmerksam zu, damit wir die richtige Lösung auch für Sie und mit Ihnen realisieren können. </p>
+
+    
+</div></div>
+
+                <!-- //Content Left Column -->
+
+            </div>
+        </div>
+        <div class="col colr c50">
+            <div class="contr">
+                
+                <!-- Content Right Column -->
+                <!-- Nested Columns 50:50 -->
+                <div class="cols">
+                    <div class="col c50">
+                        <div class="contl">
+                        
+                            <!-- Content Left Subcolumn -->
+                                <div class="parsys leftSubColumn"><div class="feedTeasers section"><div class="box-bt-bold">
+		<h3>Lesen Sie im Magazin</h3>
+			<ul class="line small">
+				<li>
+			<h4><a href="http://magazin.unic.com/2011/05/25/making-of-sbb-ch-teil-2-fuer-kunden-zwischen-9-und-99/">Making of sbb.ch (1): Für Kunden zwischen 9 und 99</a></h4>
+			<p>Wer sind eigentlich die typischen Kunden von sbb.ch? Die konsequente Ausrichtung auf die Bedürfnisse der Kunden war eines von vielen Projektzielen. Und der erste Schritt in der Konzeption für den neuen Auftritt.</p>
+		</li>
+				<li>
+			<h4><a href="http://magazin.unic.com/2011/05/20/definition-einer-social-media-strategie-mit-klaren-zielen-ist-zentral/">Definition einer Social Media-Strategie mit klaren Zielen ist zentral</a></h4>
+			<p>Am 19. Mai gab es am Unic Breakfast "Social Media" die Gelegenheit, sich mit den Social-Media-Verantwortlichen von Mammut, Suva, Swisscom und Wander auszutauschen.</p>
+		</li>
+			</ul>
+	</div>
+</div>
+<div class="feedTeasers section"></div>
+</div>
+
+                            <!-- //Content Left Subcolumn -->
+                                
+                        </div>
+                    </div>
+                    <div class="col colr c50">
+                        <div class="contr">
+                        
+                            <!-- Content Right Subcolumn -->
+                                <div class="parsys rightSubColumn"><div class="feedTeasers section"><div class="box-bt-bold">
+		<h3>Termine</h3>
+			<ul class="line small">
+				<li>
+			<h4><a href="http://magazin.unic.com/2011/05/19/unic-breakfast-zu-social-media/">Unic Breakfast zu Social Media</a></h4>
+			<p>Das nächste Unic Breakfast zum Thema Social Media findet am 9. Juni in Bern statt. An der Fachveranstaltung werden zentrale Themen für den Einsatz von Social Media im Unternehmen praxisnah behandelt.</p>
+		</li>
+				<li>
+			<h4><a href="http://magazin.unic.com/2011/05/02/sharepoint-2010-%e2%80%93-tuesday-afternoon-event-7-juni-2011/">SharePoint 2010 – Tuesday Afternoon Event, 7. Juni 2011</a></h4>
+			<p>Sie kennen SharePoint, setzen es allenfalls schon ein und wollen mehr über die Einsatzmöglichkeiten in der heutigen Intranet-Praxis wissen? Dann melden Sie sich zum Tuesday Afternoon Event am 7. Juni 2011 an.</p>
+		</li>
+			</ul>
+	</div>
+</div>
+</div>
+
+                            <!-- //Content Right Subcolumn -->
+                                
+                        </div>
+                    </div>
+                </div>
+                <!-- //Nested Columns 50:50 -->
+                <!-- //Content Right Column -->
+                
+            </div>
+        </div>
+    </div>
+    <!-- //Columns 50:50 -->
+</div>
+<div class="clearing">&nbsp;</div>
+        </div>
+     
+    </div>
+</div>
+
+<div class="footer">
+
+
+
+<div
+	id="footer">
+	<div class="wrapper">
+		<div class="cols">
+			<div class="col c25">
+			<div class="contl">
+			<div class="box-bt-bold">
+			
+			<div id="imprint" class="small"><a href="http://magazin.unic.com/impressum.html">Impressum</a>
+			<a href="/ch/de/tools/sitemap.html">Inhaltsverzeichnis</a></div>
+			
+			</div>
+			</div>
+			</div>
+			<div class="col colr c75">
+				<div class="contr">
+					<div class="box-bt-bold">
+					
+					<div id="print" class="small"><a href="#" onclick="window.print()">Seite drucken</a>
+					</div>
+					
+						<div id="copy" class="small">
+						<p>© 2011 Unic</p>
+						
+						<ul>
+						
+							<li><span>|</span> <a href="/ch/de/unternehmen/standorte/amsterdam.html">Amsterdam</a></li>
+						
+							<li><span>|</span> <a href="/ch/de/unternehmen/standorte/bern.html">Bern</a></li>
+						
+							<li><span>|</span> <a href="/ch/de/unternehmen/standorte/bruessel.html">Brüssel</a></li>
+						
+							<li><span>|</span> <a href="/ch/de/unternehmen/standorte/wien.html">Wien</a></li>
+						
+							<li><span>|</span> <a href="/ch/de/unternehmen/standorte/zuerich.html">Zürich</a></li>
+						
+						</ul> 
+						
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div></div>
+
+    
+<script type="text/javascript" src="/js/jquery-1.3.2.min.js"></script>
+<script type="text/javascript" src="/js/jquery.fancystuff.js"></script> 
+<script type="text/javascript" src="/js/swfobject.js"></script> 
+
+
+
+<script type="text/javascript">
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script>
+<script type="text/javascript">
+try {
+var pageTracker = _gat._getTracker("UA-11030481-2");
+pageTracker._trackPageview();
+} catch(err) {}
+</script>
+
+<!-- START OF SmartSource Data Collector TAG -->
+<!-- Copyright (c) 1996-2009 WebTrends Inc.  All rights reserved. -->
+<!-- Version: 8.6.2 -->
+<!-- Tag Builder Version: 3.0  -->
+<!-- Created: 9/17/2009 9:55:52 AM -->
+<script src="/js/webtrends.js" type="text/javascript"></script>
+<!-- *********************************************************************************** -->
+<!-- Warning: The two script blocks below must remain inline. Moving them to an external -->
+<!-- JavaScript include file can cause serious problems with cross-domain tracking.      -->
+<!-- *********************************************************************************** -->
+<script type="text/javascript">
+//<![CDATA[
+var _tag=new WebTrends();
+_tag.dcsGetId();
+//]]>
+</script>
+<script type="text/javascript">
+//<![CDATA[
+// Add custom parameters here.
+//_tag.DCSext.param_name=param_value;
+_tag.dcsCollect();
+//]]>
+</script>
+<noscript>
+<div><img alt="DCSIMG" id="DCSIMG" width="1" height="1" src="http://statse.webtrendslive.com/dcsa1yud91000082r811o82i6_5o8e/njs.gif?dcsuri=/nojavascript&amp;WT.js=No&amp;WT.tv=8.6.2"/></div>
+</noscript>
+<!-- END OF SmartSource Data Collector TAG -->
+<!-- Start Quantcast tag -->
+<script type="text/javascript">
+//<![CDATA[
+var _qoptions={qacct:"p-0fbY3yA74UZRY",labels:_tag.dcsQuantcast()};
+//]]>
+</script>
+<script type="text/javascript" src="//secure.quantserve.com/quant.js"></script>
+<noscript>
+<a href="http://www.quantcast.com/p-0fbY3yA74UZRY" target="_blank"><img src="//secure.quantserve.com/pixel/p-0fbY3yA74UZRY.gif" style="display: none;" border="0" height="1" width="1" alt="Quantcast"/></a>
+</noscript>
+<!-- End Quantcast tag -->
+
+<script type="text/javascript">
+    {
+        var asynchronousJSLoad = function(src){
+            var doubleDelegate = function(func1, func2) {
+                return function() {
+            var args = Array.prototype.slice.call(arguments, 0);
+            if (func1) {
+                window.setTimeout(function() {
+                    func1.apply(this, args);
+                },1);
+            }
+            if (func2) {
+                window.setTimeout(function() {
+                    func2.apply(this, args);
+                },1);
+            }
+        };
+            };
+            window.onload = doubleDelegate(window.onload,function() {
+                var script = document.createElement("script");
+                script.src = src;
+                document.getElementsByTagName('head')[0].appendChild(script);
+            });
+        };
+
+        asynchronousJSLoad("http://www.unic.com/libs/wcm/stats/tracker.js?path=/content/unic/Switzerland/de");
+    }
+    </script>
+
+<script type="text/javascript">function trackMVTImpression() {
+    
+        if (window.randomBannerList) {
+            var trackImg = new Image();
+            trackImg.src = 'http://www.unic.com/libs/wcm/mvt/tracker/view?path=' + encodeURIComponent('/content/unic/Switzerland/de') + '&amp;vars=' + encodeURIComponent(window.randomBannerList);
+        }
+    
+    }</script>
+</body>
+</html>
+
+-----------------------------19812306489523
+Content-Disposition: form-data; name="charset"
+
+(detect automatically)
+-----------------------------19812306489523
+Content-Disposition: form-data; name="doctype"
+
+Inline
+-----------------------------19812306489523
+Content-Disposition: form-data; name="group"
+
+0
+-----------------------------19812306489523--
+
+HTTP/1.1 200 OK
+Date: Thu, 26 May 2011 13:02:43 GMT
+Server: Apache/2.2.9 (Debian) mod_python/3.3.1 Python/2.5.2
+Content-Language: en
+X-W3C-Validator-Recursion: 1
+X-W3C-Validator-Status: Invalid
+X-W3C-Validator-Errors: 9
+X-W3C-Validator-Warnings: 5
+Vary: Accept-Encoding
+Content-Encoding: gzip
+Content-Length: 6536
+Content-Type: text/html; charset=UTF-8
+Via: 1.1 validator.w3.org
+Connection: close
+----------------------------------------------------------
+http://api.flattr.com/button/view/?url=http%3A%2F%2Fvalidator.w3.org&title=View%20W3C-Validator%20on%20flattr.com&
+
+GET /button/view/?url=http%3A%2F%2Fvalidator.w3.org&title=View%20W3C-Validator%20on%20flattr.com& HTTP/1.1
+Host: api.flattr.com
+User-Agent: Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.17) Gecko/20110420 Firefox/3.6.17
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-us,en;q=0.5
+Accept-Encoding: gzip,deflate
+Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7
+Keep-Alive: 115
+Connection: keep-alive
+Referer: http://validator.w3.org/check
+Cookie: PHPSESSID=oh994ekoqq4rigtp7brjspfuv4
+
+HTTP/1.1 200 OK
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0
+Pragma: no-cache
+Content-Encoding: gzip
+Vary: Accept-Encoding
+Content-Type: text/html
+Content-Length: 521
+Connection: close
+Date: Thu, 26 May 2011 13:02:44 GMT
+Server: lighttpd
+----------------------------------------------------------
