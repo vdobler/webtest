@@ -102,14 +102,14 @@ func copyMap(src map[string]string) (dest map[string]string) {
 
 
 // Store pass or fail in t.
-func (t *Test) Report(pass bool, f string, m ...interface{}) {
-	s := fmt.Sprintf(f, m...)
+func (t *Test) Report(pass bool, text string) {
+	var s string
 	if pass {
-		s = "Passed " + s
-		debug(s)
-	} else {
-		s = "FAILED " + s
+		s = "Passed " + text
 		info(s)
+	} else {
+		s = "FAILED " + text
+		warn(s)
 	}
 	t.Result = append(t.Result, s)
 }
@@ -369,9 +369,9 @@ func testHeader(resp *http.Response, t, orig *Test) {
 			cs := c.Info("resp")
 			v := resp.Header.Get(c.Key)
 			if !c.Fullfilled(v) {
-				orig.Report(false, "%s: Got '%s'", cs, v)
+				orig.Report(false, fmt.Sprintf("%s: Got '%s'", cs, v))
 			} else {
-				orig.Report(true, "%s.", cs)
+				orig.Report(true, cs)
 			}
 		}
 	}
@@ -399,17 +399,17 @@ func testHeader(resp *http.Response, t, orig *Test) {
 				error("Ooooops: field but op==.")
 			}
 			if idx != -1 && cc.Neg {
-				orig.Report(false, "%s: Cookie _was_ set.", ci)
+				orig.Report(false, fmt.Sprintf("%s: Cookie _was_ set.", ci))
 			} else if (idx != -1 && !cc.Neg) || (idx == -1 && cc.Neg) {
-				orig.Report(true, "%s", ci)
+				orig.Report(true, ci)
 			} else if idx == -1 && !cc.Neg {
-				orig.Report(false, "%s: Cookie was not set.", ci)
+				orig.Report(false, fmt.Sprintf("%s: Cookie was not set.", ci))
 			} else {
 				error("Oooops: This cannot happen....")
 			}
 		} else {
 			if idx == -1 {
-				orig.Report(false, "%s: Cookie was not set at all.", ci)
+				orig.Report(false, fmt.Sprintf("%s: Cookie was not set at all.", ci))
 				continue
 			}
 			rc := resp.SetCookie[idx]
@@ -430,12 +430,12 @@ func testHeader(resp *http.Response, t, orig *Test) {
 			case "MaxAge":
 				v = fmt.Sprintf("%d", rc.MaxAge)
 			default:
-				error("Oooops: Unknown cookie field %s.", field)
+				error("Oooops: Unknown cookie field " + field)
 			}
 			if !cc.Fullfilled(v) {
-				orig.Report(false, "%s: Got '%s'", ci, v)
+				orig.Report(false, fmt.Sprintf("%s: Got '%s'", ci, v))
 			} else {
-				orig.Report(true, "%s.", ci)
+				orig.Report(true, ci)
 			}
 		}
 	}
@@ -496,15 +496,15 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			n := tag.FindTag(&tc.Spec, doc)
 			if tc.Cond == TagExpected {
 				if n != nil {
-					orig.Report(true, "%s", cs)
+					orig.Report(true, cs)
 				} else {
-					orig.Report(false, "%s: Missing", cs)
+					orig.Report(false, fmt.Sprintf("%s: Missing", cs))
 				}
 			} else {
 				if n == nil {
-					orig.Report(true, "%s", cs)
+					orig.Report(true, cs)
 				} else {
-					orig.Report(false, "%s: Forbidden", cs)
+					orig.Report(false, fmt.Sprintf("%s: Forbidden", cs))
 				}
 			}
 		case CountEqual, CountNotEqual, CountLess, CountLessEqual, CountGreater, CountGreaterEqual:
@@ -512,36 +512,36 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			switch tc.Cond {
 			case CountEqual:
 				if got != exp {
-					orig.Report(false, "%s: Found %d expected %d", cs, got, exp)
+					orig.Report(false, fmt.Sprintf("%s: Found %d expected %d", cs, got, exp))
 					continue
 				}
 			case CountNotEqual:
 				if got == exp {
-					orig.Report(false, "%s: Found %d expected != %d", cs, got, exp)
+					orig.Report(false, fmt.Sprintf("%s: Found %d expected != %d", cs, got, exp))
 					continue
 				}
 			case CountLess:
 				if got >= exp {
-					orig.Report(false, "%s: Found %d expected < %d", cs, got, exp)
+					orig.Report(false, fmt.Sprintf("%s: Found %d expected < %d", cs, got, exp))
 					continue
 				}
 			case CountLessEqual:
 				if got > exp {
-					orig.Report(false, "%s: Found %d expected <= %d", cs, got, exp)
+					orig.Report(false, fmt.Sprintf("%s: Found %d expected <= %d", cs, got, exp))
 					continue
 				}
 			case CountGreater:
 				if got <= exp {
-					orig.Report(false, "%s: Found %d expected > %d", cs, got, exp)
+					orig.Report(false, fmt.Sprintf("%s: Found %d expected > %d", cs, got, exp))
 					continue
 				}
 			case CountGreaterEqual:
 				if got < exp {
-					orig.Report(false, "%s: Found %d expected >= %d", cs, got, exp)
+					orig.Report(false, fmt.Sprintf("%s: Found %d expected >= %d", cs, got, exp))
 					continue
 				}
 			}
-			orig.Report(true, "%s", cs)
+			orig.Report(true, cs)
 		default:
 			error("Unkown type of test %d (%s). Ignored.", tc.Cond, tc.Id)
 		}
@@ -857,7 +857,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 					if err != nil {
 						error("This should not happen: Max-Time is not an int.")
 					} else if max > 0 && duration > max {
-						test.Report(false, "Response exeeded Max-Time of %d (was %d).", max, duration)
+						test.Report(false, fmt.Sprintf("Response exeeded Max-Time of %d (was %d).", max, duration))
 					}
 				}
 
