@@ -211,7 +211,7 @@ func FindAllTags(ts *TagSpec, node *Node) []*Node {
 	return list
 }
 
-func findAllTags(ts *TagSpec, node *Node, lp *[]*Node ) {
+func findAllTags(ts *TagSpec, node *Node, lp *[]*Node) {
 	if Matches(ts, node) {
 		*lp = append(*lp, node)
 		return

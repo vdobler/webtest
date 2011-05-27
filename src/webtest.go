@@ -292,7 +292,7 @@ func main() {
 }
 
 
-func getAttr(a []html.Attribute, name string) string{
+func getAttr(a []html.Attribute, name string) string {
 	for _, at := range a {
 		if at.Key == name {
 			return at.Val
@@ -396,12 +396,12 @@ func testOrBenchmark(filenames []string) {
 					}
 				}
 				s.Test[i].Setting["Dump"] = origDump
-				
+
 				if showLinks {
 					if s.Test[i].Body != nil {
 					}
 				}
-				
+
 			}
 		}
 		result += "\n"

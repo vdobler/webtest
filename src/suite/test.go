@@ -11,6 +11,7 @@ import (
 	"time"
 	"strconv"
 	"io"
+	"io/ioutil"
 	"path"
 )
 
@@ -145,13 +146,13 @@ func (t *Test) Status() (status string) {
 	return
 }
 
-var DefaultSettings = map[string]string { "Repeat": "1",
-	"Tries": "1",
-	"Max-Time": "-1",
-	"Sleep": "0",
+var DefaultSettings = map[string]string{"Repeat": "1",
+	"Tries":        "1",
+	"Max-Time":     "-1",
+	"Sleep":        "0",
 	"Keep-Cookies": "0",
-	"Abort": "0",
-	"Validate": "0",
+	"Abort":        "0",
+	"Validate":     "0",
 }
 
 func NewTest(title string) *Test {
@@ -500,12 +501,12 @@ func testTags(t, orig *Test, doc *tag.Node) {
 	} else {
 		return
 	}
-	
+
 	if doc == nil {
 		orig.Report(false, "No body to parse.")
 		return
 	}
-	
+
 	for _, tc := range t.Tag {
 		cs := tc.Info("tag")
 		switch tc.Cond {
@@ -565,60 +566,135 @@ func testTags(t, orig *Test, doc *tag.Node) {
 	}
 }
 
+// List of allready checked URLs in this run
+var ValidUrls = map[string]bool{}
+
+func shallCheckUrl(url string, base *http.URL) *http.URL {
+	if strings.HasPrefix(url, "#") || strings.HasPrefix(strings.ToLower(url), "mailto:") {
+		trace("Will not check plain page anchors or mailto links in %s", url)
+		return nil
+	}
+	if j := strings.Index(url, "#"); j != -1 {
+		url = url[:j] // Strip #fragment like browsers do
+	}
+	pu, err := http.ParseURL(url)
+	if err != nil {
+		error("Cannot parse url " + url)
+		return nil
+	}
+	if !pu.IsAbs() {
+		u, e := base.ParseURL(url)
+		if e != nil {
+			error("Cannot parse %s relative to %s.", url, base.String())
+			return nil
+		}
+		return u
+	}
+	if pu.Host == base.Host {
+		return pu
+	}
+	return nil
+}
+
 // Check if html in body is valid. If doc not nil check links too.
 func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Response, base string) {
-	if doc != nil {
-		baseUrl, _ := http.ParseURL(base)  // Should not fail!
-		urls := make([]string,0, 10)
-		
-		for _, pat := range []string{"a href", "link href", "img src"} {
-			for _, tg := range tag.FindAllTags(tag.ParseTagSpec(pat), doc) {
-				for _, a := range tg.Attr {
-					if (a.Key == "href" || a.Key == "src") && a.Val != "" {
-						urls = append(urls, a.Val)
+	if doc == nil {
+		warn("Cannot check links on nil document.")
+		return
+	}
+	trace("Validating links")
+
+	baseUrl, _ := http.ParseURL(base) // Should not fail!
+	urls := make(map[string]bool, 50) // keys are urls to prevent doubles
+
+	for _, pat := range []string{"a href", "link href", "img src"} {
+		for _, tg := range tag.FindAllTags(tag.ParseTagSpec(pat), doc) {
+			for _, a := range tg.Attr {
+				if (a.Key == "href" || a.Key == "src") && a.Val != "" {
+					if url := shallCheckUrl(a.Val, baseUrl); url != nil {
+						urls[url.String()] = true
 					}
 				}
-			}
-		}
-		tmpl := t.Copy()
-		tmpl.Method = "GET"
-		tmpl.Tag = nil
-		tmpl.BodyCond = nil
-		tmpl.CookieCond = nil
-		tmpl.Param = nil
-		// tmpl.Dump = nil
-		tmpl.Setting = DefaultSettings
-		tmpl.RespCond = []Condition{Condition{Key: "Status-Code", Op: "==", Val: "200"}}
-		for _, u := range urls {
-			url, err := baseUrl.ParseURL(u)
-			if err != nil {
-				orig.Report(false, "Cannot parse URL '%s' relativ to base '%s'.", u, baseUrl.String())
-				continue
-			}
-			
-			theUrl := url.String()
-			if strings.HasPrefix(strings.ToLower(theUrl), "mailto:") {
-				continue
-			}
-			test := tmpl.Copy()
-			test.Url = theUrl
-			_, err = test.RunSingle(global, false)
-			if err != nil {
-				orig.Report(false, "Cannont access `" + test.Url + "'. " + err.String())
-				continue
-			}
-			if _, _, failed := test.Stat(); failed > 0 {
-				s := "Failures for " + test.Url + ": "
-				for _, r := range test.Result {
-					if !strings.HasPrefix(r, "Passed") {
-						s += r + "; "
-					}
-				}
-				orig.Report(false, s)
 			}
 		}
 	}
+	tmpl := t.Copy()
+	tmpl.Method = "GET"
+	tmpl.Tag = nil
+	tmpl.BodyCond = nil
+	tmpl.CookieCond = nil
+	tmpl.Param = nil
+	// tmpl.Dump = nil
+	tmpl.Setting = DefaultSettings
+	tmpl.RespCond = []Condition{Condition{Key: "Status-Code", Op: "==", Val: "200"}}
+	for url, _ := range urls {
+		if _, ok := ValidUrls[url]; ok {
+			warn("Will not retest " + url)
+		}
+		test := tmpl.Copy()
+		test.Url = url
+		_, err := test.RunSingle(global, false)
+		if err != nil {
+			orig.Report(false, fmt.Sprintf("Cannot access `%s': %s", test.Url, err.String()))
+			continue
+		}
+		if _, _, failed := test.Stat(); failed > 0 {
+			s := "Failures for " + test.Url + ": "
+			for _, r := range test.Result {
+				if !strings.HasPrefix(r, "Passed") {
+					s += r + "; "
+				}
+			}
+			orig.Report(false, s)
+		} else {
+			orig.Report(true, "Link "+url)
+			ValidUrls[url] = true
+		}
+	}
+}
 
+
+// Check if html is valid html
+func testHtmlValidation(t, orig, global *Test, body string) {
+	trace("Validating HTML")
+	f, err := ioutil.TempFile("", "htmlvalid")
+	if err != nil {
+		error("Cannot open temp file: " + err.String())
+		return
+	}
+	name := f.Name()
+	f.Close()
+	os.Remove(name)
+	name += ".html"
+	f, err = os.Create(name)
+	f.Write([]byte(body))
+	f.Close()
+	defer func() { os.Remove(name) }()
+
+	test := NewTest("W3C validator")
+	test.Method = "POST"
+	test.Url = "http://validator.w3.org/check"
+	test.Tag = nil
+	test.BodyCond = nil
+	test.CookieCond = nil
+	test.Param = map[string][]string{"charset": []string{"(detect automatically)"},
+		"doctype":       []string{"Inline"},
+		"group":         []string{"0"},
+		"uploaded_file": []string{"@file:" + name},
+	}
+	test.Dump = t.Dump
+	test.Setting = DefaultSettings
+	test.RespCond = []Condition{Condition{Key: "X-W3C-Validator-Status", Op: "==", Val: "Valid", Id: "html-validation"}}
+	_, err = test.RunSingle(global, false)
+	if err != nil {
+		warn("Cannot access W3C validator: %s", err.String())
+		return
+	}
+	if _, _, failed := test.Stat(); failed > 0 {
+		orig.Report(false, "html is invalid.")
+	} else {
+		orig.Report(true, "html is valid")
+	}
 }
 
 
@@ -848,7 +924,9 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 	return
 }
 
-// Perform a single run of the test.  Return duration for server response in ms. Log results in Result field.
+// Perform a single run of the test.  Return duration for server response in ms.
+// If request itself failed, then err is non nil and contains the reason.
+// Logs the results of the tests in Result field.
 func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.Error) {
 	ti := prepareTest(test, global)
 	tries := ti.intSetting("Tries", 1)
@@ -905,13 +983,13 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				testBody(body, ti, test)
 
 				// Tag:
-				if len(ti.Tag) > 0 || ti.Validate() & 1 != 0 {
+				if len(ti.Tag) > 0 || ti.Validate()&1 != 0 {
 					var doc *tag.Node
 					if parsableBody(response) {
 						var e os.Error
 						doc, e = tag.ParseHtml(body)
 						if e != nil {
-							test.Report(false, "Problems parsing html: " + e.String())
+							test.Report(false, "Problems parsing html: "+e.String())
 							error("Problems parsing html: " + e.String())
 						}
 					} else {
@@ -920,8 +998,11 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 					}
 
 					testTags(ti, test, doc)
-					if ti.Validate() & 1 != 0 {
+					if ti.Validate()&1 != 0 {
 						testLinkValidation(ti, test, global, doc, response, url)
+					}
+					if ti.Validate()&2 != 0 {
+						testHtmlValidation(ti, test, global, body)
 					}
 				}
 
@@ -935,10 +1016,6 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 					}
 				}
 
-				_, _, failed := test.Stat()
-				if failed != 0 {
-					err = Error("Failure: " + test.Status())
-				} 
 			}
 		}
 
