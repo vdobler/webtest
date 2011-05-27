@@ -13,6 +13,7 @@ import (
 	"rand"
 	"time"
 	"http"
+	"html"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
@@ -21,6 +22,9 @@ var checkOnly bool = false
 var testmode bool = true
 var benchmarkMode bool = false
 var stresstestMode bool = false
+var validateFlag bool = false
+var showLinks bool = false
+
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var tagLogLevel int = -1
@@ -149,6 +153,8 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-dump [all|none]  Dump all wire talk or none. If unused respect indiv setting.\n")
+	fmt.Fprintf(os.Stderr, "\t-validate         Validate html of test passes.\n")
+	fmt.Fprintf(os.Stderr, "\t-links            Show links and their status if test passes.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-runs <n>         Number of repetitions of each test (must be >= 5).\n")
@@ -199,6 +205,8 @@ func globalInitialization() {
 	flag.BoolVar(&benchmarkMode, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.BoolVar(&testmode, "test", true, "Perform normal testing")
 	flag.BoolVar(&stresstestMode, "stress", false, "Use background-suite as stress suite for tests.")
+	flag.BoolVar(&validateFlag, "validate", false, "Validate html if test passes.")
+	flag.BoolVar(&showLinks, "links", false, "Show links and stati if tests passes.")
 	flag.IntVar(&LogLevel, "log", 3, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
@@ -284,6 +292,16 @@ func main() {
 }
 
 
+func getAttr(a []html.Attribute, name string) string{
+	for _, at := range a {
+		if at.Key == name {
+			return at.Val
+		}
+	}
+	return ""
+}
+
+
 // Standard test or benchmarking.
 func testOrBenchmark(filenames []string) {
 
@@ -357,6 +375,7 @@ func testOrBenchmark(filenames []string) {
 					charts += benchChartUrl(dur, t.Title) + "\n"
 				}
 			} else {
+				origDump, _ := s.Test[i].Setting["Dump"]
 				if dumpTalk == "all" {
 					s.Test[i].Setting["Dump"] = "1"
 				} else if dumpTalk == "none" {
@@ -376,6 +395,13 @@ func testOrBenchmark(filenames []string) {
 						break
 					}
 				}
+				s.Test[i].Setting["Dump"] = origDump
+				
+				if showLinks {
+					if s.Test[i].Body != nil {
+					}
+				}
+				
 			}
 		}
 		result += "\n"

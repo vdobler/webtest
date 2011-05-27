@@ -43,6 +43,7 @@ type Test struct {
 	SeqCnt     map[string]int      // internal stuff for sequnece variables TODO: do not export
 	Vars       map[string]string   // internal stuff for variables  TODO: do not export
 	Result     []string            // list of pass/fails reports
+	Body       []byte              // body of last non-failing response
 	Dump       io.Writer           // a writer to dump requests and responses to
 }
 
@@ -144,25 +145,31 @@ func (t *Test) Status() (status string) {
 	return
 }
 
+var DefaultSettings = map[string]string { "Repeat": "1",
+	"Tries": "1",
+	"Max-Time": "-1",
+	"Sleep": "0",
+	"Keep-Cookies": "0",
+	"Abort": "0",
+	"Validate": "0",
+}
+
 func NewTest(title string) *Test {
 	t := Test{Title: title}
 
 	t.Header = make(map[string]string)
 	t.Cookie = make(map[string]string)
 	t.Param = make(map[string][]string)
-	t.Setting = make(map[string]string)
+	t.Setting = make(map[string]string, len(DefaultSettings))
 	t.Const = make(map[string]string)
 	t.Rand = make(map[string][]string)
 	t.Seq = make(map[string][]string)
 	t.SeqCnt = make(map[string]int)
 	t.Vars = make(map[string]string)
 
-	t.Setting["Repeat"] = "1"
-	t.Setting["Tries"] = "1"
-	t.Setting["Max-Time"] = "-1"
-	t.Setting["Sleep"] = "0"
-	t.Setting["Keep-Cookies"] = "0"
-	t.Setting["Abort"] = "0"
+	for k, v := range DefaultSettings {
+		t.Setting[k] = v
+	}
 
 	return &t
 }
@@ -348,6 +355,11 @@ func (t *Test) Abort() bool {
 	return t.boolSetting("Abort", false)
 }
 
+func (t *Test) Validate() int {
+	return t.intSetting("Validate", 0)
+}
+
+
 // Look for name in cookies. Return index if found and -1 otherwise.
 func cookieIndex(cookies []*http.Cookie, name string) int {
 	idx := -1
@@ -488,7 +500,12 @@ func testTags(t, orig *Test, doc *tag.Node) {
 	} else {
 		return
 	}
-
+	
+	if doc == nil {
+		orig.Report(false, "No body to parse.")
+		return
+	}
+	
 	for _, tc := range t.Tag {
 		cs := tc.Info("tag")
 		switch tc.Cond {
@@ -546,6 +563,62 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			error("Unkown type of test %d (%s). Ignored.", tc.Cond, tc.Id)
 		}
 	}
+}
+
+// Check if html in body is valid. If doc not nil check links too.
+func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Response, base string) {
+	if doc != nil {
+		baseUrl, _ := http.ParseURL(base)  // Should not fail!
+		urls := make([]string,0, 10)
+		
+		for _, pat := range []string{"a href", "link href", "img src"} {
+			for _, tg := range tag.FindAllTags(tag.ParseTagSpec(pat), doc) {
+				for _, a := range tg.Attr {
+					if (a.Key == "href" || a.Key == "src") && a.Val != "" {
+						urls = append(urls, a.Val)
+					}
+				}
+			}
+		}
+		tmpl := t.Copy()
+		tmpl.Method = "GET"
+		tmpl.Tag = nil
+		tmpl.BodyCond = nil
+		tmpl.CookieCond = nil
+		tmpl.Param = nil
+		// tmpl.Dump = nil
+		tmpl.Setting = DefaultSettings
+		tmpl.RespCond = []Condition{Condition{Key: "Status-Code", Op: "==", Val: "200"}}
+		for _, u := range urls {
+			url, err := baseUrl.ParseURL(u)
+			if err != nil {
+				orig.Report(false, "Cannot parse URL '%s' relativ to base '%s'.", u, baseUrl.String())
+				continue
+			}
+			
+			theUrl := url.String()
+			if strings.HasPrefix(strings.ToLower(theUrl), "mailto:") {
+				continue
+			}
+			test := tmpl.Copy()
+			test.Url = theUrl
+			_, err = test.RunSingle(global, false)
+			if err != nil {
+				orig.Report(false, "Cannont access `" + test.Url + "'. " + err.String())
+				continue
+			}
+			if _, _, failed := test.Stat(); failed > 0 {
+				s := "Failures for " + test.Url + ": "
+				for _, r := range test.Result {
+					if !strings.HasPrefix(r, "Passed") {
+						s += r + "; "
+					}
+				}
+				orig.Report(false, s)
+			}
+		}
+	}
+
 }
 
 
@@ -832,22 +905,23 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				testBody(body, ti, test)
 
 				// Tag:
-				if len(ti.Tag) > 0 {
+				if len(ti.Tag) > 0 || ti.Validate() & 1 != 0 {
 					var doc *tag.Node
 					if parsableBody(response) {
 						var e os.Error
 						doc, e = tag.ParseHtml(body)
 						if e != nil {
+							test.Report(false, "Problems parsing html: " + e.String())
 							error("Problems parsing html: " + e.String())
 						}
 					} else {
 						error("Unparsable body ")
-						test.Report(false, "Unparsabel Body. Skipped testing Tags.")
+						test.Report(false, "Body considered unparsable.")
 					}
-					if doc != nil {
-						testTags(ti, test, doc)
-					} else {
-						test.Report(false, "Problems parsing Body. Skipped testing Tags.")
+
+					testTags(ti, test, doc)
+					if ti.Validate() & 1 != 0 {
+						testLinkValidation(ti, test, global, doc, response, url)
 					}
 				}
 
@@ -864,7 +938,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				_, _, failed := test.Stat()
 				if failed != 0 {
 					err = Error("Failure: " + test.Status())
-				}
+				} 
 			}
 		}
 

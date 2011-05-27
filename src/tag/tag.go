@@ -203,6 +203,25 @@ func findTag(ts *TagSpec, node *Node) *Node {
 	return nil
 }
 
+// Find all non-nested tags under node which matches the given TagSpec ts.
+func FindAllTags(ts *TagSpec, node *Node) []*Node {
+	debug("FindAllTags: " + ts.String())
+	list := make([]*Node, 0, 10)
+	findAllTags(ts, node, &list)
+	return list
+}
+
+func findAllTags(ts *TagSpec, node *Node, lp *[]*Node ) {
+	if Matches(ts, node) {
+		*lp = append(*lp, node)
+		return
+	}
+	for _, child := range node.Child {
+		findAllTags(ts, child, lp)
+	}
+}
+
+
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.
 func CountTag(ts *TagSpec, node *Node) (n int) {
