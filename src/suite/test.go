@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/base64"
 	"time"
-	"strconv"
 	"io"
 	"io/ioutil"
 	"path"
@@ -37,7 +36,7 @@ type Test struct {
 	Tag        []TagCondition      // list of tags to look for in the body
 	Pre        []string            // currently unused: list of test which are prerequisites to this test
 	Param      map[string][]string // request parameter
-	Setting    map[string]string   // setting like repetition, sleep time, etc. for this test
+	Setting    map[string]int      // setting like repetition, sleep time, etc. for this test
 	Const      map[string]string   // const variables
 	Rand       map[string][]string // random varibales
 	Seq        map[string][]string // sequence variables
@@ -70,7 +69,10 @@ func (src *Test) Copy() (dest *Test) {
 	dest.Pre = make([]string, len(src.Pre))
 	copy(dest.Pre, src.Pre)
 	dest.Param = copyMultiMap(src.Param)
-	dest.Setting = copyMap(src.Setting)
+	dest.Setting = make(map[string]int, len(src.Setting))
+	for k, v := range src.Setting {
+		dest.Setting[k] = v
+	}
 	dest.Const = copyMap(src.Const)
 	dest.Rand = copyMultiMap(src.Rand)
 	dest.Seq = copyMultiMap(src.Seq)
@@ -146,13 +148,14 @@ func (t *Test) Status() (status string) {
 	return
 }
 
-var DefaultSettings = map[string]string{"Repeat": "1",
-	"Tries":        "1",
-	"Max-Time":     "-1",
-	"Sleep":        "0",
-	"Keep-Cookies": "0",
-	"Abort":        "0",
-	"Validate":     "0",
+var DefaultSettings = map[string]int{"Repeat": 1,
+	"Tries":        1,
+	"Max-Time":     -1,
+	"Sleep":        0,
+	"Keep-Cookies": 0,
+	"Abort":        0,
+	"Dump":         0,
+	"Validate":     0,
 }
 
 func NewTest(title string) *Test {
@@ -161,7 +164,7 @@ func NewTest(title string) *Test {
 	t.Header = make(map[string]string)
 	t.Cookie = make(map[string]string)
 	t.Param = make(map[string][]string)
-	t.Setting = make(map[string]string, len(DefaultSettings))
+	t.Setting = make(map[string]int, len(DefaultSettings))
 	t.Const = make(map[string]string)
 	t.Rand = make(map[string][]string)
 	t.Seq = make(map[string][]string)
@@ -206,6 +209,23 @@ func formatMap(title string, m *map[string]string) (f string) {
 		}
 		for k, v := range *m {
 			f += fmt.Sprintf("\t%-*s  %s\n", longest, k, quote(v, false))
+		}
+	}
+	return
+}
+
+// Prety print a map m with title. 
+func formatIntMap(title string, m *map[string]int) (f string) {
+	if len(*m) > 0 {
+		f = title + "\n"
+		longest := 0
+		for k, _ := range *m {
+			if len(k) > longest {
+				longest = len(k)
+			}
+		}
+		for k, v := range *m {
+			f += fmt.Sprintf("\t%-*s  %d\n", longest, k, v)
 		}
 	}
 	return
@@ -272,17 +292,13 @@ func (t *Test) String() (s string) {
 	s += formatMap("CONST", &t.Const)
 	s += formatMultiMap("SEQ", &t.Seq)
 	s += formatMultiMap("RAND", &t.Rand)
-	specSet := make(map[string]string) // map with non-standard settings
+	specSet := make(map[string]int) // map with non-standard settings
 	for k, v := range t.Setting {
-		switch true {
-		case k == "Repeat" && v == "1", k == "Dump" && v == "0", k == "Abort" && v == "0",
-			k == "Sleep" && v == "0", k == "Tries" && v == "1", k == "Max-Time" && v == "-1",
-			k == "Keep-Cookies" && v == "0":
-		default:
+		if dflt, ok := DefaultSettings[k]; ok && v != dflt {
 			specSet[k] = v
 		}
 	}
-	s += formatMap("SETTING", &specSet)
+	s += formatIntMap("SETTING", &specSet)
 	if len(t.Tag) > 0 {
 		s += "TAG\n"
 		for i, tagCond := range t.Tag {
@@ -297,67 +313,39 @@ func (t *Test) String() (s string) {
 	return
 }
 
-// Helper to safely read an integer setting of a test.
-func (t *Test) intSetting(name string, dflt int) int {
-	if t.Setting == nil {
-		return dflt
+// Helper to read a setting of a test.
+func (t *Test) getSetting(name string) int {
+	if t.Setting != nil {
+		if n, ok := t.Setting[name]; ok {
+			return n
+		}
 	}
-	var r string
-	var ok bool
-	if r, ok = t.Setting[name]; !ok {
-		debug("Test '%s' does not have setting %s! Will use %d.", t.Title, name, dflt)
-		return dflt
-	}
-
-	if i, err := strconv.Atoi(r); err != nil {
-		error("Cannot convert '%s' to integer on setting %s! Will use %d.", r, name, dflt)
-		return dflt
-	} else {
-		return i
-	}
-	return dflt
+	return DefaultSettings[name]
 }
-
-// Helper to safely read a boolean seting in a test.
-func (t *Test) boolSetting(name string, dflt bool) bool {
-	if t.Setting == nil {
-		return dflt
-	}
-	var r string
-	var ok bool
-	if r, ok = t.Setting[name]; !ok {
-		debug("Test '%s' does not have setting %s! Will use %t.", t.Title, name, dflt)
-		return dflt
-	}
-	r = strings.ToLower(r)
-	if r == "1" || r == "yes" || r == "true" {
-		return true
-	}
-	return dflt
-}
-
+// Let compiler find misspellings...
 func (t *Test) Repeat() int {
-	return t.intSetting("Repeat", 1)
+	return t.getSetting("Repeat")
 }
-
 func (t *Test) Sleep() int {
-	return t.intSetting("Sleep", 0)
+	return t.getSetting("Sleep")
 }
-
 func (t *Test) Tries() int {
-	return t.intSetting("Tries", 1)
+	return t.getSetting("Tries")
 }
-
-func (t *Test) KeepCookies() bool {
-	return t.boolSetting("Keep-Cookies", false)
+func (t *Test) KeepCookies() int {
+	return t.getSetting("Keep-Cookies")
 }
-
-func (t *Test) Abort() bool {
-	return t.boolSetting("Abort", false)
+func (t *Test) Abort() int {
+	return t.getSetting("Abort")
 }
-
 func (t *Test) Validate() int {
-	return t.intSetting("Validate", 0)
+	return t.getSetting("Validate")
+}
+func (t *Test) DoDump() int {
+	return t.getSetting("Dump")
+}
+func (t *Test) MaxTime() int {
+	return t.getSetting("Max-Time")
 }
 
 
@@ -849,10 +837,10 @@ func (test *Test) Run(global *Test) {
 	test.init()
 
 	// Debuging dump
-	if dd, ok := test.Setting["Dump"]; ok && (dd == "1" || dd == "2") {
+	if dd := test.DoDump(); dd == 1 || dd == 2 {
 		fname := titleToFilename(test.Title)
 		var mode int = os.O_TRUNC
-		if dd == "2" {
+		if dd == 2 {
 			mode = os.O_APPEND
 		}
 		file, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|mode, 0666)
@@ -882,7 +870,7 @@ func (test *Test) RunWithoutTest(global *Test) {
 	}
 
 	test.init()
-	test.Setting["Tries"] = "0" // no test -> no need to try to succeed
+	test.Setting["Tries"] = 0 // no test -> no need to try to succeed
 	for i := 1; i <= test.Repeat(); i++ {
 		test.RunSingle(global, true)
 	}
@@ -929,7 +917,7 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 // Logs the results of the tests in Result field.
 func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.Error) {
 	ti := prepareTest(test, global)
-	tries := ti.intSetting("Tries", 1)
+	tries := ti.getSetting("Tries")
 
 	var tryCnt int
 
@@ -956,7 +944,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 		} else {
 
 			trace("Recieved cookies: %v", cookies)
-			if len(cookies) > 0 && test.KeepCookies() && global != nil {
+			if len(cookies) > 0 && test.KeepCookies() == 1 && global != nil {
 				if global.Cookie == nil {
 					global.Cookie = make(map[string]string)
 				}
@@ -1007,12 +995,11 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				}
 
 				// Timing:
-				if v, ok := ti.Setting["Max-Time"]; ok {
-					max, err := strconv.Atoi(v)
-					if err != nil {
-						error("This should not happen: Max-Time is not an int.")
-					} else if max > 0 && duration > max {
+				if max := ti.MaxTime(); max > 0 {
+					if duration > max {
 						test.Report(false, fmt.Sprintf("Response exeeded Max-Time of %d (was %d).", max, duration))
+					} else {
+						test.Report(true, fmt.Sprintf("Response took %d ms (allowed %d).", duration, max))
 					}
 				}
 

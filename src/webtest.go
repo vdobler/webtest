@@ -377,9 +377,9 @@ func testOrBenchmark(filenames []string) {
 			} else {
 				origDump, _ := s.Test[i].Setting["Dump"]
 				if dumpTalk == "all" {
-					s.Test[i].Setting["Dump"] = "1"
+					s.Test[i].Setting["Dump"] = 1
 				} else if dumpTalk == "none" {
-					s.Test[i].Setting["Dump"] = "0"
+					s.Test[i].Setting["Dump"] = 0
 				}
 				s.RunTest(i)
 				result += fmt.Sprintf("%s: %s\n", abbrTitle, s.Test[i].Status())
@@ -390,7 +390,7 @@ func testOrBenchmark(filenames []string) {
 							fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
 						}
 					}
-					if s.Test[i].Abort() {
+					if s.Test[i].Abort() == 1 {
 						fmt.Printf("Aborting suite.\n")
 						break
 					}
@@ -540,7 +540,7 @@ func stresstest(bgfilename, testfilename string) {
 	for i := 0; i < len(testsuite.Test); i++ {
 		if !shouldRun(testsuite, 0, i) {
 			warn("Disabeling test %s", testsuite.Test[i].Title)
-			testsuite.Test[i].Setting["Repeat"] = "0"
+			testsuite.Test[i].Setting["Repeat"] = 0
 		}
 	}
 

@@ -165,6 +165,65 @@ func (p *Parser) readMap(m *map[string]string) {
 	}
 }
 
+// Read a string->int map. Stopp if unindented line is found
+func (p *Parser) readSettingMap(m *map[string]int) {
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		if !hp(line, "\t") {
+			p.i--
+			return
+		}
+		line = trim(line)
+		j := firstSpace(line)
+		var k, v string
+		var n int
+		var err os.Error
+		if j == -1 {
+			k = line
+			error("No value (int) on line %d.", no)
+			p.okay = false
+		} else {
+			k = trim(line[:j])
+			if _, ok := DefaultSettings[k]; !ok {
+				error("Unknown settign '%s'.", k)
+				p.okay = false
+			} else {
+				v = trim(line[j:])
+				if v[0] == '=' { // gracefully eat = sign
+					v = trim(v[1:])
+				}
+				n, err = strconv.Atoi(v)
+				if err != nil {
+					error("Cannot convert %s to integer on line %d.", v, no)
+					p.okay = false
+				} else {
+					switch k {
+					case "Repeat":
+						if n > 100 {
+							warn("More then 100 repetitions on line %d.", no)
+						}
+					case "Tries":
+						if n <= 0 {
+							warn("Setting Tries to value <= 0 is unsensical line %d.", no)
+						}
+					case "Keep-Cookies", "Abort":
+						if n != 0 && n != 1 {
+							warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", no)
+						}
+					case "Dump", "Validate":
+						if n != 0 && n != 1 {
+							warn("Dump and Validate accept only 0, 1 and 2 as value on line %d.", no)
+						}
+					}
+				}
+			}
+		}
+		(*m)[k] = n
+		trace("Added to map (line %d): %s: %s", no, k, v)
+	}
+}
+
 
 // Split line at spaces into fields. Quotes can be used to hold together a
 // filed containing spaces. E.g. 
@@ -456,69 +515,6 @@ func (p *Parser) readTagCond() []TagCondition {
 }
 
 
-func (p *Parser) checkSettings(settings *map[string]string, lineid string) {
-	for k, v := range *settings {
-		switch k {
-		case "Repeat":
-			i, e := strconv.Atoi(v)
-			if e != nil {
-				error("No value given as Repeat count (was '%s') on line %s.", v, lineid)
-				p.okay = false
-			} else if i > 100 {
-				warn("More than 100 repetitions of one test on line %s.", lineid)
-			}
-		case "Tries":
-			i, e := strconv.Atoi(v)
-			if e != nil {
-				error("No value given as Tries count (was '%s') on line %s.", v, lineid)
-				p.okay = false
-			} else if i > 1000 {
-				warn("More than 1000 tries of one test on line %s.", lineid)
-			} else if i <= 0 {
-				warn("Setting Tries to values <=0 is unsensical on line %s.", lineid)
-				p.okay = false
-			}
-		case "Max-Time":
-			_, e := strconv.Atoi(v)
-			if e != nil {
-				error("No value given as Max-Time miliseconds (was '%s') on line %s.", v, lineid)
-				p.okay = false
-			}
-		case "Sleep":
-			i, e := strconv.Atoi(v)
-			if e != nil {
-				error("No value given as Sleep miliseconds (was '%s') on line %s.", v, lineid)
-				p.okay = false
-			} else if i < 0 {
-				error("Sleep is < 0 on line %s.", lineid)
-				p.okay = false
-			}
-		case "Keep-Cookies", "Abort":
-			switch v {
-			case "true", "1", "True", "TRUE":
-				(*settings)[k] = "1"
-			case "false", "0", "False", "FALSE":
-				(*settings)[k] = "0"
-			default:
-				error("Unknown value for %s: must be 0 or 1 (was '%s') on line %s.", k, v, lineid)
-				p.okay = false
-			}
-		case "Dump":
-			i, e := strconv.Atoi(v)
-			if e != nil {
-				error("No value given for Dump (was '%s') on line %s.", v, lineid)
-				p.okay = false
-			} else if i != 0 && i != 1 && i != 2 {
-				error("Wrong setting for Dump (0: no dump, 1, create file, 2: append) on line %s.", lineid)
-				p.okay = false
-			}
-		default:
-			warn("Unknown Setting '%s' (check spelling and capitalization).", k)
-		}
-	}
-}
-
-
 // Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
@@ -596,8 +592,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "PARAM", "PARAMETERS":
 			p.readMultiMap(&test.Param)
 		case "SETTING", "SETTINGS":
-			p.readMap(&test.Setting)
-			p.checkSettings(&test.Setting, fmt.Sprintf("%d", no))
+			p.readSettingMap(&test.Setting)
 		case "CONST":
 			p.readMap(&test.Const)
 		case "RAND":
