@@ -880,7 +880,8 @@ func (test *Test) RunWithoutTest(global *Test) {
 
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
 	test.init()
-	test.Dump = nil // prevent dumping during benchmarking
+	test.Dump = nil              // prevent dumping during benchmarking
+	test.Setting["Validate"] = 0 // no use in benchmarking
 
 	if count < 5 {
 		warn("Cannot benchmark with less than 5 rounds. Will use 5.")

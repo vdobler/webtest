@@ -22,7 +22,7 @@ var checkOnly bool = false
 var testmode bool = true
 var benchmarkMode bool = false
 var stresstestMode bool = false
-var validateFlag bool = false
+var validateMask int = 0
 var showLinks bool = false
 
 var numRuns int = 15
@@ -153,8 +153,7 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-dump [all|none]  Dump all wire talk or none. If unused respect indiv setting.\n")
-	fmt.Fprintf(os.Stderr, "\t-validate         Validate html of test passes.\n")
-	fmt.Fprintf(os.Stderr, "\t-links            Show links and their status if test passes.\n")
+	fmt.Fprintf(os.Stderr, "\t-validate <n>     Allow checking links (1), validating html (2) or both (3).\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-runs <n>         Number of repetitions of each test (must be >= 5).\n")
@@ -205,8 +204,7 @@ func globalInitialization() {
 	flag.BoolVar(&benchmarkMode, "bench", false, "Benchmark suit: Run each test <runs> often.")
 	flag.BoolVar(&testmode, "test", true, "Perform normal testing")
 	flag.BoolVar(&stresstestMode, "stress", false, "Use background-suite as stress suite for tests.")
-	flag.BoolVar(&validateFlag, "validate", false, "Validate html if test passes.")
-	flag.BoolVar(&showLinks, "links", false, "Show links and stati if tests passes.")
+	flag.IntVar(&validateMask, "validate", 0, "Bit mask which is ANDed to individual test setting.")
 	flag.IntVar(&LogLevel, "log", 3, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
@@ -381,6 +379,7 @@ func testOrBenchmark(filenames []string) {
 				} else if dumpTalk == "none" {
 					s.Test[i].Setting["Dump"] = 0
 				}
+				s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask // clear unwanted validation
 				s.RunTest(i)
 				result += fmt.Sprintf("%s: %s\n", abbrTitle, s.Test[i].Status())
 				if _, _, failed := s.Test[i].Stat(); failed > 0 {
@@ -396,11 +395,6 @@ func testOrBenchmark(filenames []string) {
 					}
 				}
 				s.Test[i].Setting["Dump"] = origDump
-
-				if showLinks {
-					if s.Test[i].Body != nil {
-					}
-				}
 
 			}
 		}
