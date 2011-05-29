@@ -165,7 +165,7 @@ func (p *Parser) readMap(m *map[string]string) {
 	}
 }
 
-// Read a string->int map. Stopp if unindented line is found
+// Read a string->int map for settings. Stopp if unindented line is found
 func (p *Parser) readSettingMap(m *map[string]int) {
 	for p.i < len(p.line)-1 {
 		p.i++
@@ -179,48 +179,67 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		var k, v string
 		var n int
 		var err os.Error
+
 		if j == -1 {
 			k = line
 			error("No value (int) on line %d.", no)
+			(*m)[k] = 0
 			p.okay = false
-		} else {
-			k = trim(line[:j])
-			if _, ok := DefaultSettings[k]; !ok {
-				error("Unknown settign '%s'.", k)
+			continue
+		}
+
+		k = trim(line[:j])
+		if _, ok := DefaultSettings[k]; !ok {
+			error("Unknown settign '%s'.", k)
+			p.okay = false
+			continue
+		}
+
+		v = trim(line[j:])
+		if v[0] == '=' { // gracefully eat = sign
+			v = strings.ToLower(trim(v[1:]))
+		}
+		// Some numbers may be given as cleartext. This allows stuff like
+		// SETTING
+		//     Dump         append
+		//     Keep-Cookies keep
+		//     Abort        false
+		switch v {
+		case "true", "yes", "ja", "qui", "create", "new", "keep", "abort", "link", "links":
+			n = 1
+		case "false", "no", "nein", "non":
+			n = 0
+		case "append", "html", "xhtml":
+			n = 2
+		default:
+			n, err = strconv.Atoi(v)
+			if err != nil {
+				error("Cannot convert %s to integer on line %d.", v, no)
 				p.okay = false
-			} else {
-				v = trim(line[j:])
-				if v[0] == '=' { // gracefully eat = sign
-					v = trim(v[1:])
-				}
-				n, err = strconv.Atoi(v)
-				if err != nil {
-					error("Cannot convert %s to integer on line %d.", v, no)
-					p.okay = false
-				} else {
-					switch k {
-					case "Repeat":
-						if n > 100 {
-							warn("More then 100 repetitions on line %d.", no)
-						}
-					case "Tries":
-						if n <= 0 {
-							warn("Setting Tries to value <= 0 is unsensical line %d.", no)
-						}
-					case "Keep-Cookies", "Abort":
-						if n != 0 && n != 1 {
-							warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", no)
-						}
-					case "Dump", "Validate":
-						if n != 0 && n != 1 {
-							warn("Dump and Validate accept only 0, 1 and 2 as value on line %d.", no)
-						}
-					}
-				}
+			}
+		}
+
+		// Safeuard against stupid or wrong settings.
+		switch k {
+		case "Repeat":
+			if n > 100 {
+				warn("More then 100 repetitions on line %d.", no)
+			}
+		case "Tries":
+			if n <= 0 {
+				warn("Setting Tries to value <= 0 is unsensical line %d.", no)
+			}
+		case "Keep-Cookies", "Abort":
+			if n != 0 && n != 1 {
+				warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", no)
+			}
+		case "Dump", "Validate":
+			if n != 0 && n != 1 {
+				warn("Dump and Validate accept only 0, 1 and 2 as value on line %d.", no)
 			}
 		}
 		(*m)[k] = n
-		trace("Added to map (line %d): %s: %s", no, k, v)
+		trace("Added to settings-map (line %d): %s: %s", no, k, v)
 	}
 }
 
@@ -348,7 +367,7 @@ func (p *Parser) readCond(mode int) []Condition {
 				if ci := strings.Index(k, ":"); ci != -1 {
 					switch k[ci+1:] {
 					case "Value", "Path", "Expires", "Secure", "Domain", "HttpOnly", "MaxAge":
-						// fine: allwed field
+						// fine: allowed field
 					default:
 						error("No such cookie field '%s' on line %d.", k[ci+1], no)
 						p.okay = false
@@ -610,9 +629,19 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	}
 
 	if test != nil {
+		if test.Method == "GET" {
+			// Check if files-uploads are present
+			for k, list := range test.Param {
+				for _, val := range list {
+					if strings.HasPrefix(val, "@file:") {
+						error("Cannot upload files with GET method in test %s, parameter %s.", test.Title, k)
+						p.okay = false
+					}
+				}
+			}
+		}
 		suite.Test = append(suite.Test, *test)
 		trace("Append test to suite: \n%s", test.String())
-		trace("len(suite.Test) == %d", len(suite.Test))
 	}
 
 	if !p.okay {

@@ -9,6 +9,9 @@ to send to the server and check the response: Returned header values and
 the body. To facilliate tests for tags a tag-language allows to find/count
 tags matching certain conditions.
 
+The reference-suite.wt is the documentation of how to set up the plain 
+text files used to define a test suite.
+
 webtest itself needs to packages: tag and suite which might be usefull
 as standalone packages.
 
@@ -18,4 +21,8 @@ cd src/tag && make install
 cd src/suite && make install
 make
 
- 
+Bugs
+----
+
+Arguments to conditions with leading spaces / quoted test strings are broken.
+
