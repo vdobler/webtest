@@ -7,6 +7,7 @@ import (
 	"strings"
 	"strconv"
 	"regexp"
+	"bytes"
 	"dobler/webtest/tag"
 )
 
@@ -114,6 +115,7 @@ func toNumber(a, b, line string) (n, m int64) {
 	return
 }
 
+// Check whether v fullfills the condition cond.
 func (cond *Condition) Fullfilled(v string) bool {
 	ans := false
 	switch cond.Op {
@@ -154,6 +156,53 @@ func (cond *Condition) Fullfilled(v string) bool {
 	return ans
 }
 
+// Convert hex string (e.g. "a0 34 df 71 bc") into byte slice.
+func hexToBytes(hex string) []byte {
+	// TODO: better error handling: add testing code (with proper error reporting) to parser!
+	h := strings.ToLower(strings.Replace(hex, " ", "", -1))
+	if len(h)%2 == 1 {
+		error("Odd number of nibbles in binary value...")
+		h = h[:len(h)-2]
+	}
+	n := len(h) / 2
+	b := make([]byte, n, n)
+	for i := 0; i < n; i++ {
+		var c byte
+		r, err := fmt.Sscanf(h[2*i:2*i+2], "%x", &c)
+		if err != nil || r != 1 {
+			error("Cannot parse hex string... '%s', %d, %d, %v,", hex, n, r, err.String())
+		}
+		b[i] = c
+	}
+	supertrace("hexToBytes('%s') --> %#v", hex, b)
+	return b
+}
+
+// Check whether v fullfills the binary condition cond.
+func (cond *Condition) BinFullfilled(v []byte) bool {
+	ans := false
+	val := hexToBytes(cond.Val)
+	switch cond.Op {
+	case ".": // Empty operator: tests existance only.
+		ans = (len(v) > 0)
+	case "==":
+		ans = (bytes.Compare(v, val) == 0)
+	case "_=":
+		ans = bytes.HasPrefix(v, val)
+	case "=_":
+		ans = bytes.HasSuffix(v, val)
+	case "~=":
+		ans = (bytes.Index(v, val) != -1)
+	default:
+		error("Condition operator '%s' (%s) not implemented.", cond.Op, cond.Id)
+	}
+	if cond.Neg {
+		ans = !ans
+	}
+	return ans
+}
+
+// String represnetation of condition c.
 func (c *Condition) String() (s string) {
 	if c.Neg {
 		s = "!"

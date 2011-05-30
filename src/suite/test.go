@@ -6,7 +6,7 @@ import (
 	"strings"
 	"os"
 	"dobler/webtest/tag"
-	"encoding/hex"
+	//	"encoding/hex"
 	"encoding/base64"
 	"time"
 	"io"
@@ -445,31 +445,25 @@ func testHeader(resp *http.Response, t, orig *Test) {
 
 
 // Test response body.
-func testBody(body string, t, orig *Test) {
+func testBody(body []byte, t, orig *Test) {
 	if len(t.BodyCond) > 0 {
 		debug("Testing Body")
 	} else {
 		return
 	}
 
-	var binbody *string
 	for _, c := range t.BodyCond {
 		cs := c.Info("body")
 		switch c.Key {
 		case "Txt":
 			trace("Text Matching '%s'", c.String())
-			if !c.Fullfilled(body) {
+			if !c.Fullfilled(string(body)) {
 				orig.Report(false, cs)
 			} else {
 				orig.Report(true, cs)
 			}
 		case "Bin":
-			if binbody == nil {
-				bin := hex.EncodeToString([]byte(body))
-				// fmt.Printf("binbody == >>%s<<\n", bin)
-				binbody = &bin
-			}
-			if !c.Fullfilled(*binbody) {
+			if !c.BinFullfilled(body) {
 				orig.Report(false, cs)
 			} else {
 				orig.Report(true, cs)
@@ -976,7 +970,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 					var doc *tag.Node
 					if parsableBody(response) {
 						var e os.Error
-						doc, e = tag.ParseHtml(body)
+						doc, e = tag.ParseHtml(string(body))
 						if e != nil {
 							test.Report(false, "Problems parsing html: "+e.String())
 							error("Problems parsing html: " + e.String())
@@ -991,7 +985,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 						testLinkValidation(ti, test, global, doc, response, url)
 					}
 					if ti.Validate()&2 != 0 {
-						testHtmlValidation(ti, test, global, body)
+						testHtmlValidation(ti, test, global, string(body))
 					}
 				}
 

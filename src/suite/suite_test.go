@@ -43,7 +43,7 @@ func TestNextPart(t *testing.T) {
 }
 
 func TestNowValue(t *testing.T) {
-	var nowValueER [][]string = [][]string{[]string{""},
+	nowValueER := [][]string{[]string{""},
 		[]string{"+1hour"},
 		[]string{"+10hours"},
 		[]string{"+2days"},

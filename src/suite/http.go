@@ -15,15 +15,14 @@ import (
 )
 
 
-func readBody(r io.ReadCloser) string {
+func readBody(r io.ReadCloser) []byte {
 	var bb bytes.Buffer
 	if r != nil {
 		io.Copy(&bb, r)
 		r.Close()
 	}
-	body := bb.String()
-	trace("Read body with len = %d.", len(body))
-	return body
+	trace("Read body with len = %d.", bb.Len())
+	return bb.Bytes()
 }
 
 // Determine wether statusCode tells us to redirect
