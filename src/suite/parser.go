@@ -211,6 +211,8 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 			n = 0
 		case "append", "html", "xhtml":
 			n = 2
+		case "both", "links+html", "html+links":
+			n = 3
 		default:
 			n, err = strconv.Atoi(v)
 			if err != nil {
@@ -233,9 +235,13 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 			if n != 0 && n != 1 {
 				warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", no)
 			}
-		case "Dump", "Validate":
-			if n != 0 && n != 1 {
-				warn("Dump and Validate accept only 0, 1 and 2 as value on line %d.", no)
+		case "Dump":
+			if n != 0 && n != 1 && n != 2 {
+				warn("Dump accepts only 0, 1 and 2 as value (was %s=%d) on line %d.", v, n, no)
+			}
+		case "Validate":
+			if n < 0 || n > 3 {
+				warn("Validates accept only 0, 1, 2 and 3 as value (was %s=%d) on line %d.", v, n, no)
 			}
 		}
 		(*m)[k] = n
