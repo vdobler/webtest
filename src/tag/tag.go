@@ -134,7 +134,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 	}
 	// Tag Attributes
 	for name, cntnt := range ts.Attr {
-		debug("  Checking needed attribute %s", name)
+		debug("  Checking needed attribute '%s' = %v", name, cntnt)
 		if !containsAttr(node.Attr, name, cntnt) {
 			debug("    --> missing")
 			return false
@@ -173,7 +173,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 			nc = node.Text
 		}
 
-		debug("  Checking for content " + nc)
+		debug("  Checking for content %#v", nc)
 		if !ts.Content.Matches(nc) {
 			debug("    --> mismatch")
 			return false

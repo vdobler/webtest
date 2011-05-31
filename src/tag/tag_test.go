@@ -63,7 +63,7 @@ var testSimpleHtml = `<!DOCTYPE html>
 		<p id="alphabet">abcdefghijklmnopqrtstuvwxyz</p>
 		<p id="important" class="important wichtig high" title="FirstTitle" >Important</p>
 		<p id="A" class="important high" ></p>
-		<p id="B" class="aa bb" ></p>
+		<p id="B" class="aa bb" >huhu</p>
 		<p id="C" class="bb aa" ></p>
 		<p id="D" class="xx yy" ></p>
 		<h1 id="h1_1" lang="de">Berlin</h1>
@@ -86,6 +86,9 @@ var testSimpleHtml = `<!DOCTYPE html>
 	<div id="deep"><p><div><p><span><div><p><span>Deeeeeep</span></p></div></span></p></div></p></div>
 	<p id="LongText" class="LongText">This is a pretty long text.</p>
 	<a href="http://some.sub.domain.org/fancy/path/here" id="a123"> Link deep down </a>
+	<h3 id="emptyh3"> 	 
+		&nbsp; &ensp; &emsp; &thinsp; 
+	</h3>
 </body>
 </html>`
 
@@ -116,6 +119,10 @@ func TestBasics(t *testing.T) {
 	check(doc, "p class=bb class=aa", "B", t)
 	check(doc, "p class=xx class=yy", "D", t)
 	check(doc, "p class=yy class=xx", "D", t)
+
+	check(doc, "p class=bb", "B", t)
+	check(doc, "p class=bb == ", "C", t)
+	check(doc, "h3 ==", "emptyh3", t)
 
 	check(doc, "h1 == Berlin", "h1_1", t)
 	check(doc, "h1 !title", "h1_1", t)

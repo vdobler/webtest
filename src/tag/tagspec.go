@@ -181,14 +181,14 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 
 	var cntnt string
 	// TODO: swicth from "==" to "===" and split on " ==== " and " =D= " to safeguard 
-	if strings.Index(spec, " == ") != -1 {
+	if strings.Index(spec, " ==") != -1 {
 		ts.Deep = false
-		p := strings.Split(spec, " == ", 2)
+		p := strings.Split(spec, " ==", 2)
 		spec, cntnt = trim(p[0]), trim(p[1])
 		ts.Content, err = MakeContent(cntnt)
-	} else if strings.Index(spec, " =D= ") != -1 {
+	} else if strings.Index(spec, " =D=") != -1 {
 		ts.Deep = true
-		p := strings.Split(spec, " =D= ", 2)
+		p := strings.Split(spec, " =D=", 2)
 		spec, cntnt = trim(p[0]), trim(p[1])
 		ts.Content, err = MakeContent(cntnt)
 	} else {

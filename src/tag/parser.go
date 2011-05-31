@@ -127,11 +127,13 @@ func prepareClasses(node *Node) {
 }
 
 // Normalize whitespace in t: 
-//  - replace each tab, newline and cariage return with a single space, 
+//  - replace each tab, newline cariage return and html-spaces (nbsp, ensp, emsp, thinsp) with a single space, 
 //  - collaps multiple spaces to one
 //  - trim result.
-func cleanText(t string) (s string) {
-	s = strings.Replace(strings.Replace(strings.Replace(t, "\n", " ", -1), "\r", " ", -1), "\t", " ", -1)
+func cleanText(s string) string {
+	for _, ws := range []string{" ", "\t", "\n", "\r", "\u00a0", "\u2002", "\u2003", "\u2009"} {
+		s = strings.Replace(s, ws, " ", -1)
+	}
 	for strings.Contains(s, "        ") {
 		s = strings.Replace(s, "        ", " ", -1)
 	}
@@ -144,7 +146,7 @@ func cleanText(t string) (s string) {
 		}
 	}
 	s = strings.Trim(s, " ")
-	return
+	return s
 }
 
 
