@@ -44,9 +44,35 @@ package tag
 	  <p class="important" class="news" class="wide">Some Text</p>
 	For finding tags.
 
+	The texttual content of a tag is normalized: Any whitespace is collapsed
+	(even &nbsp; and that like) and trimmed. E.g. the text content of
+	  <p> This is &nbsp;	some text.   </p>
+	is simply "This is some text.".
+	If nested tags are present, their content is part of the normalized
+	text content too. E.g. the deep text content of the p
+	  <p>Some<big>important<span>and</span>useless</big>info</p>
+	is "Some big important and useless info". Note that spaces are added
+	around inner tags while the direct text content is just "Some info"
 
+	To mach tag content use either "==" or "=D=".
+	"==" matches direct content while "=D=" matches deep content.
 
+	Some example
 
+	  h3				match any h3 tag
+	  h3 class			match if any class is present
+	  h3 lang			match if any lang attribute is present
+	  h3 lang=de		match if lang attribute is "de"
+	  h3 lang=d?        would macth de, dx, d0, ...
+	  h3 lang=d*e       would match de, de, dXe, d123e...
+	  h3 class=a        match if tag has class a, e.g. class="x a b"
+	  h3 !class			match if no class attribute is present
+	  h3 !id			match if no id attribute is set
+	  h3 title=			match if title is presnet but empty: title=""
+	  h3 !lang=de		match if no lang is present or value is not de
+	  h3 == Hello		match <h3>Hello</h3> as well as <h3>   Hello </h3>
+	  h3 == H?llo*      would match stuff like "Hallo du da..."
+	  h3 == /(cat|dog)/	regexp either cat or dog
 
 */
 
@@ -57,6 +83,7 @@ import (
 	"os"
 	"html"
 	"log"
+	"sort"
 )
 
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -91,6 +118,11 @@ func trace(f string, m ...interface{}) {
 		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
 	}
 }
+func supertrace(f string, m ...interface{}) {
+	if LogLevel >= 6 {
+		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
+	}
+}
 
 // Check if cl is presnet in classes.
 func containsClass(cl string, classes []string) bool {
@@ -116,10 +148,153 @@ func containsAttr(attr []html.Attribute, name string, cntnt Content) bool {
 	return false
 }
 
+// Quality measure of match
+// 0.0.0.0.0.0.0  --> match
+// ^ ^ ^ ^ ^ ^ ^
+// | | | | | | +------------------- deep subclass failures
+// | | | | | +------------------ number of direct subclass failure
+// | | | | +-------------- forbidden classes
+// | | | +---------- req class 
+// | | +-------- # forbidden attribute failures
+// | +----- # required attribute failure
+// +-- content mismatch: x: not empty, 1,2,... hamming distance
+
+type MatchQuality struct {
+	Node                *Node
+	Content             int
+	ReqAttr, ForbAttr   int
+	ReqClass, ForbClass int
+	Sub, Deep           int
+	Fail                []string
+}
+
+func (q MatchQuality) selfOkay() bool {
+	return q.Content == 0 && q.ReqAttr == 0 && q.ForbAttr == 0 && q.ReqClass == 0 && q.ForbClass == 0
+}
+
+type QualityArray []MatchQuality
+
+func (a QualityArray) Len() int { return len(a) }
+func (a QualityArray) Less(i, j int) bool {
+	if a[i].Content < a[j].Content {
+		return true
+	}
+	if a[i].ReqAttr < a[j].ReqAttr {
+		return true
+	}
+	if a[i].ForbAttr < a[j].ForbAttr {
+		return true
+	}
+	if a[i].ReqClass < a[j].ReqClass {
+		return true
+	}
+	if a[i].Sub < a[j].Sub {
+		return true
+	}
+	if a[i].Deep < a[j].Deep {
+		return true
+	}
+	return false
+}
+func (a QualityArray) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func CalculateQuality(ts *TagSpec, node *Node) (mq MatchQuality) {
+	mq.Node = node
+
+	// Tag Attributes
+	for name, cntnt := range ts.Attr {
+		if !containsAttr(node.Attr, name, cntnt) {
+			mq.ReqAttr++
+			mq.Fail = append(mq.Fail, "Required Attribute: "+name)
+		}
+	}
+	for name, cntnt := range ts.XAttr {
+		if containsAttr(node.Attr, name, cntnt) {
+			mq.ForbAttr++
+			mq.Fail = append(mq.Fail, "Forbidden Attribute: "+name)
+		}
+	}
+
+	// Classes
+	for _, c := range ts.Classes {
+		if !containsClass(c, node.class) {
+			mq.ReqClass++
+			mq.Fail = append(mq.Fail, "Required Class: "+c)
+		}
+	}
+	for _, c := range ts.XClasses {
+		if containsClass(c, node.class) {
+			mq.ForbClass++
+			mq.Fail = append(mq.Fail, "Forbidden class: "+c)
+		}
+	}
+
+	// Content
+	if ts.Content != nil {
+		var nc string
+		if ts.Deep {
+			nc = node.Full
+		} else {
+			nc = node.Text
+		}
+
+		if !ts.Content.Matches(nc) {
+			mq.Content++ // TODO: implement kind of distance... eg agrep/bitmap like  stuff
+			mq.Fail = append(mq.Fail, "Content")
+		}
+	}
+
+	// Sub Tags
+	ci := 0 // next child to test
+	numChilds := len(node.Child)
+	for si := 0; si < len(ts.Sub); si++ {
+		var found bool = false
+		last := ci
+		for ; ci < numChilds; ci++ {
+			if found = Matches(ts.Sub[si], node.Child[ci]); found {
+				break
+			}
+		}
+		if !found {
+			// recheck nodes: no match by themself or just subnode mismatch?
+			subless := ts.Sub[si].DeepCopy()
+			subless.Sub = nil
+			for j := last; j < numChilds; j++ {
+				if Matches(subless, node.Child[j]) {
+					mq.Deep++
+				} else {
+					mq.Sub++
+				}
+			}
+		}
+	}
+	return
+}
+
+func RankNodes(ts *TagSpec, node *Node) []MatchQuality {
+	list := make([]MatchQuality, 0, 20)
+	list = rankNodes(ts, node, list)
+	sort.Sort(QualityArray(list))
+	return list
+}
+
+func rankNodes(ts *TagSpec, node *Node, best []MatchQuality) []MatchQuality {
+	if best == nil {
+	}
+	if node.Name == ts.Name {
+		q := CalculateQuality(ts, node)
+		best = append(best, q)
+	}
+	for _, child := range node.Child {
+		best = rankNodes(ts, child, best)
+	}
+	return best
+}
+
 
 // Check if ts matches the tag node
 func Matches(ts *TagSpec, node *Node) bool {
-	trace("Trying node: " + node.String())
+	supertrace("Trying node: " + node.String())
 
 	// Tag Name
 	if ts.Name == "*" {
@@ -182,10 +357,12 @@ func Matches(ts *TagSpec, node *Node) bool {
 
 	// Sub Tags
 	ci := 0 // next child to test
-	for si := 0; si < len(ts.Sub); si++ {
+	numSubs, numChilds := len(ts.Sub), len(node.Child)
+	for si := 0; si < numSubs; si++ {
 		debug("  Checking subnode %d", si)
-		var found bool = false
-		for ; ci < len(node.Child); ci++ {
+		found := false
+		remaining := numSubs - si - 1
+		for ; ci < numChilds-remaining; ci++ { // only test childs which are not needed for remaining subspecs
 			if found = Matches(ts.Sub[si], node.Child[ci]); found {
 				break
 			}
@@ -242,9 +419,18 @@ func textMatches(s, exp string) bool {
 
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.
-func FindTag(ts *TagSpec, node *Node) *Node {
+func FindTag(ts *TagSpec, root *Node) *Node {
 	debug("FindTag: " + ts.String())
-	return findTag(ts, node)
+	node := findTag(ts, root)
+	if node == nil {
+		fmt.Printf(":::::::   %s\n", ts.String())
+		all := RankNodes(ts, root)
+		for n, q := range all {
+			fmt.Printf("%2d:  %d.%d.%d.%d.%d.%d.%d  %s\n", n, q.Content, q.ReqAttr, q.ForbAttr, q.ReqClass, q.ForbClass, q.Sub, q.Deep, q.Node.String())
+		}
+
+	}
+	return node
 }
 
 // The real work part of FindTag.

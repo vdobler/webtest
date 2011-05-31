@@ -92,6 +92,16 @@ var testSimpleHtml = `<!DOCTYPE html>
 </body>
 </html>`
 
+func TestNotFound(t *testing.T) {
+	doc, err := ParseHtml(testSimpleHtml)
+	if err != nil {
+		t.Error("Unparsabel html: " + err.String())
+		t.FailNow()
+	}
+
+	check(doc, "p == Hello World", "first", t)
+	check(doc, "p !title=FirstTitle == Important", "important", t)
+}
 
 func TestBasics(t *testing.T) {
 	doc, err := ParseHtml(testSimpleHtml)
