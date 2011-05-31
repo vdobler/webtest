@@ -590,7 +590,8 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 	urls := make(map[string]bool, 50) // keys are urls to prevent doubles
 
 	for _, pat := range []string{"a href", "link href", "img src"} {
-		for _, tg := range tag.FindAllTags(tag.ParseTagSpec(pat), doc) {
+		ts, _ := tag.ParseTagSpec(pat) // Wont err
+		for _, tg := range tag.FindAllTags(ts, doc) {
 			for _, a := range tg.Attr {
 				if (a.Key == "href" || a.Key == "src") && a.Val != "" {
 					if url := shallCheckUrl(a.Val, baseUrl); url != nil {

@@ -76,7 +76,7 @@ func (n *Node) HtmlRep(indent int) (s string) {
 }
 
 // Should produce original html as seen by parser.
-// Two differences: a) Selfclosing tags are selfclosing in the output
+// Two differences: a) selfclosing tags are selfclosing in the output
 // and b) attribute values and text is escaped.
 func (n *Node) Html() (s string) {
 	s = "<" + n.Name + ""
@@ -138,18 +138,39 @@ func cleanText(t string) (s string) {
 	for strings.Contains(s, "    ") {
 		s = strings.Replace(s, "    ", " ", -1)
 	}
-	for strings.Contains(s, "  ") {
-		s = strings.Replace(s, "  ", " ", -1)
+	for strings.Index(s, "  ") != -1 {
+		for strings.Contains(s, "  ") {
+			s = strings.Replace(s, "  ", " ", -1)
+		}
 	}
 	s = strings.Trim(s, " ")
 	return
 }
 
 
+func removeJavascript(h string) string {
+	// TODO: handle upper case SCRIPT
+	for i := strings.Index(h, "<script"); i != -1; {
+		a, b := h[:i], h[i+7:]
+		if j := strings.Index(b, "</script>"); j != -1 {
+			h = a + b[j+9:]
+		} else {
+			// this should not happen iff html/javascript is halfway decent...
+			warn("Html is completely broken...")
+			h = a
+			break
+		}
+		i = strings.Index(h, "<script")
+	}
+
+	return h
+}
+
+
 // Parse the given html and return the root node of the document.
-// Parsing starts at the first StartToken and will ignore
+// Parsing starts at the first StartToken and will ignore other stuff.
 func ParseHtml(h string) (root *Node, err os.Error) {
-	debug(h)
+	trace("%s", h)
 	r := strings.NewReader(h)
 	parser := xml.NewParser(r)
 	parser.Strict = false
@@ -159,13 +180,18 @@ func ParseHtml(h string) (root *Node, err os.Error) {
 		var tok xml.Token
 		tok, err = parser.Token()
 		if err != nil {
-			fmt.Printf("XXXXXXXXXXX\n")
+			error("Cannot find start node of html! %s", err.String())
 			return
 		}
 		switch tok.(type) {
 		case xml.StartElement:
 			debug("Starting parsing from %v", tok)
 			root, err = parse(tok, parser, nil)
+			if err != nil && strings.HasPrefix(err.String(), "Javascript: ") {
+				h = removeJavascript(h)
+				debug("Retrying parsing html without javascript.")
+				root, err = ParseHtml(h) // last try...
+			}
 			trace("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
 			trace("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
 			return
@@ -198,11 +224,15 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.
 				err = nil
 				break
 			}
+			if node.Name == "script" {
+				err = os.ErrorString("Javascript: " + err.String())
+			}
 			return
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
-			ch, err := parse(t, parser, node)
+			var ch *Node
+			ch, err = parse(t, parser, node)
 			if err != nil {
 				return
 			}

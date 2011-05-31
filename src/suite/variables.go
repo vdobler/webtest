@@ -205,7 +205,17 @@ func substitute(str string, test, global, orig *Test) string {
 
 // Special function to dig into nested tags and replace variables with their value there too.
 func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {
-	ts.Content = substitute(ts.Content, test, global, orig)
+	if ts.Content != nil {
+		ocs := ts.Content.String()
+		ncs := substitute(ocs, test, global, orig)
+		if ncs != ocs {
+			if nc, err := tag.MakeContent(ncs); err != nil {
+				ts.Content = nc
+			} else {
+				error("Tag text content or attribute value is malformed after variable substitution! Will use old one.")
+			}
+		}
+	}
 	for _, sub := range ts.Sub {
 		substituteTagContent(sub, test, global, orig)
 	}
@@ -236,10 +246,21 @@ func substituteVariables(test, global, orig *Test) {
 		test.Param[k] = sl
 	}
 
+	trace("Replacing tag content")
 	for i, tc := range test.Tag {
-		trace("Replacing tag content %d", i)
-		test.Tag[i].Spec.Content = substitute(tc.Spec.Content, test, global, orig)
-		for _, subts := range tc.Spec.Sub {
+		if tc.Spec.Content != nil {
+			ocs := tc.Spec.Content.String()
+			ncs := substitute(ocs, test, global, orig)
+			if ocs != ncs {
+				if nc, err := tag.MakeContent(ncs); err != nil {
+					test.Tag[i].Spec.Content = nc
+				} else {
+					error("Tag text content or attribute value is malformed after variable substitution! Will use old one.")
+				}
+			}
+		}
+		for j, subts := range tc.Spec.Sub {
+			trace("Replacing sub tag content %d", j)
 			substituteTagContent(subts, test, global, orig)
 		}
 	}

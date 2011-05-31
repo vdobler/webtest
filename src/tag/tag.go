@@ -1,5 +1,55 @@
 package tag
 
+/*
+	This package helps testing for occurenc of tags in html/xml documents.
+
+	Tags are described by a plaintext strings. The following examples show
+	most of the possibilities
+
+	  tagspec:
+		tagname [ attr... ] [ contentOp content ]
+
+	  attr:
+	    [ class | attribute ]
+
+	  class:
+	  	[ '!' ] 'class' [ '=' fixed ]
+
+	  attribute:
+	  	[ '!' ] name [ '=' content ]
+
+	  contentOp:
+		[ '==' | '=D=' ]               '==' is normal matching of text content
+		                               'wheras '=D=' is deep matching of nested
+									   text content.
+
+	  content:
+		[ pattern | '/' regexp '/' ]   pattern may contain '*' and '?' and works
+		                               like shell globing. regexp is what it is.
+
+	Only specified classes, attributes and content is considered when finding
+	tags in a html/xml document. E.g.:
+	  "p lang=en"
+	will match any p-tag with lang="en" regardless of any other classes, 
+	attributes and content of the p-tag.
+
+	Values for attributes may be ommitted: Such test just check wether the
+	tag has the attribute (value does not matter).
+
+	The difference between class and "normal" attribute testing is: Attributes
+	may be specified only once and their value is optional wheras classes can
+	be specified multiple times and must contain a value. Think of a tag like
+	  <p class="important news wide">Some Text</p>
+	As beeing something like
+	  <p class="important" class="news" class="wide">Some Text</p>
+	For finding tags.
+
+
+
+
+
+*/
+
 
 import (
 	"fmt"
@@ -9,7 +59,7 @@ import (
 	"log"
 )
 
-var LogLevel int = 3 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
+var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var logger *log.Logger
 
 func init() {
@@ -53,12 +103,13 @@ func containsClass(cl string, classes []string) bool {
 }
 
 // Check if a is contained in attr.
-func containsAttr(a html.Attribute, attr []html.Attribute) bool {
-	k, v := a.Key, a.Val
+func containsAttr(attr []html.Attribute, name string, cntnt Content) bool {
 	for _, at := range attr {
-		if k == at.Key {
-			if v == IGNORED || textMatches(at.Val, v) {
+		if at.Key == name {
+			if cntnt == nil || cntnt.Matches(at.Val) {
 				return true
+			} else {
+				return false
 			}
 		}
 	}
@@ -66,13 +117,13 @@ func containsAttr(a html.Attribute, attr []html.Attribute) bool {
 }
 
 
-// Check if ts matches the token node
+// Check if ts matches the tag node
 func Matches(ts *TagSpec, node *Node) bool {
 	trace("Trying node: " + node.String())
 
 	// Tag Name
 	if ts.Name == "*" {
-		return true
+		return true // TODO: is this usefull? most probably not....
 	}
 	if node.Name != ts.Name {
 		return false
@@ -82,16 +133,16 @@ func Matches(ts *TagSpec, node *Node) bool {
 		debug("Trying node: " + node.String())
 	}
 	// Tag Attributes
-	for _, a := range ts.Attr {
-		debug("  Checking needed attribute %s", a)
-		if !containsAttr(a, node.Attr) {
+	for name, cntnt := range ts.Attr {
+		debug("  Checking needed attribute %s", name)
+		if !containsAttr(node.Attr, name, cntnt) {
 			debug("    --> missing")
 			return false
 		}
 	}
-	for _, a := range ts.XAttr {
-		debug("  Checking forbidden attribute %s", a)
-		if containsAttr(a, node.Attr) {
+	for name, cntnt := range ts.XAttr {
+		debug("  Checking forbidden attribute %s", name)
+		if containsAttr(node.Attr, name, cntnt) {
 			debug("    --> present")
 			return false
 		}
@@ -114,13 +165,16 @@ func Matches(ts *TagSpec, node *Node) bool {
 	}
 
 	// Content
-	if ts.Content != "" {
-		nc := node.Text
+	if ts.Content != nil {
+		var nc string
 		if ts.Deep {
 			nc = node.Full
+		} else {
+			nc = node.Text
 		}
+
 		debug("  Checking for content " + nc)
-		if !textMatches(nc, ts.Content) {
+		if !ts.Content.Matches(nc) {
 			debug("    --> mismatch")
 			return false
 		}
@@ -145,6 +199,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 	return true
 }
 
+// Check if s matches the regular expression exp.
 // TODO: Compile just once (during parsing/tagspec construction
 func regexpMatches(s, exp string) bool {
 	// fmt.Printf("Regexp Match '%s' :: '%s'\n", s, exp)
@@ -157,7 +212,8 @@ func regexpMatches(s, exp string) bool {
 	return false
 }
 
-// Do shell like pattern globing via package path. Return true if str matches pattern exp
+// Do shell like pattern globing (? and *, no char-range). Return true if str matches pattern exp
+// TODO: Err early during parsing if pattern is malformed and use some kind of NonFailMatch() here.
 func wildcardMatches(str, exp string) bool {
 	matches, err := Match(exp, str)
 	if err != nil {
@@ -167,10 +223,10 @@ func wildcardMatches(str, exp string) bool {
 	return matches
 }
 
-// Dispatch "plain text", "/regular expression/" and "wildcard * search"
+// Dispatch "/regular expression/" and "wildc?rd * search"
 // to the appropriate functions
 func textMatches(s, exp string) bool {
-	trace("textMatches: got '%s' expected '%s'", s, exp)
+	trace("textMatches: got '%s' expecting'%s'", s, exp)
 	if exp == "" {
 		return true
 	}
@@ -191,6 +247,7 @@ func FindTag(ts *TagSpec, node *Node) *Node {
 	return findTag(ts, node)
 }
 
+// The real work part of FindTag.
 func findTag(ts *TagSpec, node *Node) *Node {
 	if Matches(ts, node) {
 		return node
@@ -211,6 +268,7 @@ func FindAllTags(ts *TagSpec, node *Node) []*Node {
 	return list
 }
 
+// The real work part of FindAllTags.
 func findAllTags(ts *TagSpec, node *Node, lp *[]*Node) {
 	if Matches(ts, node) {
 		*lp = append(*lp, node)
@@ -229,6 +287,7 @@ func CountTag(ts *TagSpec, node *Node) (n int) {
 	return countTag(ts, node)
 }
 
+// The real work part of CountTag.
 func countTag(ts *TagSpec, node *Node) (n int) {
 	if Matches(ts, node) {
 		return 1

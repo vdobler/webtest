@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"math"
 )
 
 // Log level of suite. 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace, 6:supertrace
@@ -94,7 +95,7 @@ func bgRun(test, global *Test, done chan bool) {
 	trace("Finished background test %s.", test.Title)
 }
 
-// Make n request of bg suite in parallel until shot down via kill.
+// Make n request of bg suite in parallel until shut down via signal on kill.
 func bgnoise(n int, bg *Suite, kill chan bool) {
 	m := len(bg.Test)
 	var done chan bool
@@ -109,7 +110,7 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 	for {
 		select {
 		case killed = <-kill:
-			debug("bgnoise killed")
+			debug("Killed bgnoise")
 		case _ = <-done:
 			// trace("bg process done")
 			if !killed {
@@ -120,7 +121,7 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 				n--
 				// trace("Left running %d:", n)
 				if n == 0 {
-					// trace("begnois done all work: returning")
+					debug("Finished begnois")
 					return
 				}
 			}
@@ -129,18 +130,21 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 }
 
 
+// Structure to collect results from a stresstest run.
 type StressResult struct {
-	Load  int
-	N     int
-	Err   int
-	AvgRT int64
-	MaxRT int64
-	MinRT int64
-	Total int
-	Pass  int
-	Fail  int
+	Load  int   // number of parallel background requests
+	N     int   // total number of tests and repetitions
+	Err   int   // number errors (e.g. unable to connect)
+	AvgRT int64 // average response time in ms
+	MaxRT int64 // maximum response time in ms
+	MinRT int64 // minimum response time in ms
+	Total int   // total number of tests performed
+	Pass  int   // number of passed tests
+	Fail  int   // number of failed tests
 }
 
+
+// Perform reps runs of s while running load of load parallel background request taken from bg.
 func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result StressResult) {
 	var kill chan bool
 	kill = make(chan bool)
@@ -149,8 +153,8 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 		// start bg load
 	}
 
-	result.MaxRT = -9999999999999
-	result.MinRT = 100000000000
+	result.MaxRT = math.MinInt64
+	result.MinRT = math.MaxInt64
 	result.Load = load
 
 	for rep := 1; rep <= reps; rep++ {
@@ -196,10 +200,12 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 }
 
 
+// Stepper is a load-increaser which yields the next number of background tasks.
 type Stepper interface {
 	Next(current int) int
 }
 
+// Implements Stepper and increases at a constant rate (linearely).
 type ConstantStep struct {
 	Start int
 	Step  int
@@ -212,6 +218,8 @@ func (cs ConstantStep) Next(current int) int {
 	return current + cs.Step
 }
 
+
+// Implements Stepper and increases at a constant factor (exponential).
 type FactorStep struct {
 	Start  int
 	Factor float32

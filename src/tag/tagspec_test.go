@@ -11,7 +11,7 @@ func TestSimpleParsing(t *testing.T) {
 	examples := []string{"a", "h3", "h1 class=xyz", "a href=/domain.org/path", "p == ABC xyz"}
 
 	for _, spec := range examples {
-		ts := ParseTagSpec(spec)
+		ts := MustParse(spec, t)
 		if ts == nil {
 			t.Error("Unparsabel " + spec)
 			continue
@@ -32,7 +32,7 @@ func TestNestedParsing(t *testing.T) {
 	}
 
 	for _, spec := range examples {
-		ts := ParseTagSpec(spec[0])
+		ts := MustParse(spec[0], t)
 		if ts == nil {
 			t.Error("Unparsabel " + spec[0])
 			continue

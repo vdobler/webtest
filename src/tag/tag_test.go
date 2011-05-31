@@ -6,14 +6,19 @@ import (
 	// "strings"
 )
 
+func MustParse(spec string, t *testing.T) *TagSpec {
+	ts, err := ParseTagSpec(spec)
+	if ts == nil || err != nil {
+		t.Errorf("Unexpected unparsable tagspec '%s': %s", spec, err.String())
+		t.FailNow()
+		return nil
+	}
+	return ts
+}
+
 func check(doc *Node, spec, expectedId string, t *testing.T) {
 	// fmt.Printf("Spec: %s\n", spec)
-	ts := ParseTagSpec(spec)
-	if ts == nil {
-		t.Error("Unparsabel " + spec)
-		return
-	}
-
+	ts := MustParse(spec, t)
 	n := FindTag(ts, doc)
 	if n == nil {
 		t.Error("Not found: " + spec)
@@ -36,7 +41,7 @@ func check(doc *Node, spec, expectedId string, t *testing.T) {
 
 func checkN(doc *Node, spec string, t *testing.T) {
 	// fmt.Printf("Spec: %s\n", spec)
-	ts := ParseTagSpec(spec)
+	ts := MustParse(spec, t)
 	if ts == nil {
 		t.Error("Unparsabel " + spec)
 		return
@@ -193,20 +198,24 @@ func TestCounting(t *testing.T) {
 
 	counts := map[string]int{"html": 1, "body": 1, "div": 6, "p": 14, "h1": 4, "h2": 1, "span": 5}
 	for q, n := range counts {
-		m := CountTag(ParseTagSpec(q), doc)
+		ts := MustParse(q, t)
+		m := CountTag(ts, doc)
 		if m != n {
 			t.Errorf("Found %d instances of %s but expected %d.", m, q, n)
 		}
 	}
 
-	root := FindTag(ParseTagSpec("div id=div1"), doc)
+	tsx := MustParse("div id=div1", t)
+
+	root := FindTag(tsx, doc)
 	if root == nil {
 		t.Error("No div id=div1 found")
 		t.FailNow()
 	}
 	counts = map[string]int{"html": 0, "body": 0, "div": 1, "p": 8, "h1": 4, "h2": 0, "span": 1}
 	for q, n := range counts {
-		m := CountTag(ParseTagSpec(q), root)
+		ts := MustParse(q, t)
+		m := CountTag(ts, root)
 		if m != n {
 			t.Errorf("Found %d instances of %s but expected %d.", m, q, n)
 		}

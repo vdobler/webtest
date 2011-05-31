@@ -520,13 +520,12 @@ func (p *Parser) readTagCond() []TagCondition {
 			// fmt.Printf("\n-------------------\n%s\n----------------------\n", spec)
 		}
 
-		ts := tag.ParseTagSpec(spec)
-		if ts != nil {
+		if ts, err := tag.ParseTagSpec(spec); err == nil {
 			cond.Spec = *ts
 			list = append(list, cond)
 			trace("Added to tag condition (line %d): %s", no, cond.String())
 		} else {
-			error("Problems parsing '%s'.", spec)
+			error("Problems parsing '%s': %s", err.String())
 			p.okay = false
 		}
 	}
