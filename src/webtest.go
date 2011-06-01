@@ -150,6 +150,7 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\t                  namepattern. E.g. '3,7,External*,9,*-Special-??,15'.\n")
 	fmt.Fprintf(os.Stderr, "\t-seed <n>         use n as random seed (instead of current time).\n")
 	fmt.Fprintf(os.Stderr, "\t-D <n>=<v>        Set/override const variable named <n> to value <v>.\n")
+	fmt.Fprintf(os.Stderr, "\t-od <path>        Set output path to <path>.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-dump [all|none]  Dump all wire talk or none. If unused respect indiv setting.\n")
@@ -214,6 +215,7 @@ func globalInitialization() {
 	flag.Int64Var(&randomSeed, "seed", -1, "Seed for random number generator.")
 	var variables cmdlVar = cmdlVar{map[string]string{}}
 	flag.Var(variables, "D", "Set/Overwrite a const variable in the suite e.g. '-D HOST=localhost'")
+	flag.StringVar(&suite.OutputPath, "od", suite.OutputPath, "Output into given directory.")
 
 	flag.IntVar(&rampStart, "ramp.start", 5, "Ramp start")
 	flag.IntVar(&rampStep, "ramp.step", 5, "Ramp step")

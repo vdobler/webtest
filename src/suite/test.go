@@ -323,30 +323,14 @@ func (t *Test) getSetting(name string) int {
 	return DefaultSettings[name]
 }
 // Let compiler find misspellings...
-func (t *Test) Repeat() int {
-	return t.getSetting("Repeat")
-}
-func (t *Test) Sleep() int {
-	return t.getSetting("Sleep")
-}
-func (t *Test) Tries() int {
-	return t.getSetting("Tries")
-}
-func (t *Test) KeepCookies() int {
-	return t.getSetting("Keep-Cookies")
-}
-func (t *Test) Abort() int {
-	return t.getSetting("Abort")
-}
-func (t *Test) Validate() int {
-	return t.getSetting("Validate")
-}
-func (t *Test) DoDump() int {
-	return t.getSetting("Dump")
-}
-func (t *Test) MaxTime() int {
-	return t.getSetting("Max-Time")
-}
+func (t *Test) Repeat() int      { return t.getSetting("Repeat") }
+func (t *Test) Sleep() int       { return t.getSetting("Sleep") }
+func (t *Test) Tries() int       { return t.getSetting("Tries") }
+func (t *Test) KeepCookies() int { return t.getSetting("Keep-Cookies") }
+func (t *Test) Abort() int       { return t.getSetting("Abort") }
+func (t *Test) Validate() int    { return t.getSetting("Validate") }
+func (t *Test) DoDump() int      { return t.getSetting("Dump") }
+func (t *Test) MaxTime() int     { return t.getSetting("Max-Time") }
 
 
 // Look for name in cookies. Return index if found and -1 otherwise.
@@ -803,18 +787,30 @@ func (test *Test) init() {
 }
 
 
+// Sanitize t (by replacing anything uncomfortable in a filename) by _.
+// The default output path is prepended automatically.
 func titleToFilename(t string) (f string) {
+	f = OutputPath
+	if !strings.HasSuffix(f, "/") {
+		f += "/"
+	}
+
 	// TODO use unicode codepoints
-	for i := 0; i < len(t); i++ {
-		if t[i] == ' ' {
+	for _, cp := range t {
+		switch true {
+		case cp >= 'a' && cp <= 'z', cp >= 'A' && cp <= 'Z', cp >= '0' && cp <= '9',
+			cp == '-', cp == '+', cp == '.', cp == ',', cp == '_':
+			f += string(cp)
+		case cp <= 32, cp >= 127:
+			// eat
+		default:
 			f += "_"
-		} else if (t[i] >= 'a' && t[i] <= 'z') || (t[i] >= 'A' && t[i] <= 'Z') || (t[i] >= '0' && t[i] <= '0') {
-			f += string(t[i])
-		} else if t[i] == '-' || t[i] == '+' || t[i] == '.' {
-			f += string(t[i])
 		}
 	}
-	f += ".dump"
+	for strings.Contains(f, "__") {
+		f = strings.Replace(f, "__", "_", -1)
+	}
+	f = strings.Replace(f, "--", "-", -1)
 	return
 }
 
@@ -833,7 +829,7 @@ func (test *Test) Run(global *Test) {
 
 	// Debuging dump
 	if dd := test.DoDump(); dd == 1 || dd == 2 {
-		fname := titleToFilename(test.Title)
+		fname := titleToFilename(test.Title) + ".dump"
 		var mode int = os.O_TRUNC
 		if dd == 2 {
 			mode = os.O_APPEND
@@ -908,12 +904,59 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 	return
 }
 
+
+// Retrive file extension from content type or url.
+func determineExt(url, ct string) string {
+	ct = strings.ToLower(ct)
+	if strings.Contains(ct, "text/html") || strings.Contains(ct, "text/xhtml") || strings.Contains(ct, "application/xhtml+xml") {
+		return "html"
+	}
+	if strings.Contains(ct, "xml") {
+		return "xml"
+	}
+	if strings.Contains(ct, "application/pdf") {
+		return "pdf"
+	}
+	u, err := http.ParseURL(url)
+	if err == nil {
+		p := u.Path
+		if i := strings.LastIndex(p, "."); i != -1 {
+			return p[i+1:]
+		}
+	}
+	return "bin"
+}
+
+// Write body to a new file (name pattern is <TestTitle>.<N>.<FileExtension>).
+// N is increased to find a "new" file
+func dumpBody(body []byte, title, url, ct string) {
+	name := titleToFilename(title)
+	ext := determineExt(url, ct)
+	var fname string
+	for i := 0; i < 1000; i++ {
+		fname = fmt.Sprintf("%s.%03d.%s", name, i, ext)
+		_, err := os.Stat(fname)
+		if e, ok := err.(*os.PathError); ok && e.Error == os.ENOENT {
+			break
+		}
+	}
+
+	file, err := os.Create(fname)
+	if err != nil {
+		error("Cannot dump body to file '%s': %s.", fname, err.String())
+	} else {
+		defer file.Close()
+		file.Write(body)
+	}
+}
+
+
 // Perform a single run of the test.  Return duration for server response in ms.
 // If request itself failed, then err is non nil and contains the reason.
 // Logs the results of the tests in Result field.
 func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.Error) {
 	ti := prepareTest(test, global)
-	tries := ti.getSetting("Tries")
+	tries := ti.Tries()
 
 	var tryCnt int
 
@@ -964,6 +1007,9 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 
 				// Body:
 				body := readBody(response.Body)
+				if ti.DoDump() == 3 {
+					dumpBody(body, ti.Title, url, response.Header.Get("Content-Type"))
+				}
 				testBody(body, ti, test)
 
 				// Tag:

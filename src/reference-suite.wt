@@ -368,6 +368,11 @@ PARAM
 #  - The following variable names are reserved for future use:
 #    "GLOBALID", "RANDOM", all variables starting with "ENV" and
 #    "NOW" (see below)
+#  - Pay attention if variables are substituted in tag content as this might
+#    generate a regexp: If x takes value "xyz/" and the tag  spec is e.g.
+#    "p == /abc*${x}" it will result in "/abc*xyz/ which is considered a
+#    regexp.
+#
 ---------------------------------
 Variables
 ---------------------------------
@@ -565,7 +570,9 @@ Debuging
 GET http://some.url
 SETTING
 	# Turn dumping on with 1 or 2. Will dump to file "Debuging.dump"
-	# 1 will create a new file wheras 2 will append to an existing one.
+	# 1 will create a new file wheras 2 will append to an existing one
+	# and 3 will just dump the recieved response body (and create a
+	# new file each time)
 	Dump  1
 	
 

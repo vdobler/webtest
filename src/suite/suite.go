@@ -11,6 +11,8 @@ import (
 // Log level of suite. 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace, 6:supertrace
 var LogLevel int = 2
 
+// Path of directory to dump stuff to
+var OutputPath = "."
 
 var logger *log.Logger
 
