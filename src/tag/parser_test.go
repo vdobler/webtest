@@ -101,7 +101,7 @@ func TestHtmlEntitiesParsing(t *testing.T) {
 		t.FailNow()
 	}
 	lines := strings.Split(doc.HtmlRep(0), "\n", -1)
-	for i, exp := range []string{"<html>", "<body>", "<p> a < b > c. A&B. x=\"Hallo\". Copy ©. Umlaute: äöü = äöü."} {
+	for i, exp := range []string{"<html [1]", "<body [1]", "<p> a < b > c. A&B. x=\"Hallo\". Copy ©. Umlaute: äöü = äöü."} {
 		got := strings.Trim(lines[i], " \t")
 		if !strings.HasPrefix(got, exp) {
 			t.Errorf("Expected %s on line %d but got %s.", exp, i, got)

@@ -32,9 +32,6 @@ type Node struct {
 // String "representation" of a Node. Usefull for debuging purpose.
 func (n *Node) String() (s string) {
 	s = n.HtmlRep(-1)
-	if len(n.Child) > 0 {
-		s += fmt.Sprintf(" [%d children]", len(n.Child))
-	}
 	return
 }
 
@@ -61,16 +58,20 @@ func (n *Node) HtmlRep(indent int) (s string) {
 		}
 		s += "\""
 	}
-	s += "> " + n.Text
-	/* *********************************
-	if n.Full != "" {
-		s += "  [[" + n.Full + "]]"
+	if len(n.Child) > 0 {
+		s += fmt.Sprintf(" [%d]", len(n.Child))
 	}
-	********************************** */
+	s += "> " + n.Text
+	if n.Text != n.Full {
+		s += " [[" + n.Full + "]]"
+	}
+
 	if indent >= 0 {
 		for _, c := range n.Child {
 			s += "\n" + c.HtmlRep(indent+1)
 		}
+	} else {
+
 	}
 	return
 }
@@ -79,7 +80,7 @@ func (n *Node) HtmlRep(indent int) (s string) {
 // Two differences: a) selfclosing tags are selfclosing in the output
 // and b) attribute values and text is escaped.
 func (n *Node) Html() (s string) {
-	s = "<" + n.Name + ""
+	s = "<" + n.Name
 	for _, a := range n.Attr {
 		s += " " + a.Key + "=\"" + html.EscapeString(a.Val) + "\""
 	}

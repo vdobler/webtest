@@ -148,18 +148,10 @@ func containsAttr(attr []html.Attribute, name string, cntnt Content) bool {
 	return false
 }
 
-// Quality measure of match
-// 0.0.0.0.0.0.0  --> match
-// ^ ^ ^ ^ ^ ^ ^
-// | | | | | | +------------------- deep subclass failures
-// | | | | | +------------------ number of direct subclass failure
-// | | | | +-------------- forbidden classes
-// | | | +---------- req class 
-// | | +-------- # forbidden attribute failures
-// | +----- # required attribute failure
-// +-- content mismatch: x: not empty, 1,2,... hamming distance
 
-type MatchQuality struct {
+// How well does a tagspec match a certain tag? MatchFailures counts which
+// elemnts of a tagsepc (and how often) they do not match the tag.
+type MatchFailures struct {
 	Node                *Node
 	Content             int
 	ReqAttr, ForbAttr   int
@@ -168,37 +160,22 @@ type MatchQuality struct {
 	Fail                []string
 }
 
-func (q MatchQuality) selfOkay() bool {
+func (q MatchFailures) selfOkay() bool {
 	return q.Content == 0 && q.ReqAttr == 0 && q.ForbAttr == 0 && q.ReqClass == 0 && q.ForbClass == 0
 }
-
-type QualityArray []MatchQuality
-
-func (a QualityArray) Len() int { return len(a) }
-func (a QualityArray) Less(i, j int) bool {
-	if a[i].Content < a[j].Content {
-		return true
-	}
-	if a[i].ReqAttr < a[j].ReqAttr {
-		return true
-	}
-	if a[i].ForbAttr < a[j].ForbAttr {
-		return true
-	}
-	if a[i].ReqClass < a[j].ReqClass {
-		return true
-	}
-	if a[i].Sub < a[j].Sub {
-		return true
-	}
-	if a[i].Deep < a[j].Deep {
-		return true
-	}
-	return false
+func (q MatchFailures) Total() int {
+	return q.Content + q.ReqAttr + q.ForbAttr + q.ReqClass + q.ForbClass + q.Sub + q.Deep
 }
-func (a QualityArray) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
-func CalculateQuality(ts *TagSpec, node *Node) (mq MatchQuality) {
+// Allow sorting of MatchFailures slices
+type QualityArray []MatchFailures
+
+func (a QualityArray) Len() int           { return len(a) }
+func (a QualityArray) Less(i, j int) bool { return a[i].Total() < a[j].Total() }
+func (a QualityArray) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// Calculate how much (on how many elements of ts) node does not match ts.
+func Missmatch(ts *TagSpec, node *Node) (mq MatchFailures) {
 	mq.Node = node
 
 	// Tag Attributes
@@ -231,16 +208,16 @@ func CalculateQuality(ts *TagSpec, node *Node) (mq MatchQuality) {
 
 	// Content
 	if ts.Content != nil {
-		var nc string
 		if ts.Deep {
-			nc = node.Full
+			if !ts.Content.Matches(node.Full) {
+				mq.Content = 1
+			}
+			mq.Fail = append(mq.Fail, "Deep Content")
 		} else {
-			nc = node.Text
-		}
-
-		if !ts.Content.Matches(nc) {
-			mq.Content++ // TODO: implement kind of distance... eg agrep/bitmap like  stuff
-			mq.Fail = append(mq.Fail, "Content")
+			if !ts.Content.Matches(node.Text) {
+				mq.Content = 2
+			}
+			mq.Fail = append(mq.Fail, "Direct Content")
 		}
 	}
 
@@ -271,18 +248,20 @@ func CalculateQuality(ts *TagSpec, node *Node) (mq MatchQuality) {
 	return
 }
 
-func RankNodes(ts *TagSpec, node *Node) []MatchQuality {
-	list := make([]MatchQuality, 0, 20)
+// Return a list of all (just same tag) nodes, sorted by amount of mismatch to ts.
+func RankNodes(ts *TagSpec, node *Node) []MatchFailures {
+	list := make([]MatchFailures, 0, 20)
 	list = rankNodes(ts, node, list)
 	sort.Sort(QualityArray(list))
 	return list
 }
 
-func rankNodes(ts *TagSpec, node *Node, best []MatchQuality) []MatchQuality {
+// Real work part of RankNodes.
+func rankNodes(ts *TagSpec, node *Node, best []MatchFailures) []MatchFailures {
 	if best == nil {
 	}
 	if node.Name == ts.Name {
-		q := CalculateQuality(ts, node)
+		q := Missmatch(ts, node)
 		best = append(best, q)
 	}
 	for _, child := range node.Child {
@@ -422,14 +401,7 @@ func textMatches(s, exp string) bool {
 func FindTag(ts *TagSpec, root *Node) *Node {
 	debug("FindTag: " + ts.String())
 	node := findTag(ts, root)
-	if node == nil {
-		fmt.Printf(":::::::   %s\n", ts.String())
-		all := RankNodes(ts, root)
-		for n, q := range all {
-			fmt.Printf("%2d:  %d.%d.%d.%d.%d.%d.%d  %s\n", n, q.Content, q.ReqAttr, q.ForbAttr, q.ReqClass, q.ForbClass, q.Sub, q.Deep, q.Node.String())
-		}
 
-	}
 	return node
 }
 

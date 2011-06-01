@@ -92,16 +92,6 @@ var testSimpleHtml = `<!DOCTYPE html>
 </body>
 </html>`
 
-func TestNotFound(t *testing.T) {
-	doc, err := ParseHtml(testSimpleHtml)
-	if err != nil {
-		t.Error("Unparsabel html: " + err.String())
-		t.FailNow()
-	}
-
-	check(doc, "p == Hello World", "first", t)
-	check(doc, "p !title=FirstTitle == Important", "important", t)
-}
 
 func TestBasics(t *testing.T) {
 	doc, err := ParseHtml(testSimpleHtml)
@@ -148,6 +138,9 @@ func TestBasics(t *testing.T) {
 	check(doc, "span == /Some [aeio]+ text/", "SP1", t)
 
 	check(doc, "a href=/.*domain.org/.*/", "a123", t)
+
+	checkN(doc, "p == Hello World", t)
+	checkN(doc, "p !title=FirstTitle == Important", t)
 
 	// check(doc, "", "", t)
 }

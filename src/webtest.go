@@ -13,7 +13,6 @@ import (
 	"rand"
 	"time"
 	"http"
-	"html"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
@@ -25,6 +24,7 @@ var stresstestMode bool = false
 var validateMask int = 0
 var showLinks bool = false
 var outputPath = "./"
+var tagspec string
 
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -137,10 +137,12 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\twebtest -check [common options] <suite>...\n")
 	fmt.Fprintf(os.Stderr, "\twebtest -bench [common options] [bench options] <suite>...\n")
 	fmt.Fprintf(os.Stderr, "\twebtest -stress [common options] [stress options] <background-suite> <test-suite>\n")
+	fmt.Fprintf(os.Stderr, "\twebtest -tag <tagSpec> <htmlFile>\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test is the default mode and will run all test in the given suites.\n")
 	fmt.Fprintf(os.Stderr, "Check will just read the testsuite(s), parse it and output warning/erros found.\n")
 	fmt.Fprintf(os.Stderr, "Benchmarking and Stress-Test are selected by -bench or -stres.\n")
+	fmt.Fprintf(os.Stderr, "Debuging tag-specs matching against a html file is done by -tag.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Common Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-check            Do not run, just print suites.\n")
@@ -154,7 +156,9 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\t-od <path>        Set output path to <path>.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
-	fmt.Fprintf(os.Stderr, "\t-dump [all|none]  Dump all wire talk or none. If unused respect indiv setting.\n")
+	fmt.Fprintf(os.Stderr, "\t-dump <mode>      Dump for debuggin purpose according to <mode>: 'all' dump wiretalk\n")
+	fmt.Fprintf(os.Stderr, "                    'body' dump response body, 'none' dont dump anything.\n")
+	fmt.Fprintf(os.Stderr, "                    If unused respect individual setting of each test.\n")
 	fmt.Fprintf(os.Stderr, "\t-validate <n>     Allow checking links (1), validating html (2) or both (3).\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
@@ -177,15 +181,11 @@ func help() {
 	os.Exit(1)
 }
 
+
 // Const-variables which can be set via the command line. Statisfied flag.Value interface.
-type cmdlVar struct {
-	m map[string]string
-}
+type cmdlVar struct{ m map[string]string }
 
-func (c cmdlVar) String() (s string) {
-	return ""
-}
-
+func (c cmdlVar) String() (s string) { return "" }
 func (c cmdlVar) Set(s string) bool {
 	part := strings.Split(s, "=", 2)
 	if len(part) != 2 {
@@ -201,6 +201,8 @@ func globalInitialization() {
 	logger = log.New(os.Stderr, "Webtest ", log.Ldate|log.Ltime)
 
 	var helpme bool
+	var variables cmdlVar = cmdlVar{map[string]string{}}
+
 	flag.BoolVar(&helpme, "help", false, "Print usage info and exit.")
 	flag.BoolVar(&checkOnly, "check", false, "Read test suite and output without testing.")
 	flag.BoolVar(&benchmarkMode, "bench", false, "Benchmark suit: Run each test <runs> often.")
@@ -214,9 +216,9 @@ func globalInitialization() {
 	flag.StringVar(&testsToRun, "tests", "*", "Run just some tests (numbers or name)")
 	flag.StringVar(&dumpTalk, "dump", "", "Dump wire talk.")
 	flag.Int64Var(&randomSeed, "seed", -1, "Seed for random number generator.")
-	var variables cmdlVar = cmdlVar{map[string]string{}}
 	flag.Var(variables, "D", "Set/Overwrite a const variable in the suite e.g. '-D HOST=localhost'")
 	flag.StringVar(&outputPath, "od", outputPath, "Output into given directory.")
+	flag.StringVar(&tagspec, "tag", "", "Check tag against html file.")
 
 	flag.IntVar(&rampStart, "ramp.start", 5, "Ramp start")
 	flag.IntVar(&rampStep, "ramp.step", 5, "Ramp step")
@@ -235,6 +237,16 @@ func globalInitialization() {
 	if helpme {
 		help()
 	}
+
+	if tagLogLevel < 0 {
+		tagLogLevel = LogLevel
+	}
+	if suiteLogLevel < 0 {
+		suiteLogLevel = LogLevel
+	}
+
+	suite.LogLevel = suiteLogLevel
+	tag.LogLevel = tagLogLevel
 
 	outputPath = path.Clean(outputPath)
 	if !strings.HasSuffix(outputPath, "/") {
@@ -261,21 +273,10 @@ func globalInitialization() {
 		suite.Random = rand.New(rand.NewSource(int64(randomSeed)))
 	}
 
-	if testmode && !(dumpTalk == "" || dumpTalk == "all" || dumpTalk == "none") {
+	if testmode && !(dumpTalk == "" || dumpTalk == "all" || dumpTalk == "none" || dumpTalk == "body") {
 		fmt.Fprintf(os.Stderr, "Illegal argument to dump.")
 		os.Exit(2)
 	}
-
-	if tagLogLevel < 0 {
-		tagLogLevel = LogLevel
-	}
-	if suiteLogLevel < 0 {
-		suiteLogLevel = LogLevel
-	}
-
-	suite.LogLevel = suiteLogLevel
-	tag.LogLevel = tagLogLevel
-
 }
 
 
@@ -283,30 +284,76 @@ func globalInitialization() {
 func main() {
 	globalInitialization()
 
+	if tagspec != "" {
+		if flag.NArg() != 1 {
+			error("TagSpec debugging requires one file")
+			os.Exit(2)
+		}
+		tagDebug(tagspec, flag.Args()[0])
+	}
+
 	if stresstestMode {
 		if flag.NArg() != 2 {
 			error("Stresstest requires excatly two suites.")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		stresstest(flag.Args()[0], flag.Args()[1])
 		os.Exit(0)
 	} else {
 		if flag.NArg() == 0 {
 			error("No webtest file given.\n")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		testOrBenchmark(flag.Args())
 	}
 }
 
 
-func getAttr(a []html.Attribute, name string) string {
-	for _, at := range a {
-		if at.Key == name {
-			return at.Val
+// Helps debuging tagspecs.
+func tagDebug(tagspec, filename string) {
+	f, err := os.Open(filename)
+	if err != nil {
+		error("Cannot read from %s: %s", filename, err.String())
+		os.Exit(2)
+	}
+
+	var result []byte
+	buf := make([]byte, 100)
+	for {
+		n, err := f.Read(buf[0:])
+		result = append(result, buf[0:n]...) // append is discussed later.
+		if err != nil {
+			if err == os.EOF {
+				break
+			}
+			error("Problems: %s", err.String())
+			os.Exit(2)
 		}
 	}
-	return ""
+
+	html := string(result)
+
+	fts := strings.Replace(tagspec, "||", "\n", -1)
+	ts, err := tag.ParseTagSpec(fts)
+	if err != nil {
+		error("Invalid ts: %s", err.String())
+		os.Exit(2)
+	}
+
+	doc, err := tag.ParseHtml(html)
+	if err != nil {
+		error("Cannot parse html: %s", err.String())
+		os.Exit(2)
+	}
+
+	fmt.Printf("TagSpec:\n%s\n", strings.Replace(ts.String(), "\n", "\n    ", -1))
+	all := tag.RankNodes(ts, doc)
+	fmt.Printf("Rank CO RA XA RC XC SN DN   Tag\n--------------------------------------------\n")
+	for n, q := range all {
+		fmt.Printf("%2d:  %2d %2d %2d %2d %2d %2d %2d  %s\n", n, q.Content, q.ReqAttr, q.ForbAttr, q.ReqClass, q.ForbClass, q.Sub, q.Deep, q.Node.String())
+	}
+
+	os.Exit(0)
 }
 
 
@@ -373,6 +420,7 @@ func testOrBenchmark(filenames []string) {
 			abbrTitle = fmt.Sprintf("Test %2d: %-25s", i+1, abbrTitle)
 
 			if benchmarkMode {
+				// Benchmarking
 				dur, f, err := s.BenchTest(i, numRuns)
 				if err != nil {
 					result += fmt.Sprintf("%s: Unable to bench: %s\n", abbrTitle, err.String())
@@ -383,11 +431,15 @@ func testOrBenchmark(filenames []string) {
 					charts += benchChartUrl(dur, t.Title) + "\n"
 				}
 			} else {
+				// Standard testing
 				origDump, _ := s.Test[i].Setting["Dump"]
-				if dumpTalk == "all" {
+				switch dumpTalk {
+				case "all":
 					s.Test[i].Setting["Dump"] = 1
-				} else if dumpTalk == "none" {
+				case "none":
 					s.Test[i].Setting["Dump"] = 0
+				case "body":
+					s.Test[i].Setting["Dump"] = 3
 				}
 				s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask // clear unwanted validation
 				s.RunTest(i)

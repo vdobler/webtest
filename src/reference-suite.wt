@@ -564,15 +564,17 @@ SETTING
 #
 # Setting Dump to 1 will dump the whole request/response talk to a
 # .dump-file. The filename is constructed from the test name. 
+# Setting Dump to 3 will save the response body to a file.
 -------------------
 Debuging
 --------------------
 GET http://some.url
 SETTING
 	# Turn dumping on with 1 or 2. Will dump to file "Debuging.dump"
-	# 1 will create a new file wheras 2 will append to an existing one
-	# and 3 will just dump the recieved response body (and create a
-	# new file each time)
+	# 1 will create a new file wheras 2 will append to an existing one.
+	# 1 and 2 will dump the whole wiretalk of request and response while
+	# 3 will just dump the recieved response body (and create a new file 
+	# each time)
 	Dump  1
 	
 
