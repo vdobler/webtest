@@ -928,7 +928,7 @@ func determineExt(url, ct string) string {
 }
 
 // Write body to a new file (name pattern is <TestTitle>.<N>.<FileExtension>).
-// N is increased to find a "new" file
+// N is increased up to 999 to find a "new" file.
 func dumpBody(body []byte, title, url, ct string) {
 	name := titleToFilename(title)
 	ext := determineExt(url, ct)

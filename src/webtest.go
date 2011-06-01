@@ -24,6 +24,7 @@ var benchmarkMode bool = false
 var stresstestMode bool = false
 var validateMask int = 0
 var showLinks bool = false
+var outputPath = "./"
 
 var numRuns int = 15
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
@@ -215,7 +216,7 @@ func globalInitialization() {
 	flag.Int64Var(&randomSeed, "seed", -1, "Seed for random number generator.")
 	var variables cmdlVar = cmdlVar{map[string]string{}}
 	flag.Var(variables, "D", "Set/Overwrite a const variable in the suite e.g. '-D HOST=localhost'")
-	flag.StringVar(&suite.OutputPath, "od", suite.OutputPath, "Output into given directory.")
+	flag.StringVar(&outputPath, "od", outputPath, "Output into given directory.")
 
 	flag.IntVar(&rampStart, "ramp.start", 5, "Ramp start")
 	flag.IntVar(&rampStep, "ramp.step", 5, "Ramp step")
@@ -234,6 +235,13 @@ func globalInitialization() {
 	if helpme {
 		help()
 	}
+
+	outputPath = path.Clean(outputPath)
+	if !strings.HasSuffix(outputPath, "/") {
+		outputPath += "/"
+	}
+	suite.OutputPath = outputPath
+
 	for vn, vv := range variables.m {
 		suite.Const[vn] = vv
 	}
@@ -405,7 +413,7 @@ func testOrBenchmark(filenames []string) {
 
 	}
 
-	filename := "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
+	filename := outputPath + "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
 	file, err := os.Create(filename)
 	defer file.Close()
 	if err != nil {
