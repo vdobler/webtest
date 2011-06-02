@@ -56,9 +56,9 @@ func (rc RegexpContent) String() string {
 	return "/" + rc.Regexp.String() + "/"
 }
 
-// Factory to generate a Content object from its string representation. The following are distingusihed:
+// Factory to generate a Content object from its string representation. The following are distinguished:
 //   - strings with * or ? characters (e.g. "some*vlue") --> Patterm
-//   - starts and exnds with / (e.g. "/the (cat|dog) .*/") --> Regexp
+//   - starts and ends with / (e.g. "/the (cat|dog) .*/") --> Regexp
 //   - all other  --> Fixed String
 func MakeContent(cntnt string) (Content, os.Error) {
 	if len(cntnt) > 2 && cntnt[0] == '/' && cntnt[len(cntnt)-1] == '/' {
@@ -70,7 +70,7 @@ func MakeContent(cntnt string) (Content, os.Error) {
 		}
 	} else if strings.Index(cntnt, "*") != -1 || strings.Index(cntnt, "?") != -1 {
 		if _, err := Match(cntnt, cntnt); err != nil {
-			error("Malformed regular expression: %s", err.String())
+			error("Malformed pattern: %s", err.String())
 			return nil, err
 		}
 		return PatternContent{cntnt}, nil
@@ -152,7 +152,7 @@ func ts2str(ts *TagSpec, indent int) string {
 		if ts.Deep {
 			s += " =D= "
 		} else {
-			s += " == "
+			s += " === "
 		}
 		s += ts.Content.String()
 	}
@@ -170,8 +170,21 @@ func trim(s string) string {
 }
 
 
+func validId(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for i, cp := range strings.ToLower(s) {
+		if (i == 0 && (cp < 'a' || cp > 'z')) || (i > 0 && !(('a' <= cp && cp <= 'z') || ('0' <= cp && cp <= '9'))) {
+			return false
+		}
+	}
+	return true
+}
+
+
 // Decompose texttual tag specification spec into a TagSpec.
-// Returns nil on error.  TODO: proper error handling (e.g. making sure regepx and patterns are okay).
+// Returns nil on error.  
 func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	// fmt.Printf("Parsing: " + spec)
 	ts = new(TagSpec)
@@ -180,29 +193,32 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	spec = trim(spec)
 
 	var cntnt string
-	// TODO: swicth from "==" to "===" and split on " ==== " and " =D= " to safeguard 
-	if strings.Index(spec, " ==") != -1 {
+	if strings.Index(spec, "===") != -1 {
 		ts.Deep = false
-		p := strings.Split(spec, " ==", 2)
+		p := strings.Split(spec, "===", 2)
 		spec, cntnt = trim(p[0]), trim(p[1])
 		ts.Content, err = MakeContent(cntnt)
-	} else if strings.Index(spec, " =D=") != -1 {
+	} else if strings.Index(spec, "=D=") != -1 {
 		ts.Deep = true
-		p := strings.Split(spec, " =D=", 2)
+		p := strings.Split(spec, "=D=", 2)
 		spec, cntnt = trim(p[0]), trim(p[1])
 		ts.Content, err = MakeContent(cntnt)
 	} else {
 		ts.Content = nil
 	}
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	f := strings.Fields(spec)
 	if len(f) == 0 {
 		return nil, os.ErrorString("No tag given in tagspec.")
 	}
-	ts.Name = f[0]
+	tagname := strings.ToLower(f[0])
+	if !validId(tagname) {
+		return nil, os.ErrorString("No valid tagname given: " + f[0])
+	}
+	ts.Name = tagname
 
 	for i := 1; i < len(f); i++ {
 		atr := f[i]
@@ -219,6 +235,9 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 			val = trim(p[1])
 			cntnt, err = MakeContent(val) // err later (dont err for classes)
 		}
+		if !validId(atr) {
+			return nil, os.ErrorString("Not valid attribute name: " + atr)
+		}
 		if atr == "class" {
 			if expected {
 				ts.Classes = append(ts.Classes, val)
@@ -229,8 +248,10 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 			if err != nil {
 				return nil, err
 			}
-			// TODO: fail if overwriting existing attribute
 			if expected {
+				if _, ok := ts.Attr[atr]; ok {
+					return nil, os.ErrorString("Required attribute specified twice: " + atr)
+				}
 				ts.Attr[atr] = cntnt
 			} else {
 				ts.XAttr[atr] = cntnt
@@ -241,7 +262,7 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	return
 }
 
-// Returns the number of leading spaces in s.
+// Returns the number of leading spaces in s. Tabs count as 4 spaces.
 func indentDepth(s string) (d int) {
 	d = 0
 	for i := 0; i < len(s); i++ {
@@ -257,6 +278,8 @@ func indentDepth(s string) (d int) {
 	return
 }
 
+
+// Parse a textual tagspec into internal struct.
 func ParseTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	trace("Parsing TagSpec: %s", spec)
 	lines := strings.Split(spec, "\n", -1)

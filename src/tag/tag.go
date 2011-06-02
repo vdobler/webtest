@@ -94,7 +94,7 @@ func init() {
 
 func error(f string, m ...interface{}) {
 	if LogLevel >= 1 {
-		logger.Panic("*ERROR* " + fmt.Sprintf(f, m...))
+		logger.Print("*ERROR* " + fmt.Sprintf(f, m...))
 	}
 }
 func warn(f string, m ...interface{}) {

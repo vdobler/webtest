@@ -8,7 +8,7 @@ import (
 
 
 func TestSimpleParsing(t *testing.T) {
-	examples := []string{"a", "h3", "h1 class=xyz", "a href=/domain.org/path", "p == ABC xyz"}
+	examples := []string{"a", "h3", "h1 class=xyz", "a href=/domain.org/path", "p === ABC xyz"}
 
 	for _, spec := range examples {
 		ts := MustParse(spec, t)
@@ -21,6 +21,17 @@ func TestSimpleParsing(t *testing.T) {
 		}
 	}
 
+}
+
+func TestBadSpecParsing(t *testing.T) {
+	examples := []string{"", " == ", "p == abc", "3h = abc", "*", "p === x?\\", "p === /*x)[/", "p id=a id=b",
+		"p 3=x", "p !*", "p target_abc"}
+	for _, spec := range examples {
+		ts, err := ParseSimpleTagSpec(spec)
+		if err == nil {
+			t.Error("Malformd tagspec accepted without error: " + spec + " --> " + ts.String())
+		}
+	}
 }
 
 func TestNestedParsing(t *testing.T) {
