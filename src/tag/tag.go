@@ -19,7 +19,7 @@ package tag
 	  	[ '!' ] name [ '=' content ]
 
 	  contentOp:
-		[ '==' | '=D=' ]               '==' is normal matching of text content
+		[ '===' | '=D=' ]              '===' is normal matching of text content
 		                               'wheras '=D=' is deep matching of nested
 									   text content.
 
@@ -79,7 +79,6 @@ package tag
 
 import (
 	"fmt"
-	"regexp"
 	"os"
 	"html"
 	"log"
@@ -153,9 +152,6 @@ func Matches(ts *TagSpec, node *Node) bool {
 	supertrace("Trying node: " + node.String())
 
 	// Tag Name
-	if ts.Name == "*" {
-		return true // TODO: is this usefull? most probably not....
-	}
 	if node.Name != ts.Name {
 		return false
 	}
@@ -232,46 +228,6 @@ func Matches(ts *TagSpec, node *Node) bool {
 	return true
 }
 
-// Check if s matches the regular expression exp.
-// TODO: Compile just once (during parsing/tagspec construction
-func regexpMatches(s, exp string) bool {
-	// fmt.Printf("Regexp Match '%s' :: '%s'\n", s, exp)
-	if rexp, err := regexp.Compile(exp); err == nil {
-		return (rexp.FindStringIndex(s) != nil)
-	} else {
-		fmt.Printf("Invalid regexp '%s': %s\n", exp, err.String())
-	}
-	trace("    --> regexp mismatch")
-	return false
-}
-
-// Do shell like pattern globing (? and *, no char-range). Return true if str matches pattern exp
-// TODO: Err early during parsing if pattern is malformed and use some kind of NonFailMatch() here.
-func wildcardMatches(str, exp string) bool {
-	matches, err := Match(exp, str)
-	if err != nil {
-		error("Malformed pattern '%s'.", exp)
-		return false
-	}
-	return matches
-}
-
-// Dispatch "/regular expression/" and "wildc?rd * search"
-// to the appropriate functions
-func textMatches(s, exp string) bool {
-	trace("textMatches: got '%s' expecting'%s'", s, exp)
-	if exp == "" {
-		return true
-	}
-
-	if exp[0] == '/' && exp[len(exp)-1] == '/' {
-		return regexpMatches(s, exp[1:len(exp)-1])
-	} else {
-		return wildcardMatches(s, exp)
-	}
-
-	return true
-}
 
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.

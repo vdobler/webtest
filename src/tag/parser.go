@@ -151,21 +151,23 @@ func cleanText(s string) string {
 }
 
 
+// Try to remove javascript tags from the html.
+// This is basically buggy as it will not try to understand the javascript.
 func removeJavascript(h string) string {
-	// TODO: handle upper case SCRIPT
-	for i := strings.Index(h, "<script"); i != -1; {
-		a, b := h[:i], h[i+7:]
-		if j := strings.Index(b, "</script>"); j != -1 {
-			h = a + b[j+9:]
-		} else {
-			// this should not happen iff html/javascript is halfway decent...
-			warn("Html is completely broken...")
-			h = a
-			break
+	for _, st := range [][2]string{{"<script", "</script>"}, {"<SCRIPT", "</SCRIPT>"}} {
+		for i := strings.Index(h, st[0]); i != -1; {
+			a, b := h[:i], h[i+7:]
+			if j := strings.Index(b, st[1]); j != -1 {
+				h = a + b[j+9:]
+			} else {
+				// this should not happen iff html/javascript is halfway decent...
+				warn("Html is completely broken...")
+				h = a
+				break
+			}
+			i = strings.Index(h, st[0])
 		}
-		i = strings.Index(h, "<script")
 	}
-
 	return h
 }
 
