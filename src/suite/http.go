@@ -240,9 +240,9 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
 	req.Header = http.Header{}
+
 	if len(t.Param) > 0 {
 		ep := http.EncodeQuery(t.Param)
-		// TODO handle #-case
 		if strings.Contains(url, "?") {
 			url = url + "&" + ep
 		} else {

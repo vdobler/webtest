@@ -40,8 +40,8 @@ type Test struct {
 	Const      map[string]string   // const variables
 	Rand       map[string][]string // random varibales
 	Seq        map[string][]string // sequence variables
-	SeqCnt     map[string]int      // internal stuff for sequnece variables TODO: do not export
-	Vars       map[string]string   // internal stuff for variables  TODO: do not export
+	SeqCnt     map[string]int      // internal stuff for sequnece variables 
+	Vars       map[string]string   // internal stuff for variables
 	Result     []string            // list of pass/fails reports
 	Body       []byte              // body of last non-failing response
 	Dump       io.Writer           // a writer to dump requests and responses to
@@ -676,7 +676,7 @@ func addMissingHeader(test, global *map[string]string) {
 }
 
 
-// Add cookie conditions from global to test.  TODO: used/usefull/???
+// Add cookie conditions from global to test.
 func addMissingCookies(test, global *map[string]string) {
 	for k, v := range *global {
 		if _, ok := (*test)[k]; !ok {
@@ -795,7 +795,6 @@ func titleToFilename(t string) (f string) {
 		f += "/"
 	}
 
-	// TODO use unicode codepoints
 	for _, cp := range t {
 		switch true {
 		case cp >= 'a' && cp <= 'z', cp >= 'A' && cp <= 'Z', cp >= '0' && cp <= '9',

@@ -158,20 +158,11 @@ func (cond *Condition) Fullfilled(v string) bool {
 
 // Convert hex string (e.g. "a0 34 df 71 bc") into byte slice.
 func hexToBytes(hex string) []byte {
-	// TODO: better error handling: add testing code (with proper error reporting) to parser!
-	h := strings.ToLower(strings.Replace(hex, " ", "", -1))
-	if len(h)%2 == 1 {
-		error("Odd number of nibbles in binary value...")
-		h = h[:len(h)-2]
-	}
-	n := len(h) / 2
+	n := len(hex) / 2
 	b := make([]byte, n, n)
+	var c byte
 	for i := 0; i < n; i++ {
-		var c byte
-		r, err := fmt.Sscanf(h[2*i:2*i+2], "%x", &c)
-		if err != nil || r != 1 {
-			error("Cannot parse hex string... '%s', %d, %d, %v,", hex, n, r, err.String())
-		}
+		fmt.Sscanf(hex[2*i:2*i+2], "%x", &c) // Input sanitisation and error handling happens during parsing
 		b[i] = c
 	}
 	supertrace("hexToBytes('%s') --> %#v", hex, b)

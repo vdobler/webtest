@@ -403,7 +403,21 @@ func (p *Parser) readCond(mode int) []Condition {
 			}
 			v = trim(line[j:])
 			if k == "Bin" {
-				v = strings.ToLower(v) // our internal bin-values are lowercase
+				v := strings.ToLower(strings.Replace(v, " ", "", -1))
+				if len(v)%2 == 1 {
+					warn("Odd number of nibbles in binary value on line %d. Will discard last nibble.", no)
+					v = v[:len(v)-2]
+				}
+				n := len(v) / 2
+				var c byte
+				for i := 0; i < n; i++ {
+					r, err := fmt.Sscanf(v[2*i:2*i+2], "%x", &c)
+					if err != nil || r != 1 {
+						error("Cannot parse hex string '%s' on line %d: %s", v, no, err.String())
+						p.okay = false
+						break
+					}
+				}
 			}
 		}
 		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no)}
@@ -531,7 +545,7 @@ func (p *Parser) readTagCond() []TagCondition {
 			list = append(list, cond)
 			trace("Added to tag condition (line %d): %s", no, cond.String())
 		} else {
-			error("Problems parsing '%s': %s", err.String())
+			error("Problems parsing tagspec %#v on line %d: %s", spec, no, err.String())
 			p.okay = false
 		}
 	}
@@ -580,7 +594,12 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.i++
 			line, no = trim(p.line[p.i].line), p.line[p.i].no
 			if hp(line, "GET ") {
-				test.Method, test.Url = "GET", trim(line[3:])
+				url := trim(line[3:])
+				if i := strings.Index(url, "#"); i != -1 {
+					warn("URL may not contain fragment (#-part) in line %d.", no)
+					url = url[:i]
+				}
+				test.Method, test.Url = "GET", url
 				continue
 			} else if hp(line, "POST ") {
 				test.Method, test.Url = "POST", trim(line[4:])

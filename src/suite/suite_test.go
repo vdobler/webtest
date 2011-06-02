@@ -110,10 +110,10 @@ BODY
 	 # 5765696c6572 = hex(Weiler)
 	 Bin  ~= 5765696c6572
 TAG
-	 title == Dummy HTML 1
+	 title === Dummy HTML 1
 	 p class=a
 	!p class=c
-	!p == Wrong.*
+	!p === Wrong.*
 	
 # Test no 2
 ----------------------
@@ -190,8 +190,8 @@ PARAM
 RESPONSE
 	Final-Url	==	${URL}/html.html
 TAG
-	h1 == Dummy Document *
-	p class=a == *Braunschweig Weiler
+	h1 === Dummy Document *
+	p class=a === *Braunschweig Weiler
 SETTING
 	Dump 1
 
@@ -301,7 +301,7 @@ PARAM
 SEQ
 	val  foo bar
 TAG
-	h2 class=okay == Finished.
+	h2 class=okay === Finished.
 SETTING
 	Dump   1
 	Repeat 1
@@ -314,7 +314,7 @@ GET ${URL}/html.html
 PARAM
 	xxx  baz
 TAG
-	h2 class=okay == Finished.
+	h2 class=okay === Finished.
 SETTING
 	Dump   1
 	Tries  2
@@ -339,9 +339,9 @@ SEND-COOKIE
 	JSESSIONID  5AE613FC082DEB79484C774677651164
 	
 TAG
-	li == Sessionid :: abc123XYZ
-	li == MyFirst :: MyFirstCookieValue
-	li == JSESSIONID :: 5AE613FC082DEB79484C774677651164
+	li === Sessionid :: abc123XYZ
+	li === MyFirst :: MyFirstCookieValue
+	li === JSESSIONID :: 5AE613FC082DEB79484C774677651164
 	
 ----------------------
 Login
@@ -374,7 +374,7 @@ Access
 ---------------------
 GET ${URL}/cookie.html
 TAG
-	li == TheSession :: randomsessionid
+	li === TheSession :: randomsessionid
 
 SETTING
 	Dump          1
@@ -404,7 +404,7 @@ Failing Access
 ---------------------
 GET ${URL}/cookie.html
 TAG
-	! li == *TheSession*
+	! li === *TheSession*
 
 
 `,
@@ -809,7 +809,7 @@ RESPONSE
 BODY
 	 Txt  ~= Braunschweig
 TAG
-	 title == Dummy HTML 1
+	 title === Dummy HTML 1
 	 p class=a
 	
 ----------------------
