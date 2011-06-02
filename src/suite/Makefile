@@ -10,3 +10,6 @@ GOFILES=\
 	http.go
 
 include $(GOROOT)/src/Make.pkg
+
+format: $(GOFILES) suite_test.go
+	gofmt -w $^

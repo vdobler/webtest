@@ -3,9 +3,6 @@ include $(GOROOT)/src/Make.inc
 TARG=webtest
 GOFILES=\
 	webtest.go\
-
-DEFAULT: webtest.exe
-	
 	
 PACKAGES:
 	cd tag && $(MAKE) install
@@ -18,3 +15,6 @@ CLEAN:
 	
 	
 include $(GOROOT)/src/Make.cmd
+
+format: $(GOFILES)
+	gofmt -w $^
