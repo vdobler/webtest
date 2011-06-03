@@ -21,7 +21,7 @@ func check(doc *Node, spec, expectedId string, t *testing.T) {
 	ts := MustParse(spec, t)
 	n := FindTag(ts, doc)
 	if n == nil {
-		t.Error("Not found: " + spec)
+		t.Error("Not found: '" + spec + "' parsed as '" + ts.String() + "'")
 		return
 	}
 
@@ -101,16 +101,16 @@ func TestBasics(t *testing.T) {
 	}
 
 	check(doc, "div", "div1", t)
-	check(doc, "p === Hello World!", "first", t)
-	check(doc, "p === *xyz", "alphabet", t)
-	check(doc, "p === abc*", "alphabet", t)
-	check(doc, "p === abcd*wxyz", "alphabet", t)
+	check(doc, "p == Hello World!", "first", t)
+	check(doc, "p == *xyz", "alphabet", t)
+	check(doc, "p == abc*", "alphabet", t)
+	check(doc, "p == abcd*wxyz", "alphabet", t)
 	check(doc, "p class=important", "important", t)
 	check(doc, "p class=high", "important", t)
 	check(doc, "p class=important class=high", "important", t)
-	check(doc, "p !title=Wrong === Important", "important", t)
-	check(doc, "p !title=Title* === Important", "important", t)
-	check(doc, "p !title=*First === Important", "important", t)
+	check(doc, "p !title=Wrong == Important", "important", t)
+	check(doc, "p !title=Title* == Important", "important", t)
+	check(doc, "p !title=*First == Important", "important", t)
 	check(doc, "p title=First*Title", "important", t)
 	check(doc, "p title=*Title", "important", t)
 	check(doc, "p title=First*", "important", t)
@@ -121,10 +121,10 @@ func TestBasics(t *testing.T) {
 	check(doc, "p class=yy class=xx", "D", t)
 
 	check(doc, "p class=bb", "B", t)
-	check(doc, "p class=bb === ", "C", t)
-	check(doc, "h3 ===", "emptyh3", t)
+	check(doc, "p class=bb == ", "C", t)
+	check(doc, "h3 ==", "emptyh3", t)
 
-	check(doc, "h1 === Berlin", "h1_1", t)
+	check(doc, "h1 == Berlin", "h1_1", t)
 	check(doc, "h1 !title", "h1_1", t)
 	check(doc, "h1 !lang", "h1_3", t)
 	check(doc, "h1 lang", "h1_1", t)
@@ -134,13 +134,13 @@ func TestBasics(t *testing.T) {
 	check(doc, "h1 lang title", "h1_2", t)
 	check(doc, "h1 lang !title=AT", "h1_1", t)
 
-	check(doc, "span === /Some.*text/", "SP1", t)
-	check(doc, "span === /Some [aeio]+ text/", "SP1", t)
+	check(doc, "span == /Some.*text/", "SP1", t)
+	check(doc, "span == /Some [aeio]+ text/", "SP1", t)
 
 	check(doc, "a href=/.*domain.org/.*/", "a123", t)
 
-	checkN(doc, "p === Hello World", t)
-	checkN(doc, "p !title=FirstTitle === Important", t)
+	checkN(doc, "p == Hello World", t)
+	checkN(doc, "p !title=FirstTitle == Important", t)
 
 	// check(doc, "", "", t)
 }
@@ -153,38 +153,38 @@ func TestTextcontent(t *testing.T) {
 		t.FailNow()
 	}
 
-	check(doc, "p === Luzern", "plu", t)
-	check(doc, "p === Lu?ern", "plu", t)
-	check(doc, "p === L?z?rn", "plu", t)
-	check(doc, "p === Luze*", "plu", t)
-	check(doc, "p === *zern", "plu", t)
-	check(doc, "p === /Luzern/", "plu", t)
-	check(doc, "p === /L.zern/", "plu", t)
-	check(doc, "p === /^L.zern$/", "plu", t)
+	check(doc, "p == Luzern", "plu", t)
+	check(doc, "p == Lu?ern", "plu", t)
+	check(doc, "p == L?z?rn", "plu", t)
+	check(doc, "p == Luze*", "plu", t)
+	check(doc, "p == *zern", "plu", t)
+	check(doc, "p == /Luzern/", "plu", t)
+	check(doc, "p == /L.zern/", "plu", t)
+	check(doc, "p == /^L.zern$/", "plu", t)
 
 	check(doc, "p =D= Luzern", "plu", t)
-	check(doc, "span === Chiasso", "sch", t)
+	check(doc, "span == Chiasso", "sch", t)
 	check(doc, "span =D= Chiasso", "sch", t)
-	checkN(doc, "p === Chiasso", t)
+	checkN(doc, "p == Chiasso", t)
 	check(doc, "p =D= Chiasso", "pch", t)
 
-	checkN(doc, "p === AA BB CC DD EE FF GG", t)
+	checkN(doc, "p == AA BB CC DD EE FF GG", t)
 	check(doc, "p =D= AA BB CC DD EE FF GG", "nested", t)
-	checkN(doc, "div === 123 AA * GG 456", t)
+	checkN(doc, "div == 123 AA * GG 456", t)
 	check(doc, "div =D= 123 AA * GG 456", "div3", t)
 
-	check(doc, "p class=LongText === This is a pretty long text.", "LongText", t)
-	check(doc, "p class=LongText === This is a * long text.", "LongText", t)
-	check(doc, "p class=LongText === This * long text.", "LongText", t)
-	check(doc, "p class=LongText === This * a pretty * text.", "LongText", t)
-	check(doc, "p class=LongText === This ?? ? pretty*text.", "LongText", t)
-	check(doc, "p id=Lon*ext === This is a pretty long text.", "LongText", t)
-	check(doc, "p id=?ong?ext === This * text.", "LongText", t)
+	check(doc, "p class=LongText == This is a pretty long text.", "LongText", t)
+	check(doc, "p class=LongText == This is a * long text.", "LongText", t)
+	check(doc, "p class=LongText == This * long text.", "LongText", t)
+	check(doc, "p class=LongText == This * a pretty * text.", "LongText", t)
+	check(doc, "p class=LongText == This ?? ? pretty*text.", "LongText", t)
+	check(doc, "p id=Lon*ext == This is a pretty long text.", "LongText", t)
+	check(doc, "p id=?ong?ext == This * text.", "LongText", t)
 
-	check(doc, "h4 === UTF-8 *", "theH4", t)
-	check(doc, "h4 === UTF-8 Umlaute äöüÄÖÜ Euro €", "theH4", t)
-	check(doc, "h4 === UTF-8 * äöüÄÖÜ Euro €", "theH4", t)
-	check(doc, "h4 === *€", "theH4", t)
+	check(doc, "h4 == UTF-8 *", "theH4", t)
+	check(doc, "h4 == UTF-8 Umlaute äöüÄÖÜ Euro €", "theH4", t)
+	check(doc, "h4 == UTF-8 * äöüÄÖÜ Euro €", "theH4", t)
+	check(doc, "h4 == *€", "theH4", t)
 }
 
 func TestNestedTags(t *testing.T) {
@@ -194,9 +194,9 @@ func TestNestedTags(t *testing.T) {
 		t.FailNow()
 	}
 	check(doc, "div\n  p id=A", "div1", t)
-	check(doc, "div\n  span === Some*text", "div1", t)
+	check(doc, "div\n  span == Some*text", "div1", t)
 	check(doc, "div\n p\n  div\n   p =D= Deeeeeep", "deep", t)
-	check(doc, "div class=news\n  h2\n    span class=red === new", "div2", t)
+	check(doc, "div class=news\n  h2\n    span class=red == new", "div2", t)
 }
 
 func TestCounting(t *testing.T) {

@@ -152,7 +152,7 @@ func ts2str(ts *TagSpec, indent int) string {
 		if ts.Deep {
 			s += " =D= "
 		} else {
-			s += " === "
+			s += " == "
 		}
 		s += ts.Content.String()
 	}
@@ -193,16 +193,29 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	spec = trim(spec)
 
 	var cntnt string
-	if strings.Index(spec, "===") != -1 {
+	// TODO: cleanup
+	if strings.Index(spec, "==") != -1 {
 		ts.Deep = false
-		p := strings.Split(spec, "===", 2)
-		spec, cntnt = trim(p[0]), trim(p[1])
-		ts.Content, err = MakeContent(cntnt)
+		if strings.HasSuffix(spec, " ==") {
+			ts.Content, err = MakeContent("")
+			spec = trim(spec[:len(spec)-3])
+		} else if i := strings.Index(spec, " == "); i != -1 {
+			spec, cntnt = trim(spec[:i]), trim(spec[i+4:])
+			ts.Content, err = MakeContent(cntnt)
+		} else {
+			return nil, os.ErrorString("Ambigous == in spec.")
+		}
 	} else if strings.Index(spec, "=D=") != -1 {
 		ts.Deep = true
-		p := strings.Split(spec, "=D=", 2)
-		spec, cntnt = trim(p[0]), trim(p[1])
-		ts.Content, err = MakeContent(cntnt)
+		if strings.HasSuffix(spec, " =D=") {
+			ts.Content, err = MakeContent("")
+			spec = trim(spec[:len(spec)-4])
+		} else if i := strings.Index(spec, " =D= "); i != -1 {
+			spec, cntnt = trim(spec[:i]), trim(spec[i+5:])
+			ts.Content, err = MakeContent(cntnt)
+		} else {
+			return nil, os.ErrorString("Ambigous =D= in spec.")
+		}
 	} else {
 		ts.Content = nil
 	}

@@ -19,7 +19,7 @@ package tag
 	  	[ '!' ] name [ '=' content ]
 
 	  contentOp:
-		[ '===' | '=D=' ]              '===' is normal matching of text content
+		[ '==' | '=D=' ]              '==' is normal matching of text content
 		                               'wheras '=D=' is deep matching of nested
 									   text content.
 
