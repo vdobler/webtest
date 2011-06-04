@@ -319,3 +319,14 @@ func ParseTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	}
 	return
 }
+
+// The panicing version of ParseTagSpec().
+func MustParseTagSpec(spec string) (ts *TagSpec) {
+	var err os.Error
+	ts, err = ParseTagSpec(spec)
+	if err != nil {
+		panic("Wrong tagspec: " + err.String())
+	}
+	return
+}
+

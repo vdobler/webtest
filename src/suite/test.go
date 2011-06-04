@@ -104,29 +104,25 @@ func copyMap(src map[string]string) (dest map[string]string) {
 	return
 }
 
+func (t *Test) Failed(text string) { t.Result = append(t.Result, "Failed "+text) }
+func (t *Test) Passed(text string) { t.Result = append(t.Result, "Passed "+text) }
+func (t *Test) Error(text string)  { t.Result = append(t.Result, "Error  "+text) }
+func (t *Test) Info(text string)   { t.Result = append(t.Result, "       "+text) }
 
-// Store pass or fail in t.
-func (t *Test) Report(pass bool, text string) {
-	var s string
-	if pass {
-		s = "Passed " + text
-		info(s)
-	} else {
-		s = "FAILED " + text
-		warn(s)
-	}
-	t.Result = append(t.Result, s)
-}
 
 // Return number of executed (total), passed and failed tests. 
-func (t *Test) Stat() (total, passed, failed int) {
+func (t *Test) Stat() (passed, failed, errors, info int) {
 	for _, r := range t.Result {
-		total++
-		// trace("Result: %s", r)
-		if strings.HasPrefix(r, "Passed") {
+		if strings.HasPrefix(r, "Passed ") {
 			passed++
-		} else {
+		} else if strings.HasPrefix(r, "Failed ") {
 			failed++
+		} else if strings.HasPrefix(r, "Error ") {
+			errors++
+		} else if strings.HasPrefix(r, "      ") {
+			info++
+		} else {
+			error("Oooops: Unknown status in %s.", r)
 		}
 	}
 	return
@@ -134,16 +130,18 @@ func (t *Test) Stat() (total, passed, failed int) {
 
 // Texttual representation of t.Stat()
 func (t *Test) Status() (status string) {
-	n, p, f := t.Stat()
-	if n == 0 {
+	p, f, e, i := t.Stat()
+	if p+f+e+i == 0 {
 		status = "not jet run"
 	} else {
-		if f > 0 {
+		if e > 0 {
+			status = "ERROR"
+		} else if f > 0 {
 			status = "FAILED"
 		} else {
 			status = "PASSED"
 		}
-		status += fmt.Sprintf(" (total: %-2d,  passed: %-2d,  failed: %-2d)", n, p, f)
+		status += fmt.Sprintf(" (passed: %-2d,  failed: %-2d,  error: %-2d)", p, f, e)
 	}
 	return
 }
@@ -354,9 +352,9 @@ func testHeader(resp *http.Response, t, orig *Test) {
 			cs := c.Info("resp")
 			v := resp.Header.Get(c.Key)
 			if !c.Fullfilled(v) {
-				orig.Report(false, fmt.Sprintf("%s: Got '%s'", cs, v))
+				orig.Failed(fmt.Sprintf("%s: Got '%s'", cs, v))
 			} else {
-				orig.Report(true, cs)
+				orig.Passed(cs)
 			}
 		}
 	}
@@ -384,17 +382,17 @@ func testHeader(resp *http.Response, t, orig *Test) {
 				error("Ooooops: field but op==.")
 			}
 			if idx != -1 && cc.Neg {
-				orig.Report(false, fmt.Sprintf("%s: Cookie _was_ set.", ci))
+				orig.Failed(fmt.Sprintf("%s: Cookie _was_ set.", ci))
 			} else if (idx != -1 && !cc.Neg) || (idx == -1 && cc.Neg) {
-				orig.Report(true, ci)
+				orig.Passed(ci)
 			} else if idx == -1 && !cc.Neg {
-				orig.Report(false, fmt.Sprintf("%s: Cookie was not set.", ci))
+				orig.Failed(fmt.Sprintf("%s: Cookie was not set.", ci))
 			} else {
 				error("Oooops: This cannot happen....")
 			}
 		} else {
 			if idx == -1 {
-				orig.Report(false, fmt.Sprintf("%s: Cookie was not set at all.", ci))
+				orig.Failed(fmt.Sprintf("%s: Cookie was not set at all.", ci))
 				continue
 			}
 			rc := resp.SetCookie[idx]
@@ -418,9 +416,9 @@ func testHeader(resp *http.Response, t, orig *Test) {
 				error("Oooops: Unknown cookie field " + field)
 			}
 			if !cc.Fullfilled(v) {
-				orig.Report(false, fmt.Sprintf("%s: Got '%s'", ci, v))
+				orig.Failed(fmt.Sprintf("%s: Got '%s'", ci, v))
 			} else {
-				orig.Report(true, ci)
+				orig.Passed(ci)
 			}
 		}
 	}
@@ -442,15 +440,15 @@ func testBody(body []byte, t, orig *Test) {
 		case "Txt":
 			trace("Text Matching '%s'", c.String())
 			if !c.Fullfilled(string(body)) {
-				orig.Report(false, cs)
+				orig.Failed(cs)
 			} else {
-				orig.Report(true, cs)
+				orig.Passed(cs)
 			}
 		case "Bin":
 			if !c.BinFullfilled(body) {
-				orig.Report(false, cs)
+				orig.Failed(cs)
 			} else {
-				orig.Report(true, cs)
+				orig.Passed(cs)
 			}
 		default:
 			error("Unkown type of test '%s' (%s). Ignored.", c.Key, c.Id)
@@ -469,7 +467,7 @@ func testTags(t, orig *Test, doc *tag.Node) {
 	}
 
 	if doc == nil {
-		orig.Report(false, "No body to parse.")
+		orig.Error("No body to parse.")
 		return
 	}
 
@@ -480,15 +478,15 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			n := tag.FindTag(&tc.Spec, doc)
 			if tc.Cond == TagExpected {
 				if n != nil {
-					orig.Report(true, cs)
+					orig.Passed(cs)
 				} else {
-					orig.Report(false, fmt.Sprintf("%s: Missing", cs))
+					orig.Failed(fmt.Sprintf("%s: Missing", cs))
 				}
 			} else {
 				if n == nil {
-					orig.Report(true, cs)
+					orig.Passed(cs)
 				} else {
-					orig.Report(false, fmt.Sprintf("%s: Forbidden", cs))
+					orig.Failed(fmt.Sprintf("%s: Forbidden", cs))
 				}
 			}
 		case CountEqual, CountNotEqual, CountLess, CountLessEqual, CountGreater, CountGreaterEqual:
@@ -496,36 +494,36 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			switch tc.Cond {
 			case CountEqual:
 				if got != exp {
-					orig.Report(false, fmt.Sprintf("%s: Found %d expected %d", cs, got, exp))
+					orig.Failed(fmt.Sprintf("%s: Found %d expected %d", cs, got, exp))
 					continue
 				}
 			case CountNotEqual:
 				if got == exp {
-					orig.Report(false, fmt.Sprintf("%s: Found %d expected != %d", cs, got, exp))
+					orig.Failed(fmt.Sprintf("%s: Found %d expected != %d", cs, got, exp))
 					continue
 				}
 			case CountLess:
 				if got >= exp {
-					orig.Report(false, fmt.Sprintf("%s: Found %d expected < %d", cs, got, exp))
+					orig.Failed(fmt.Sprintf("%s: Found %d expected < %d", cs, got, exp))
 					continue
 				}
 			case CountLessEqual:
 				if got > exp {
-					orig.Report(false, fmt.Sprintf("%s: Found %d expected <= %d", cs, got, exp))
+					orig.Failed(fmt.Sprintf("%s: Found %d expected <= %d", cs, got, exp))
 					continue
 				}
 			case CountGreater:
 				if got <= exp {
-					orig.Report(false, fmt.Sprintf("%s: Found %d expected > %d", cs, got, exp))
+					orig.Failed(fmt.Sprintf("%s: Found %d expected > %d", cs, got, exp))
 					continue
 				}
 			case CountGreaterEqual:
 				if got < exp {
-					orig.Report(false, fmt.Sprintf("%s: Found %d expected >= %d", cs, got, exp))
+					orig.Failed(fmt.Sprintf("%s: Found %d expected >= %d", cs, got, exp))
 					continue
 				}
 			}
-			orig.Report(true, cs)
+			orig.Passed(cs)
 		default:
 			error("Unkown type of test %d (%s). Ignored.", tc.Cond, tc.Id)
 		}
@@ -600,21 +598,21 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 		}
 		test := tmpl.Copy()
 		test.Url = url
-		_, err := test.RunSingle(global, false)
+		_, _, err := test.RunSingle(global, false)
 		if err != nil {
-			orig.Report(false, fmt.Sprintf("Cannot access `%s': %s", test.Url, err.String()))
+			orig.Failed(fmt.Sprintf("Cannot access `%s': %s", test.Url, err.String()))
 			continue
 		}
-		if _, _, failed := test.Stat(); failed > 0 {
+		if _, failed, _, _ := test.Stat(); failed > 0 {
 			s := "Failures for " + test.Url + ": "
 			for _, r := range test.Result {
 				if !strings.HasPrefix(r, "Passed") {
 					s += r + "; "
 				}
 			}
-			orig.Report(false, s)
+			orig.Failed(s)
 		} else {
-			orig.Report(true, "Link "+url)
+			orig.Passed("Link " + url)
 			ValidUrls[url] = true
 		}
 	}
@@ -626,7 +624,7 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	trace("Validating HTML")
 	f, err := ioutil.TempFile("", "htmlvalid")
 	if err != nil {
-		error("Cannot open temp file: " + err.String())
+		orig.Error("Cannot open temp file: " + err.String())
 		return
 	}
 	name := f.Name()
@@ -652,15 +650,24 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	test.Dump = t.Dump
 	test.Setting = DefaultSettings
 	test.RespCond = []Condition{Condition{Key: "X-W3C-Validator-Status", Op: "==", Val: "Valid", Id: "html-validation"}}
-	_, err = test.RunSingle(global, false)
-	if err != nil {
-		warn("Cannot access W3C validator: %s", err.String())
+	_, valbody, verr := test.RunSingle(global, false)
+	if verr != nil {
+		warn("Cannot access W3C validator: %s", verr.String())
 		return
 	}
-	if _, _, failed := test.Stat(); failed > 0 {
-		orig.Report(false, "html is invalid.")
+	if _, failed, _, _ := test.Stat(); failed > 0 {
+		orig.Failed("html is INVALID.")
+		doc, err := tag.ParseHtml(string(valbody))
+		if err != nil {
+			warn("Cannot parse response from W3C validator: " + err.String())
+			return
+		}
+		for _, en := range tag.FindAllTags(tag.MustParseTagSpec("li class=msg_err\n  em\n  span class=msg"), doc) {
+			error("", en)
+		}
+
 	} else {
-		orig.Report(true, "html is valid")
+		orig.Passed("html is valid")
 	}
 }
 
@@ -888,7 +895,7 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 			return
 		}
 		info("Bench '%s':", test.Title)
-		dur, e := test.RunSingle(global, false)
+		dur, _, e := test.RunSingle(global, false)
 		total++
 		if e != nil {
 			warn("Failure during bench")
@@ -953,7 +960,7 @@ func dumpBody(body []byte, title, url, ct string) {
 // Perform a single run of the test.  Return duration for server response in ms.
 // If request itself failed, then err is non nil and contains the reason.
 // Logs the results of the tests in Result field.
-func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.Error) {
+func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []byte, err os.Error) {
 	ti := prepareTest(test, global)
 	tries := ti.Tries()
 
@@ -977,9 +984,11 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 		duration = int((endtime - starttime) / 1000000) // in milliseconds (ms)
 
 		if reqerr != nil {
-			test.Report(false, reqerr.String())
+			test.Error(reqerr.String())
 			err = Error("Error: " + reqerr.String())
 		} else {
+
+			body = readBody(response.Body)
 
 			trace("Recieved cookies: %v", cookies)
 			if len(cookies) > 0 && test.KeepCookies() == 1 && global != nil {
@@ -1005,7 +1014,6 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				testHeader(response, ti, test)
 
 				// Body:
-				body := readBody(response.Body)
 				if ti.DoDump() == 3 {
 					dumpBody(body, ti.Title, url, response.Header.Get("Content-Type"))
 				}
@@ -1018,12 +1026,12 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 						var e os.Error
 						doc, e = tag.ParseHtml(string(body))
 						if e != nil {
-							test.Report(false, "Problems parsing html: "+e.String())
+							test.Error("Problems parsing html: " + e.String())
 							error("Problems parsing html: " + e.String())
 						}
 					} else {
 						error("Unparsable body ")
-						test.Report(false, "Body considered unparsable.")
+						test.Error("Body considered unparsable.")
 					}
 
 					testTags(ti, test, doc)
@@ -1038,9 +1046,9 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 				// Timing:
 				if max := ti.MaxTime(); max > 0 {
 					if duration > max {
-						test.Report(false, fmt.Sprintf("Response exeeded Max-Time of %d (was %d).", max, duration))
+						test.Failed(fmt.Sprintf("Response exeeded Max-Time of %d (was %d).", max, duration))
 					} else {
-						test.Report(true, fmt.Sprintf("Response took %d ms (allowed %d).", duration, max))
+						test.Passed(fmt.Sprintf("Response took %d ms (allowed %d).", duration, max))
 					}
 				}
 
@@ -1052,7 +1060,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, err os.
 		}
 
 		tryCnt++
-		_, _, failed := test.Stat()
+		_, failed, _, _ := test.Stat()
 		// fmt.Printf(">>> tryCnt: %d,  tries: %d, failed: %d\n", tryCnt, tries, failed)
 		// fmt.Printf("%s\n", test.Status()) 
 		if tryCnt >= tries || failed == 0 {

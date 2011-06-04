@@ -43,30 +43,37 @@ func TestNextPart(t *testing.T) {
 }
 
 func TestNowValue(t *testing.T) {
-	nowValueER := [][]string{[]string{""},
-		[]string{"+1hour"},
-		[]string{"+10hours"},
-		[]string{"+2days"},
-		[]string{"+40days"},
-		[]string{"+10days - 2hours + 10 seconds"},
-		[]string{"+ 1 month"},
-		[]string{"+ 2 month"},
-		[]string{"+ 3 month"},
-		[]string{"+ 4 month"},
-		[]string{"+ 12 month"},
-		[]string{"+ 13 month"},
-		[]string{"- 4 month"},
-		[]string{"- 12 month"},
-		[]string{"- 13 month"},
-		[]string{"+ 1 year"},
-		[]string{"+ 2 year"},
-		[]string{"+ 3 year"},
-		[]string{"+ 4 year"},
+	type tft struct {
+		f string
+		i int
 	}
-	for _, x := range nowValueER {
-		nv := x[0]
-		// TODO: test...
-		fmt.Printf("%s  -- %s -->  %s\n", nowValue("", time.RFC1123, true), nv, nowValue(nv, time.RFC1123, true))
+	// Fri, 03 Jun 2011 21:20:05 UTC
+	//           1         2
+	// 01234567890123456789012345678
+	testNowValues := []struct {
+		d string
+		i int
+	}{{"", 0},
+		{"+1hour", 19},
+		{"+10 hours", 18},
+		{"+2 days", 11},
+		{"+40days", 11},
+		{"+10days - 2hours + 10 seconds", 24},
+		{"+ 1 month", 11},
+		{"+ 12 month", 16},
+		{"+ 13 month", 16},
+		{"- 4 months", 16},
+		{"- 13 month", 16},
+		{"+ 1 year", 16},
+		{"+ 12 year", 16},
+		{"- 11 years", 16},
+	}
+	for _, x := range testNowValues {
+		now := nowValue("", http.TimeFormat, true)
+		then := nowValue(x.d, http.TimeFormat, true)
+		if !(now[x.i:] == then[x.i:]) {
+			t.Error(now + " " + x.d + " unexpected " + then)
+		}
 	}
 }
 
@@ -882,7 +889,7 @@ func TestStresstest(t *testing.T) {
 		t.Error("No tests run with load 200")
 		t.FailNow()
 	}
-	if r200.Fail == 0 || r200.Err == 0 {
+	if r200.Fail == 0 && r200.Err == 0 {
 		t.Error("Expected Failures at load of 200!")
 	}
 

@@ -136,13 +136,13 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 type StressResult struct {
 	Load  int   // number of parallel background requests
 	N     int   // total number of tests and repetitions
+	Pass  int   // number of passed tests
+	Fail  int   // number of failed tests
 	Err   int   // number errors (e.g. unable to connect)
 	AvgRT int64 // average response time in ms
 	MaxRT int64 // maximum response time in ms
 	MinRT int64 // minimum response time in ms
 	Total int   // total number of tests performed
-	Pass  int   // number of passed tests
-	Fail  int   // number of failed tests
 }
 
 
@@ -168,12 +168,11 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 			}
 			time.Sleep(rampSleep * 1000000)
 			tc := t.Copy()
-			duration, err := tc.RunSingle(s.Global, false)
-			if err != nil {
-				result.Err++
-			}
+			duration, _, _ := tc.RunSingle(s.Global, false)
+
 			rt := int64(duration)
-			total, passed, failed := tc.Stat()
+			passed, failed, errored, _ := tc.Stat()
+			total := passed + failed
 
 			result.N++
 			if rt < result.MinRT {
@@ -186,6 +185,7 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 			result.Pass += passed
 			result.Total += total
 			result.Fail += failed
+			result.Err += errored
 		}
 	}
 	result.AvgRT /= int64(result.N)
