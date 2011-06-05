@@ -135,7 +135,7 @@ func (t *Test) Status() (status string) {
 		status = "not jet run"
 	} else {
 		if e > 0 {
-			status = "ERROR"
+			status = "ERROR "
 		} else if f > 0 {
 			status = "FAILED"
 		} else {
@@ -533,6 +533,8 @@ func testTags(t, orig *Test, doc *tag.Node) {
 // List of allready checked URLs in this run
 var ValidUrls = map[string]bool{}
 
+
+// If url is considered checkable (and is parsable) an http.URL is returned; else nil.
 func shallCheckUrl(url string, base *http.URL) *http.URL {
 	if strings.HasPrefix(url, "#") || strings.HasPrefix(strings.ToLower(url), "mailto:") {
 		trace("Will not check plain page anchors or mailto links in %s", url)
@@ -663,7 +665,7 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 			return
 		}
 		for _, en := range tag.FindAllTags(tag.MustParseTagSpec("li class=msg_err\n  em\n  span class=msg"), doc) {
-			error("", en)
+			orig.Info(en.Full)
 		}
 
 	} else {

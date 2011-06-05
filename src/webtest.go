@@ -12,42 +12,49 @@ import (
 	"path"
 	"rand"
 	"time"
+	"math"
 	"http"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
 )
 
+// General operation modes and overall settings
 var checkOnly bool = false
 var testmode bool = true
 var benchmarkMode bool = false
 var stresstestMode bool = false
-var validateMask int = 0
-var showLinks bool = false
-var outputPath = "./"
 var tagspec string
-
-var numRuns int = 15
+var outputPath = "./"
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace
 var tagLogLevel int = -1
 var suiteLogLevel int = -1
+
+// Test settings
+var validateMask int = 0
+var showLinks bool = false
 var testsToRun string = "*"
 var randomSeed int64 = -1
 var dumpTalk string = ""
 
-// Stresstesting
+// Benchmark
+var numRuns int = 15
+
+// Parameters for stresstesting
 var rampStart int = 5      // Start with that many parallel background requests
-var rampStep int = 5       // Increase in number of parallel background requests
+var rampStep int = 5       // Increase number of parallel background requests
 var rampSleep int64 = 1000 // Time in ms to sleep before and after testing
 var rampRep int = 1        // Number of repetitions of tests in one ramp level.
 
-// Parameters determing stresstest end
+// Parameters determing the end of a stresstest: If any condition is reached, the stresstests stops
 var stopFF float64 = 0.1       // 10% Failures --> stop
 var stopART int64 = 120 * 1000 // two minutes Average Response Time
 var stopMRT int64 = 240 * 1000 // four minutes Maximum Response Time
-var stopRTJ int = 5            // five fold increase in avg resp time in one ramp step   
+var stopRTJ int = 5            // five fold increase in avg resp time in _one_ ramp step   
 var stopRTI int = 50           // fifty fold increase in avg resp time from value without background load 
 var stopMPR = 250              // maximum number of parallel background requests
 
+
+// Some logging stuff
 var logger *log.Logger
 
 func error(f string, m ...interface{}) {
@@ -76,7 +83,12 @@ func trace(f string, m ...interface{}) {
 	}
 }
 
-// Determine whether test no of suite s (number sn) should be run based on testsToRun
+// Determine whether test no of suite s (number sn) should be run based on testsToRun.
+// Formats of testsToRun is a comma separated list if entries:
+//   -  <num>          run this test (only in first/only) suite
+//   -  <snum>.<tnum>  run test number tnum in suite number snum
+//   -  <pattern>      pattern with * and ? in the usual meaning
+// E.g. "2,4.5,Search*"
 func shouldRun(s *suite.Suite, sn, no int) bool {
 	if testsToRun == "" {
 		return true
@@ -90,7 +102,7 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 		if sn == 1 && x == fmt.Sprintf("%d", no) {
 			return true
 		}
-		matches, err := path.Match(x, title)
+		matches, err := tag.Match(x, title)
 		if err != nil {
 			error("Malformed pattern '%s' in -tests.", x)
 			continue
@@ -102,13 +114,50 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 	return false
 }
 
-const MaxInt = int(^uint(0) >> 1)
-const MinInt = -MaxInt - 1
+
+// Return p percentil of pre-sorted data. 0 <= p <= 100.
+func percentil(data []int, p int) int {
+	n := len(data)
+	if n == 0 {
+		return 0
+	}
+	if n == 1 {
+		return data[0]
+	}
+
+	pos := float64(p) * float64(n+1) / 100
+	fpos := math.Floor(pos)
+	intPos := int(fpos)
+	dif := pos - fpos
+	if intPos < 1 {
+		return data[0]
+	}
+	if intPos >= n {
+		return data[n-1]
+	}
+	lower := data[intPos-1]
+	upper := data[intPos]
+	val := float64(lower) + dif*float64(upper-lower)
+	return int(math.Floor(val + 0.5))
+}
+
 
 // Compute minimum, 0.25 percentil, median, average, 75% percentil and maximum of values in data.
 func sixval(data []int) (min, lq, med, avg, uq, max int) {
-	min, max = MaxInt, MinInt
+	min, max = math.MaxInt32, math.MinInt32
 	sum, n := 0, len(data)
+	if n == 0 {
+		return
+	}
+	if n == 1 {
+		min = data[0]
+		lq = data[0]
+		med = data[0]
+		avg = data[0]
+		uq = data[0]
+		max = data[0]
+		return
+	}
 	for _, v := range data {
 		if v < min {
 			min = v
@@ -122,10 +171,15 @@ func sixval(data []int) (min, lq, med, avg, uq, max int) {
 	avg = sum / n
 
 	sort.SortInts(data)
-	qi := n / 4
-	lq, uq = data[qi], data[n-qi]
-	med = data[n/2]
 
+	if n%2 == 1 {
+		med = data[(n-1)/2]
+	} else {
+		med = (data[n/2] + data[n/2-1]) / 2
+	}
+
+	lq = percentil(data, 25)
+	uq = percentil(data, 75)
 	return
 }
 
@@ -146,38 +200,36 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Common Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-check            Do not run, just print suites.\n")
-	fmt.Fprintf(os.Stderr, "\t-log <n>          General Log Level 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace.\n")
+	fmt.Fprintf(os.Stderr, "\t-log <n>          General Log Level 0=off 1=err 2=warn 3=info 4=debug 5=trace. [%d]\n", LogLevel)
 	fmt.Fprintf(os.Stderr, "\t-log.tag <n>      Log level for Tag test (tag package).\n")
 	fmt.Fprintf(os.Stderr, "\t-log.suite <n>    Log level for suite package.\n")
 	fmt.Fprintf(os.Stderr, "\t-tests <list>     select which tests to run: Comma seperated list of numbers or\n")
-	fmt.Fprintf(os.Stderr, "\t                  namepattern. E.g. '3,7,External*,9,*-Special-??,15'.\n")
+	fmt.Fprintf(os.Stderr, "\t                  namepattern. E.g. '3,7,External*,9,*-Special-??,15'. [%s]\n", testsToRun)
 	fmt.Fprintf(os.Stderr, "\t-seed <n>         use n as random seed (instead of current time).\n")
 	fmt.Fprintf(os.Stderr, "\t-D <n>=<v>        Set/override const variable named <n> to value <v>.\n")
-	fmt.Fprintf(os.Stderr, "\t-od <path>        Set output path to <path>.\n")
+	fmt.Fprintf(os.Stderr, "\t-od <path>        Set output path to <path>. [%s]\n", outputPath)
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Test Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-dump <mode>      Dump for debuggin purpose according to <mode>: 'all' dump wiretalk\n")
-	fmt.Fprintf(os.Stderr, "                    'body' dump response body, 'none' dont dump anything.\n")
-	fmt.Fprintf(os.Stderr, "                    If unused respect individual setting of each test.\n")
+	fmt.Fprintf(os.Stderr, "\t                  'body' dump response body, 'none' dont dump anything.\n")
+	fmt.Fprintf(os.Stderr, "\t                  If unused respect individual setting of each test.\n")
 	fmt.Fprintf(os.Stderr, "\t-validate <n>     Allow checking links (1), validating html (2) or both (3).\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
-	fmt.Fprintf(os.Stderr, "\t-runs <n>         Number of repetitions of each test (must be >= 5).\n")
+	fmt.Fprintf(os.Stderr, "\t-runs <n>         Number of repetitions of each test (must be >= 5). [%d]\n", numRuns)
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Stress Test Options:\n")
-	fmt.Fprintf(os.Stderr, "\t-ramp.start <n>   Start with background load of n parallel background requests.\n")
-	fmt.Fprintf(os.Stderr, "\t-ramp.step <n>    Increase parallel background load by n on each iteration.\n")
-	fmt.Fprintf(os.Stderr, "\t-ramp.sleep <ms>  Sleep time in ms around iterations.\n")
-	fmt.Fprintf(os.Stderr, "\t-ramp.rep <n>     Number of repetitions of whole testsuite during one ramp step.\n")
-	fmt.Fprintf(os.Stderr, "\t-stop.ff <frac>   Stop stresstest if fraction (e.g. 0.2) of conditions fail.\n")
-	fmt.Fprintf(os.Stderr, "\t-stop.art <ms>    Stop if Average Response Time exeeds ms.\n")
-	fmt.Fprintf(os.Stderr, "\t-stop.mrt <ms>    Stop if Maximum Response Time exeeds ms. \n")
-	fmt.Fprintf(os.Stderr, "\t-stop.rtj <n>     Stop if response time jumps by factor of at least n. \n")
-	fmt.Fprintf(os.Stderr, "\t-stop.rti <n>     Stop if response time exeeds n * plain resp. time.\n")
-	fmt.Fprintf(os.Stderr, "\t-stop.mpr <n>     Stop if n maximum parallel requests reached.\n")
+	fmt.Fprintf(os.Stderr, "\t-ramp.start <n>   Start with background load of n parallel background requests. [%d]\n", rampStart)
+	fmt.Fprintf(os.Stderr, "\t-ramp.step <n>    Increase parallel background load by n on each iteration. [%d]\n", rampStep)
+	fmt.Fprintf(os.Stderr, "\t-ramp.sleep <ms>  Sleep time in ms around iterations. [%d]\n", rampSleep)
+	fmt.Fprintf(os.Stderr, "\t-ramp.rep <n>     Number of repetitions of whole testsuite during one ramp step. [%d]\n", rampRep)
+	fmt.Fprintf(os.Stderr, "\t-stop.ff <frac>   Stop stresstest if fraction (e.g. 0.2) of conditions fail. [%.3f]\n", stopFF)
+	fmt.Fprintf(os.Stderr, "\t-stop.art <ms>    Stop if Average Response Time exeeds ms. [%d]\n", stopART)
+	fmt.Fprintf(os.Stderr, "\t-stop.mrt <ms>    Stop if Maximum Response Time exeeds ms. [%d]\n", stopMRT)
+	fmt.Fprintf(os.Stderr, "\t-stop.rtj <n>     Stop if response time jumps by factor of at least n. [%d]\n", stopRTJ)
+	fmt.Fprintf(os.Stderr, "\t-stop.rti <n>     Stop if response time exeeds n * plain resp. time. [%d]\n", stopRTI)
+	fmt.Fprintf(os.Stderr, "\t-stop.mpr <n>     Stop if n maximum parallel requests reached. [%d]\n", stopMPR)
 	fmt.Fprintf(os.Stderr, "\t\n")
-	fmt.Fprintf(os.Stderr, "Defaults:\n")
-	flag.PrintDefaults()
 	os.Exit(1)
 }
 
@@ -197,6 +249,7 @@ func (c cmdlVar) Set(s string) bool {
 }
 
 
+// Set up internal state from command line.
 func globalInitialization() {
 	logger = log.New(os.Stderr, "Webtest ", log.Ldate|log.Ltime)
 
@@ -282,6 +335,7 @@ func globalInitialization() {
 
 // Main method for webtest.
 func main() {
+
 	globalInitialization()
 
 	if tagspec != "" {
@@ -363,8 +417,11 @@ func testOrBenchmark(filenames []string) {
 	var result string = "\n======== Results ===============================================================\n"
 	var charts string = "\n======== Charts ================================================================\n"
 	var fails string = "\n======== Failures ==============================================================\n"
+	var errors string = "\n======== Errors ================================================================\n"
 
 	var passed bool = true
+	var erred bool = false
+
 	var suites []*suite.Suite = make([]*suite.Suite, 0, 20)
 	var basenames []string = make([]string, 0, 20)
 	var allReadable bool = true
@@ -403,9 +460,12 @@ func testOrBenchmark(filenames []string) {
 
 	for sn, s := range suites {
 
-		result += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
-		charts += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
-		fails += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+		if len(suites) > 1 {
+			result += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+			charts += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+			fails += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+			errors += "Suite " + basenames[sn] + ":\n-----------------------------------\n"
+		}
 
 		for i, t := range s.Test {
 			if !shouldRun(s, sn+1, i+1) {
@@ -444,15 +504,21 @@ func testOrBenchmark(filenames []string) {
 				s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask // clear unwanted validation
 				s.RunTest(i)
 				result += fmt.Sprintf("%s: %s\n", abbrTitle, s.Test[i].Status())
-				if _, _, failed := s.Test[i].Stat(); failed > 0 {
+				if _, failed, errored, _ := s.Test[i].Stat(); failed+errored > 0 {
 					passed = false
 					for _, res := range s.Test[i].Result {
-						if !strings.HasPrefix(res, "Passed") {
+						if strings.HasPrefix(res, "Failed") {
+							fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
+						} else if strings.HasPrefix(res, "Error") {
+							erred = true
+							errors += fmt.Sprintf("%s: %s\n", abbrTitle, res)
+						} else if !passed && strings.HasPrefix(res, "   ") {
 							fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
 						}
 					}
 					if s.Test[i].Abort() == 1 {
 						fmt.Printf("Aborting suite.\n")
+						errors += fmt.Sprintf("%s: Aborted whole suite.\n", abbrTitle)
 						break
 					}
 				}
@@ -487,6 +553,12 @@ func testOrBenchmark(filenames []string) {
 		fmt.Print(fails)
 		if file != nil {
 			file.Write([]byte(fails))
+		}
+		if erred {
+			fmt.Print(errors)
+			if file != nil {
+				file.Write([]byte(errors))
+			}
 		}
 	}
 
