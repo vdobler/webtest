@@ -364,6 +364,9 @@ func testOrBenchmark(filenames []string) {
 			}
 		}
 		for sn, s := range suites {
+			if s.Global != nil {
+				fmt.Printf("\n%s\n", s.Global.String())
+			}
 			for tn, t := range s.Test {
 				fmt.Printf("\n%s\n", t.String())
 				no := fmt.Sprintf("%d.%d", sn+1, tn+1)

@@ -10,6 +10,18 @@ import (
 	"dobler/webtest/tag"
 )
 
+
+var DefaultSettings = map[string]int{"Repeat": 1,
+	"Tries":        1,
+	"Max-Time":     -1,
+	"Sleep":        0,
+	"Keep-Cookies": 0,
+	"Abort":        0,
+	"Dump":         0,
+	"Validate":     0,
+}
+
+
 type ParserError struct {
 	cause string
 }
@@ -205,10 +217,10 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		//     Keep-Cookies keep
 		//     Abort        false
 		switch v {
-		case "true", "yes", "ja", "qui", "create", "new", "keep", "abort", "link", "links":
-			n = 1
 		case "false", "no", "nein", "non":
 			n = 0
+		case "true", "yes", "ja", "qui", "create", "new", "keep", "abort", "link", "links":
+			n = 1
 		case "append", "html", "xhtml":
 			n = 2
 		case "both", "links+html", "html+links", "body":
@@ -671,5 +683,183 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	if !p.okay {
 		err = ParserError{"General problems."}
 	}
+	return
+}
+
+
+// 
+// ------------------------------------------------------------------------
+// Pretty Printing --------------------------------------------------------
+// ------------------------------------------------------------------------
+//
+func needQuotes(s string, containedSpacesNeedQuotes bool) bool {
+	if containedSpacesNeedQuotes && strings.Contains(s, " ") {
+		return true
+	}
+	return strings.Contains(s, "\"") || strings.HasPrefix(s, " ") || strings.HasSuffix(s, " ") || strings.Contains(s, "\n") || strings.Contains(s, "\t")
+}
+
+func quote(s string, containedSpacesNeedQuotes bool) string {
+	if !needQuotes(s, containedSpacesNeedQuotes) {
+		return s
+	}
+	s = strings.Replace(s, "\"", "\\\"", -1)
+	s = strings.Replace(s, "\n", "\\n", -1)
+	s = strings.Replace(s, "\t", "\\t", -1)
+
+	return "\"" + s + "\""
+}
+
+
+// Prety print a map m with title. 
+func formatMap(title string, m *map[string]string) (f string) {
+	if len(*m) == 0 {
+		return
+	}
+
+	f = title + "\n"
+	longest := 0
+	for k, _ := range *m {
+		if len(k) > longest {
+			longest = len(k)
+		}
+	}
+	for k, v := range *m {
+		f += fmt.Sprintf("\t%-*s  %s\n", longest, k, quote(v, false))
+	}
+	return
+}
+
+
+func formatSettings(m *map[string]int) (f string) {
+	if len(*m) == 0 {
+		return
+	}
+
+	f = "SETTING\n"
+	longest := 0
+	for k, _ := range *m {
+		if len(k) > longest {
+			longest = len(k)
+		}
+	}
+	for k, v := range *m {
+		f += fmt.Sprintf("\t%-*s  ", longest, k)
+		switch k {
+		case "Dump":
+			switch v {
+			case 0:
+				f += "false"
+			case 1:
+				f += "create"
+			case 2:
+				f += "append"
+			case 3:
+				f += "body"
+			default:
+				f += fmt.Sprintf("%d", v)
+			}
+		case "Validate":
+			switch v {
+			case 0:
+				f += "false"
+			case 1:
+				f += "links"
+			case 2:
+				f += "html"
+			case 3:
+				f += "links+html"
+			default:
+				f += fmt.Sprintf("%d", v)
+			}
+
+		default:
+			f += fmt.Sprintf("%d", v)
+		}
+		f += "\n"
+	}
+
+	return
+}
+
+// Pretty print a multi-map m.
+func formatMultiMap(title string, m *map[string][]string) (f string) {
+	if len(*m) > 0 {
+		f = title + "\n"
+		longest := 0
+		for k, _ := range *m {
+			if len(k) > longest {
+				longest = len(k)
+			}
+		}
+		for k, l := range *m {
+			f += fmt.Sprintf("\t%-*s ", longest, k)
+			for _, v := range l {
+				f += " " + quote(v, true)
+			}
+			f += "\n"
+		}
+	}
+	return
+}
+
+
+// Pretty print a list of Conditions m.
+func formatCond(title string, m *[]Condition) (f string) {
+	if len(*m) > 0 {
+		f = title + "\n"
+		longest := 0
+		for _, c := range *m {
+			if len(c.Key) > longest {
+				longest = len(c.Key)
+			}
+		}
+		for _, c := range *m {
+			if c.Neg {
+				f += "\t!"
+			} else {
+				f += "\t "
+			}
+			if c.Op != "." {
+				f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
+			} else {
+				f += c.Key + "\n"
+			}
+		}
+	}
+	return
+}
+
+// String representation as as used by the parser.
+func (t *Test) String() (s string) {
+	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
+	s += t.Method + " " + t.Url + "\n"
+	s += formatMap("CONST", &t.Const)
+	s += formatMultiMap("SEQ", &t.Seq)
+	s += formatMultiMap("RAND", &t.Rand)
+	s += formatMultiMap("PARAM", &t.Param)
+	s += formatMap("HEADER", &t.Header)
+	s += formatMap("SEND-COOKIE", &t.Cookie)
+	s += formatCond("RESPONSE", &t.RespCond)
+	s += formatCond("SET-COOKIE", &t.CookieCond)
+	s += formatCond("BODY", &t.BodyCond)
+	if len(t.Tag) > 0 {
+		s += "TAG\n"
+		for i, tagCond := range t.Tag {
+			fts := tagCond.String()
+			if i > 0 && strings.Contains(fts, "\n") {
+				s += "\t\n"
+			}
+			s += "\t" + fts + "\n"
+		}
+	}
+	specSet := make(map[string]int) // map with non-standard settings
+	for k, v := range t.Setting {
+		if dflt, ok := DefaultSettings[k]; ok && v != dflt {
+			specSet[k] = v
+		}
+	}
+	s += formatSettings(&specSet)
+
 	return
 }
