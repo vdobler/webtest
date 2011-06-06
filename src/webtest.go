@@ -635,15 +635,15 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 func stresstest(bgfilename, testfilename string) {
 	// Read background and test suite
 	background, _, berr := readSuite(bgfilename)
-	testsuite, _, serr := readSuite(bgfilename)
+	testsuite, _, serr := readSuite(testfilename)
 	if berr != nil || serr != nil {
 		error("Cannot parse given suites.")
 		return
 	}
 
-	// Disable test which should not run by setting their Repet to 0
+	// Disable test which should not run by setting their Repeat to 0
 	for i := 0; i < len(testsuite.Test); i++ {
-		if !shouldRun(testsuite, 0, i) {
+		if !shouldRun(testsuite, 0, i+1) {
 			warn("Disabeling test %s", testsuite.Test[i].Title)
 			testsuite.Test[i].Setting["Repeat"] = 0
 		}
