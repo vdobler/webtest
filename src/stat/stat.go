@@ -105,12 +105,13 @@ func SixvalInt(data []int, p int) (min, lq, med, avg, uq, max int) {
 
 // Compute minimum, p percentil, median, average, 100-p percentil and maximum of values in data.
 func SixvalFloat64(data []float64, p int) (min, lq, med, avg, uq, max float64) {
-	min, max = math.MaxFloat64, -math.MaxFloat64
-	n :=len(data)
-	var sum float64
+	n := len(data)
+
+	// Special cases 0 and 1
 	if n == 0 {
 		return
 	}
+
 	if n == 1 {
 		min = data[0]
 		lq = data[0]
@@ -120,6 +121,10 @@ func SixvalFloat64(data []float64, p int) (min, lq, med, avg, uq, max float64) {
 		max = data[0]
 		return
 	}
+
+	// First pass (min, max, coarse average)
+	var sum float64
+	min, max = math.MaxFloat64, -math.MaxFloat64
 	for _, v := range data {
 		if v < min {
 			min = v
@@ -129,34 +134,40 @@ func SixvalFloat64(data []float64, p int) (min, lq, med, avg, uq, max float64) {
 		}
 		sum += v
 	}
-
 	avg = sum / float64(n)
-	
-	// Second pass
+
+	// Second pass: Correct average
 	var corr float64
 	for _, v := range data {
-		corr += v - avg;
+		corr += v - avg
 	}
-	avg += corr/float64(n)
+	avg += corr / float64(n)
 
+	// Median
 	sort.Sort(sort.Float64Array(data))
-
 	if n%2 == 1 {
 		med = data[(n-1)/2]
 	} else {
 		med = (data[n/2] + data[n/2-1]) / 2
 	}
 
+	// Percentiles
+	if p < 0 {
+		p = 0
+	}
+	if p > 100 {
+		p = 100
+	}
 	lq = percentilFloat64(data, p)
 	uq = percentilFloat64(data, 100-p)
 	return
 }
 
 
-// Generate Google chart for benchmark results.
+// Generate histogram via google charts api).
 func HistogramChartUrlInt(d []int, title, label string) (url string) {
 	url = "http://chart.googleapis.com/chart?cht=bvg&chs=600x300&chxs=0,676767,11.5,0,lt,676767&chxt=x&chdlp=b"
-	url += "&chbh=a&chco=404040&chtt=" + http.URLEscape(strings.Trim(title, " \t\n")) 
+	url += "&chbh=a&chco=404040&chtt=" + http.URLEscape(strings.Trim(title, " \t\n"))
 	url += "&chdl=" + http.URLEscape(strings.Trim(label, " \t\n"))
 
 	// Decide on number of bins
@@ -169,8 +180,8 @@ func HistogramChartUrlInt(d []int, title, label string) (url string) {
 	} else if len(d) > 40 {
 		cnt = 15
 	}
-	step := float64(max - min) / float64(cnt) // inital
-	
+	step := float64(max-min) / float64(cnt) // inital
+
 	// make step multiple of 2, 5 or 10
 	pow := 0
 	for step > 10 {
@@ -179,17 +190,21 @@ func HistogramChartUrlInt(d []int, title, label string) (url string) {
 	}
 	var width int
 	switch true {
-	case step < 1.5: width = 1
-	case step < 3: width = 2
-	case step < 8: width = 5
-	default: width = 10
+	case step < 1.5:
+		width = 1
+	case step < 3:
+		width = 2
+	case step < 8:
+		width = 5
+	default:
+		width = 10
 	}
-	for ; pow >0; pow-- {
+	for ; pow > 0; pow-- {
 		width *= 10
 	}
-	low := (min/width) * width
+	low := (min / width) * width
 	high := (max/width + 1) * width
-	cnt = (high - low)/width
+	cnt = (high - low) / width
 
 	// Binify and scale largest bar to 100
 	var bin []int = make([]int, cnt)
