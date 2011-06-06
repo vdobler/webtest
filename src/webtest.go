@@ -8,14 +8,12 @@ import (
 	"os"
 	"strings"
 	"log"
-	"sort"
 	"path"
 	"rand"
 	"time"
-	"math"
-	"http"
 	"dobler/webtest/suite"
 	"dobler/webtest/tag"
+	"dobler/webtest/stat"
 )
 
 // General operation modes and overall settings
@@ -115,73 +113,6 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 }
 
 
-// Return p percentil of pre-sorted data. 0 <= p <= 100.
-func percentil(data []int, p int) int {
-	n := len(data)
-	if n == 0 {
-		return 0
-	}
-	if n == 1 {
-		return data[0]
-	}
-
-	pos := float64(p) * float64(n+1) / 100
-	fpos := math.Floor(pos)
-	intPos := int(fpos)
-	dif := pos - fpos
-	if intPos < 1 {
-		return data[0]
-	}
-	if intPos >= n {
-		return data[n-1]
-	}
-	lower := data[intPos-1]
-	upper := data[intPos]
-	val := float64(lower) + dif*float64(upper-lower)
-	return int(math.Floor(val + 0.5))
-}
-
-
-// Compute minimum, 0.25 percentil, median, average, 75% percentil and maximum of values in data.
-func sixval(data []int) (min, lq, med, avg, uq, max int) {
-	min, max = math.MaxInt32, math.MinInt32
-	sum, n := 0, len(data)
-	if n == 0 {
-		return
-	}
-	if n == 1 {
-		min = data[0]
-		lq = data[0]
-		med = data[0]
-		avg = data[0]
-		uq = data[0]
-		max = data[0]
-		return
-	}
-	for _, v := range data {
-		if v < min {
-			min = v
-		}
-		if v > max {
-			max = v
-		}
-		sum += v
-	}
-
-	avg = sum / n
-
-	sort.SortInts(data)
-
-	if n%2 == 1 {
-		med = data[(n-1)/2]
-	} else {
-		med = (data[n/2] + data[n/2-1]) / 2
-	}
-
-	lq = percentil(data, 25)
-	uq = percentil(data, 75)
-	return
-}
 
 
 // Print usage information and exit.
@@ -485,10 +416,10 @@ func testOrBenchmark(filenames []string) {
 				if err != nil {
 					result += fmt.Sprintf("%s: Unable to bench: %s\n", abbrTitle, err.String())
 				} else {
-					min, lq, med, avg, uq, max := sixval(dur)
+					min, lq, med, avg, uq, max := stat.SixvalInt(dur, 25)
 					result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
 						abbrTitle, min, lq, med, avg, uq, max, len(dur), f)
-					charts += benchChartUrl(dur, t.Title) + "\n"
+					charts += stat.HistogramChartUrlInt(dur, t.Title, "Response Time [ms]") + "\n"
 				}
 			} else {
 				// Standard testing
@@ -583,7 +514,7 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 		return
 	}
 	basename = path.Base(filename)
-	parser := suite.NewParser(file, filename)
+	parser := suite.NewParser(file, basename)
 	s, err = parser.ReadSuite()
 	if err != nil {
 		error("Problems parsing '%s': %s\n", filename, err.String())
@@ -677,51 +608,6 @@ func stresstest(bgfilename, testfilename string) {
 }
 
 
-// Generate Google chart for benchmark results.
-func benchChartUrl(d []int, title string) (url string) {
-	url = "http://chart.googleapis.com/chart?cht=bvg&chs=600x300&chxs=0,676767,11.5,0,lt,676767&chxt=x&chdlp=b"
-	url += "&chbh=a&chco=404040&chtt=" + http.URLEscape(strings.Trim(title, " \t\n")) + "&chdl=Response+Times+[ms]"
-
-	// Decide on number of bins
-	min, _, _, _, _, max := sixval(d)
-	cnt := 10
-	if len(d) <= 10 {
-		cnt = 3
-	} else if len(d) <= 15 {
-		cnt = 5
-	} else if len(d) > 40 {
-		cnt = 15
-	}
-	step := (max - min) / cnt
-
-	// Binify and scale largest bar to 100
-	var bin []int = make([]int, cnt)
-	mc := 0
-	for _, n := range d {
-		b := (n - min) / step
-		if b >= cnt {
-			b = cnt - 1
-		}
-		bin[b] = bin[b] + 1
-		if bin[b] > mc {
-			mc = bin[b]
-		}
-	}
-	for i, n := range bin {
-		bin[i] = 100 * n / mc
-	}
-
-	// Output data to url
-	url += fmt.Sprintf("&chxr=0,%d,%d", min+step/2, max-step/2)
-	url += "&chd=t:"
-	for i, n := range bin {
-		if i > 0 {
-			url += ","
-		}
-		url += fmt.Sprintf("%d", n)
-	}
-	return
-}
 
 
 // Generate Google chart for stresstest results.
