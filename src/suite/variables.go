@@ -209,10 +209,10 @@ func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {
 		ocs := ts.Content.String()
 		ncs := substitute(ocs, test, global, orig)
 		if ncs != ocs {
-			if nc, err := tag.MakeContent(ncs); err != nil {
+			if nc, err := tag.MakeContent(ncs); err == nil {
 				ts.Content = nc
 			} else {
-				error("Tag text content or attribute value is malformed after variable substitution! Will use old one.")
+				error("Tag AA text content or attribute value is malformed after variable substitution! %s\nocs=%s\nncs=%s", err.String(), ocs, ncs)
 			}
 		}
 	}
@@ -252,10 +252,10 @@ func substituteVariables(test, global, orig *Test) {
 			ocs := tc.Spec.Content.String()
 			ncs := substitute(ocs, test, global, orig)
 			if ocs != ncs {
-				if nc, err := tag.MakeContent(ncs); err != nil {
+				if nc, err := tag.MakeContent(ncs); err == nil {
 					test.Tag[i].Spec.Content = nc
 				} else {
-					error("Tag text content or attribute value is malformed after variable substitution! Will use old one.")
+					error("Tag text content or attribute value is malformed after variable substitution! %s", err.String())
 				}
 			}
 		}
