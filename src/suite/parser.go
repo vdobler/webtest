@@ -4,8 +4,8 @@ import (
 	"strings"
 	"os"
 	"io"
+	"bufio"
 	"fmt"
-	linereader "encoding/line"
 	"strconv"
 	"dobler/webtest/tag"
 )
@@ -36,7 +36,7 @@ type Line struct {
 }
 
 type Parser struct {
-	reader *linereader.Reader
+	reader *bufio.Reader
 	line   []Line
 	test   *Test
 	suite  []Test
@@ -48,7 +48,7 @@ type Parser struct {
 // Set up a new Parser which reads a suite from r (named name).
 func NewParser(r io.Reader, name string) *Parser {
 	parser := new(Parser)
-	parser.reader = linereader.NewReader(r, 4000)
+	parser.reader = bufio.NewReader(r)
 	parser.line = []Line{}
 	parser.suite = []Test{}
 	parser.name = name
@@ -171,6 +171,9 @@ func (p *Parser) readMap(m *map[string]string) {
 		} else {
 			k = trim(line[:j])
 			v = trim(line[j:])
+		}
+		if hp(v, "\"") && hs(v,"\"") {
+			v = v[1:len(v)-2]
 		}
 		(*m)[k] = v
 		trace("Added to map (line %d): %s: %s", no, k, v)
@@ -414,6 +417,9 @@ func (p *Parser) readCond(mode int) []Condition {
 				continue
 			}
 			v = trim(line[j:])
+			if hp(v, "\"") && hs(v,"\"") {
+				v = v[1:len(v)-2]
+			}			
 			if k == "Bin" {
 				v := strings.ToLower(strings.Replace(v, " ", "", -1))
 				if len(v)%2 == 1 {
