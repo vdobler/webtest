@@ -24,12 +24,6 @@ func isDigit(x uint8) bool {
 	return (x >= '0' && x <= '9')
 }
 
-type Variable struct {
-	Name  string
-	Start int
-	End   int
-}
-
 
 // Split str into "pre${vn}rest" parts
 func nextPart(str string) (pre, vn, rest string) {
@@ -41,7 +35,7 @@ func nextPart(str string) (pre, vn, rest string) {
 	pre, str = str[:i], str[i+2:]
 	var j int
 	if strings.HasPrefix(str, "NOW") && len(str) > 3 && !isLetter(str[3]) {
-		j = strings.Index(str, "}") // TODO: read variables or NOW only
+		j = strings.Index(str, "}") 
 	} else {
 		for j = 0; j < len(str) && isLetter(str[j]); j++ {
 		}
@@ -151,7 +145,7 @@ func nowValue(rel, tf string, utc bool) string {
 		case "year":
 			dy += n
 		default:
-			error("Oooops: %s", delta[3])
+			error("Oooops: Unknown NOW midifier '%s'. Ignored.", delta[3])
 		}
 	}
 	var t *time.Time

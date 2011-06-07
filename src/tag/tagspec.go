@@ -193,7 +193,6 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	spec = trim(spec)
 
 	var cntnt string
-	// TODO: cleanup
 	if strings.Index(spec, "==") != -1 {
 		ts.Deep = false
 		if strings.HasSuffix(spec, " ==") {
@@ -320,7 +319,7 @@ func ParseTagSpec(spec string) (ts *TagSpec, err os.Error) {
 	return
 }
 
-// The panicing version of ParseTagSpec().
+// The single-return-but-panicing version of ParseTagSpec().
 func MustParseTagSpec(spec string) (ts *TagSpec) {
 	var err os.Error
 	ts, err = ParseTagSpec(spec)
