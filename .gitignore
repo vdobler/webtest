@@ -3,9 +3,11 @@
 *.exe
 *.dump
 *.log
+*~
 _obj
 _test
 _testmain.go
 wtresults_2011-*
+webtest
 
 
