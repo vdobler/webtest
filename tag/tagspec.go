@@ -2,8 +2,8 @@ package tag
 
 import (
 	"os"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 // Interface for content values of tags and attributes.

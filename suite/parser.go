@@ -1,13 +1,14 @@
 package suite
 
 import (
-	"strings"
-	"os"
-	"io"
 	"bufio"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
-	"dobler/webtest/tag"
+	"strings"
+
+	"github.com/vdobler/webtest/tag"
 )
 
 

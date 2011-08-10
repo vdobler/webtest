@@ -1,14 +1,14 @@
 package suite
 
 import (
-	"testing"
-	"time"
 	"fmt"
+	"html"
 	"http"
 	"os"
 	"strconv"
 	"strings"
-	"html"
+	"testing"
+	"time"
 )
 
 var (

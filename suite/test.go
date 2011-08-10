@@ -1,17 +1,17 @@
 package suite
 
 import (
+	"encoding/base64"
 	"fmt"
 	"http"
-	"strings"
-	"os"
-	"dobler/webtest/tag"
-	//	"encoding/hex"
-	"encoding/base64"
-	"time"
 	"io"
 	"io/ioutil"
+	"os"
 	"path"
+	"strings"
+	"time"
+
+	"github.com/vdobler/webtest/tag"
 )
 
 var (

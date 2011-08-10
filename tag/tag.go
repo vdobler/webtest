@@ -79,9 +79,9 @@ package tag
 
 import (
 	"fmt"
-	"os"
 	"html"
 	"log"
+	"os"
 )
 
 var LogLevel int = 2 // 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace

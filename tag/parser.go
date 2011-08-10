@@ -1,14 +1,12 @@
 package tag
 
 import (
-	"fmt"
 	"bytes"
-	"os"
+	"fmt"
 	"html"
-	"xml"
-	// "log"
+	"os"
 	"strings"
-	// "container/vector"
+	"xml"
 )
 
 const (

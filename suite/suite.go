@@ -3,9 +3,9 @@ package suite
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"time"
-	"math"
 )
 
 // Log level of suite. 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace, 6:supertrace

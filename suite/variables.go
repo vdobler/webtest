@@ -1,13 +1,14 @@
 package suite
 
 import (
-	"strings"
+	"http"
 	"rand"
-	"time"
-	"dobler/webtest/tag"
 	"regexp"
 	"strconv"
-	"http"
+	"strings"
+	"time"
+
+	"github.com/vdobler/webtest/tag"
 )
 
 // Random for RAND sections

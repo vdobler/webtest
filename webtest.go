@@ -11,9 +11,9 @@ import (
 	"path"
 	"rand"
 	"time"
-	"dobler/webtest/suite"
-	"dobler/webtest/tag"
-	"dobler/webtest/stat"
+	"github.com/vdobler/webtest/suite"
+	"github.com/vdobler/webtest/tag"
+	"github.com/vdobler/webtest/stat"
 )
 
 // General operation modes and overall settings

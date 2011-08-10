@@ -1,6 +1,6 @@
 include $(GOROOT)/src/Make.inc
 
-TARG=dobler/webtest/stat
+TARG=github.com/vdobler/webtest/stat
 GOFILES=\
 	stat.go\
 

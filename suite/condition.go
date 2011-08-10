@@ -1,14 +1,15 @@
 package suite
 
 import (
-	"os"
-	"time"
-	"fmt"
-	"strings"
-	"strconv"
-	"regexp"
 	"bytes"
-	"dobler/webtest/tag"
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/vdobler/webtest/tag"
 )
 
 const MaxConditionLen = 45 // How many charaters of the condition are displayed in a passed/failed report
