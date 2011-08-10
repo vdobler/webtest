@@ -1,5 +1,6 @@
 # Ignore compiled and executable files
 *.8
+8.out
 *.exe
 *.dump
 *.log

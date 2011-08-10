@@ -91,7 +91,7 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 	if testsToRun == "" {
 		return true
 	}
-	sp := strings.Split(testsToRun, ",", -1)
+	sp := strings.Split(testsToRun, ",")
 	title := s.Test[no-1].Title
 	for _, x := range sp {
 		if x == fmt.Sprintf("%d.%d", sn, no) {
@@ -168,7 +168,7 @@ type cmdlVar struct{ m map[string]string }
 
 func (c cmdlVar) String() (s string) { return "" }
 func (c cmdlVar) Set(s string) bool {
-	part := strings.Split(s, "=", 2)
+	part := strings.SplitN(s, "=", 2)
 	if len(part) != 2 {
 		warn("Bad argument '%s' to -D commandline parameter", s)
 		return false

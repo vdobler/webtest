@@ -56,7 +56,7 @@ func (tc *TagCondition) String() (s string) {
 	pf := strings.Repeat(" ", len(s))
 	ts := tc.Spec.String()
 	if strings.Contains(ts, "\n") {
-		list := strings.Split(ts, "\n", -1)
+		list := strings.Split(ts, "\n")
 		ts = "["
 		for _, l := range list {
 			ts += "\n\t\t" + l

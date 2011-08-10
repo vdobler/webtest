@@ -478,8 +478,8 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	if ms, err := strconv.Atoi(s); err == nil {
 		time.Sleep(1000000 * int64(ms))
 	}
-	if len(req.Cookie) > 0 {
-		t2 += "\n<a href=\"/bin.bin\" title=\"TheCookieValue\">" + req.Cookie[0].Name + " = " + req.Cookie[0].Value + "</a>"
+	if len(req.Cookies()) > 0 {
+		t2 += "\n<a href=\"/bin.bin\" title=\"TheCookieValue\">" + req.Cookies()[0].Name + " = " + req.Cookies()[0].Value + "</a>"
 	}
 	body := fmt.Sprintf(htmlPat, html.EscapeString(t), t2)
 	w.Write([]byte(body))
@@ -489,7 +489,7 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if cv := req.FormValue("cookie"); cv != "" {
 		trace("postHandler recieved param cookie %s.", cv)
-		cp := strings.Split(cv, "=", 2)
+		cp := strings.SplitN(cv, "=", 2)
 		if cp[1] != "-DELETE-" {
 			exp := time.SecondsToUTC(time.UTC().Seconds() + 7*24*3600).Format(http.TimeFormat) // Now + 7 days
 			w.Header().Set("Set-Cookie", fmt.Sprintf("%s=%s; Path=/de/index; expires=%s; Domain=my.domain.org; Secure;", cp[0], cp[1], exp))
@@ -554,7 +554,7 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	} else {
 		w.WriteHeader(200)
 		body := "<html><head><title>Cookies</title></head>\n<body><h1>All Submitted Cookies</h1>"
-		for _, cookie := range req.Cookie {
+		for _, cookie := range req.Cookies() {
 			body += "<div class=\"cookies\">\n"
 			body += "  <ul>\n"
 			body += "   <li>" + cookie.Name + " :: " + cookie.Value + "</li>\n"

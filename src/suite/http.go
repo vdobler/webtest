@@ -53,7 +53,7 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 	}
 
 	for cn, cv := range t.Cookie {
-		req.Cookie = append(req.Cookie, &http.Cookie{Name: cn, Value: cv})
+		req.AddCookie(&http.Cookie{Name: cn, Value: cv})
 	}
 }
 
@@ -155,11 +155,13 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	// TODO: set referrer header on redirects.
 
+	/*
 	// Move User-Agent from Header to Request
-	if ua := req.Header.Get("User-Agent"); ua != "" {
+	if ua := req.UserAgent(); ua != "" {
 		req.UserAgent = ua
 		req.Header.Del("User-Agent")
 	}
+	*/
 
 	info("%s %s", req.Method, req.URL.String())
 	dumpReq(req, dump)
@@ -170,8 +172,13 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 	dumpRes(response, dump)
 
 	finalUrl = req.URL.String()
-	cookies = updateCookies(cookies, response.SetCookie)
-	req.Cookie = updateCookies(req.Cookie, response.SetCookie)
+	cookies = updateCookies(cookies, response.Cookies())
+	for _, c := range response.Cookies() {
+		if _, err := req.Cookie(c.Name); err!=nil {
+			req.AddCookie(c)
+		}
+	}
+	//	req.Cookie = updateCookies(req.Cookie, response.Cookies())
 
 	if !shouldRedirect(response.StatusCode) {
 		return
@@ -195,7 +202,7 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 
 		if url = response.Header.Get("Location"); url == "" {
 			fmt.Printf("Header:\n%v", response.Header)
-			err = os.ErrorString(fmt.Sprintf("%d response missing Location header", response.StatusCode))
+			err = os.NewError(fmt.Sprintf("%d response missing Location header", response.StatusCode))
 			return
 		}
 		if base == nil {
@@ -217,8 +224,13 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 
 		dumpRes(response, dump)
 		finalUrl = url
-		cookies = updateCookies(cookies, response.SetCookie)
-		req.Cookie = updateCookies(req.Cookie, response.SetCookie)
+		cookies = updateCookies(cookies, response.Cookies())
+		for _, c:=range response.Cookies() {
+			if _, err := req.Cookie(c.Name); err!=nil {
+				req.AddCookie(c)
+			}
+		}
+		// req.Cookie = updateCookies(req.Cookie, response.SetCookie)
 
 		if !shouldRedirect(response.StatusCode) {
 			return
@@ -227,8 +239,21 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 		base = req.URL
 
 	}
-	err = os.ErrorString("Too many redirects.")
+	err = os.NewError("Too many redirects.")
 	return
+}
+
+func urlencode(param map[string][]string) string {
+	s := ""
+	for k, vs := range param {
+		for _, v := range vs {
+			s += fmt.Sprintf("&%s=%s", k, http.URLEscape(v))
+		}
+	}
+	if len(s) > 0 {
+		s = s[1:]
+	}
+	return s
 }
 
 // Perform a GET request for the test t.
@@ -242,7 +267,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 	req.Header = http.Header{}
 
 	if len(t.Param) > 0 {
-		ep := http.EncodeQuery(t.Param)
+		ep := urlencode(t.Param)
 		if strings.Contains(url, "?") {
 			url = url + "&" + ep
 		} else {
@@ -369,7 +394,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 		contentType = "multipart/form-data; boundary=" + boundary
 	} else {
 		contentType = "application/x-www-form-urlencoded"
-		bodystr := http.EncodeQuery(t.Param)
+		bodystr := urlencode(t.Param)
 		body = bytes.NewBuffer([]byte(bodystr))
 	}
 

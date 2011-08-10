@@ -230,7 +230,7 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.
 				break
 			}
 			if node.Name == "script" {
-				err = os.ErrorString("Javascript: " + err.String())
+				err = os.NewError("Javascript: " + err.String())
 			}
 			return
 		}

@@ -230,7 +230,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 		} else {
 			name = cc.Key
 		}
-		idx := cookieIndex(resp.SetCookie, name)
+		idx := cookieIndex(resp.Cookies(), name)
 
 		if cc.Op == "." {
 			// just test existence
@@ -251,7 +251,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 				orig.Failed(fmt.Sprintf("%s: Cookie was not set at all.", ci))
 				continue
 			}
-			rc := resp.SetCookie[idx]
+			rc := resp.Cookies()[idx]
 			var v string
 			switch field {
 			case "Value":

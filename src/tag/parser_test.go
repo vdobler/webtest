@@ -61,7 +61,7 @@ var testEntitiesHtml = `<html><body>
 </body></html>`
 
 func testStructure(doc *Node, expected []string, t *testing.T) {
-	lines := strings.Split(doc.HtmlRep(0), "\n", -1)
+	lines := strings.Split(doc.HtmlRep(0), "\n")
 	for i, etag := range expected {
 		a, b := "<"+etag+" ", "<"+etag+">"
 		got := strings.Trim(lines[i], " \t")
@@ -100,7 +100,7 @@ func TestHtmlEntitiesParsing(t *testing.T) {
 		t.Error("Unparsabel html: " + err.String())
 		t.FailNow()
 	}
-	lines := strings.Split(doc.HtmlRep(0), "\n", -1)
+	lines := strings.Split(doc.HtmlRep(0), "\n")
 	for i, exp := range []string{"<html [1]", "<body [1]", "<p> a < b > c. A&B. x=\"Hallo\". Copy ©. Umlaute: äöü = äöü."} {
 		got := strings.Trim(lines[i], " \t")
 		if !strings.HasPrefix(got, exp) {

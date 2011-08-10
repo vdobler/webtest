@@ -7,6 +7,7 @@ GOFILES=\
 PACKAGES:
 	cd tag && $(MAKE) install
 	cd suite && $(MAKE) install
+	cd stat && $(MAKE) install
 	
 CLEAN:
 	cd tag && $(MAKE) clean 
