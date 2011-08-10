@@ -171,7 +171,7 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 	}
 	dumpRes(response, dump)
 
-	finalUrl = req.URL.String()
+	finalUrl = response.Request.URL.String()
 	cookies = updateCookies(cookies, response.Cookies())
 	for _, c := range response.Cookies() {
 		if _, err := req.Cookie(c.Name); err != nil {
@@ -180,9 +180,13 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 	}
 	//	req.Cookie = updateCookies(req.Cookie, response.Cookies())
 
+
 	if !shouldRedirect(response.StatusCode) {
 		return
 	}
+
+	// TODO: will reach this point only for POST->redirect. Use DefaultClient here to handle 
+	// the following redirects.
 
 	// Start redirecting to final destination
 	response.Body.Close()
