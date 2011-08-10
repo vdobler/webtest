@@ -25,7 +25,8 @@ RESPONSE
 BODY
 	Txt  ~=  ber Google
 	Txt  ~=  <a href="/intl/de/privacy.html">Datenschutz</a>
-
+SETTING
+	Dump  1
 
 ----------------------------------
 Unic.com
@@ -76,7 +77,7 @@ PARAM
 RESPONSE
 	Content-Type  ~=  text/html
 TAG
-	title == Verwaltung (Stellenmarkt) Stellenmarkt*
+	title == Verwaltung - Stellenmarkt - Kanton Bern
 	table summary=Suchresultate
 
 	

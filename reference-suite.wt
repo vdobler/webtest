@@ -3,7 +3,7 @@
 # ===============================
 #
 # Webtest test suites are simple text files in UTF-8 (without BOM).
-# Line endings may be \n or \r\n and you are stubid _and_ ugly if you use
+# Line endings may be \n or \r\n and you are stupid _and_ ugly if you use
 # the later.  The line length should not exeed 4000 characters.
 #
 # Lines "starting" with a # are comments and are ignored. The # need
@@ -49,7 +49,8 @@ CONST
 # After the test case header (-------\n<Name>\n-------) several
 # sections describe various aspects of the test. A Section is intruduced
 # by an all caps section name starting at the first character of a line.
-# Individual setting in a setting are indented by (at least) a tab '\t'.
+# Individual setting in a setting are indented by (at least) one tab '\t'.
+# You may not indent with spaces.
 #
 # The first section is special: It names the request method and URL and 
 # must be the first section, cannot be omitted an has no sub-elements.
@@ -92,7 +93,7 @@ RESPONSE
 	 # Operator == is for real equality
 	 Status-Code   ==  200
 	
-	 # Operator ~= tests for "contains"
+	 # Operator ~= tests strings for "contains"
 	 Content-Type  ~=  text/html
 	 
 	 # Operator /= tests for a regular expression matching the field value
@@ -106,7 +107,8 @@ RESPONSE
 	 Something     =_ EndSuffix
 	 
 	 # For field which are numeric you may use <, <=, ==, >= or > with the
-	 # usual meaning.
+	 # usual meaning.  If the field falue is not a numeric value the outcome
+	 # is undefined.
 	 Content-Length  > 500
 	 
 	 # For fields whose value is a RFC1123 date you may use also use
@@ -116,7 +118,7 @@ RESPONSE
 
 	 
 	 # To negate a condition: Prefix the whole condition with a ! charcter.
-	 # Note: There is no != operator. Use !field == val.
+	 # Note: There is no != operator.  Use  !field == val  instead
 	!App-Field ~= Illegal
 	
 	 # To disalow the mere existence of a header field:
@@ -200,6 +202,21 @@ BODY
 	 # Use something like this to check if a binary file starts with the
 	 # appropriate magic key (png magic key below)
 	 Bin  _=  89504e470d0a1a0a
+
+	 # You can limit the range where the test applies by specifying
+	 # start and end positions in the body: For Txt the positions are
+	 # line numbers (starting from 0), for Bin the positions are
+	 # byte numbers (again strting at 0).  Negativ positions count
+	 # backward, ommited positions mean start/end. (Like in python).
+
+	 # Line 4,5,6 or 7 contains text "Status: Fine"
+	 Txt[3:7] ~= Status: Fine
+
+	 # Last line in body is "Success"
+	 Txt[-1:] == "Success"
+
+	 # Somewhere between byte 300 and 800 there is coffe
+	 Bin[300:800] ~= caffebabe
 	 
 # HTML/XML tag/element checkings are placed in section TAG
 # Syntax for the tags are like checktag. See documentation in tag.go.

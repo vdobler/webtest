@@ -866,6 +866,8 @@ func TestStresstest(t *testing.T) {
 	r150 := suite.Stresstest(background, 150, 1, 100)
 	time.Sleep(200000000)
 	r200 := suite.Stresstest(background, 200, 5, 100)
+	time.Sleep(200000000)
+	r500 := suite.Stresstest(background, 500, 5, 10)
 	time.Sleep(500000000)
 
 	testPrintStResult("Load   0", r0)
@@ -875,6 +877,7 @@ func TestStresstest(t *testing.T) {
 	testPrintStResult("Load 100", r100)
 	testPrintStResult("Load 150", r150)
 	testPrintStResult("Load 200", r200)
+	testPrintStResult("Load 200", r500)
 	if r0.Total <= 0 || r0.N <= 0 {
 		t.Error("No tests run without load")
 		t.FailNow()

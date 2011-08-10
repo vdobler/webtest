@@ -156,11 +156,11 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 	// TODO: set referrer header on redirects.
 
 	/*
-	// Move User-Agent from Header to Request
-	if ua := req.UserAgent(); ua != "" {
-		req.UserAgent = ua
-		req.Header.Del("User-Agent")
-	}
+		// Move User-Agent from Header to Request
+		if ua := req.UserAgent(); ua != "" {
+			req.UserAgent = ua
+			req.Header.Del("User-Agent")
+		}
 	*/
 
 	info("%s %s", req.Method, req.URL.String())
@@ -174,7 +174,7 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 	finalUrl = req.URL.String()
 	cookies = updateCookies(cookies, response.Cookies())
 	for _, c := range response.Cookies() {
-		if _, err := req.Cookie(c.Name); err!=nil {
+		if _, err := req.Cookie(c.Name); err != nil {
 			req.AddCookie(c)
 		}
 	}
@@ -225,8 +225,8 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 		dumpRes(response, dump)
 		finalUrl = url
 		cookies = updateCookies(cookies, response.Cookies())
-		for _, c:=range response.Cookies() {
-			if _, err := req.Cookie(c.Name); err!=nil {
+		for _, c := range response.Cookies() {
+			if _, err := req.Cookie(c.Name); err != nil {
 				req.AddCookie(c)
 			}
 		}

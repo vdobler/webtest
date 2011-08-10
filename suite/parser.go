@@ -132,7 +132,7 @@ func deescape(str string) string {
 
 func dequote(str string) string {
 	if hp(str, "\"") && hs(str, "\"") {
-		str = str[1 : len(str)-1]
+		str = str[1:len(str)]
 		return deescape(str)
 	}
 	return str
@@ -173,8 +173,8 @@ func (p *Parser) readMap(m *map[string]string) {
 			k = trim(line[:j])
 			v = trim(line[j:])
 		}
-		if hp(v, "\"") && hs(v,"\"") {
-			v = v[1:len(v)-2]
+		if hp(v, "\"") && hs(v, "\"") {
+			v = v[1 : len(v)-2]
 		}
 		(*m)[k] = v
 		trace("Added to map (line %d): %s: %s", no, k, v)
@@ -329,6 +329,52 @@ const (
 	mode_setcookie = iota
 )
 
+func parseRange(s string) (r Range, err os.Error) {
+	if s == "" {
+		return
+	}
+
+	if !hp(s, "[") || !hs(s, "]") {
+		err = os.NewError("Missing [ or ].")
+		return
+	}
+	s = s[1 : len(s)-1]
+	var ss []string
+	if s == ":" {
+		ss = []string{"", ""}
+	} else if hp(s, ":") {
+		ss = []string{"", s[1:]}
+	} else if hs(s, ":") {
+		ss = []string{s[:len(s)-1], ""}
+	} else {
+		ss = strings.Split(s, ":")
+	}
+	// fmt.Printf("s='%s'  ss = %#v\n", s, ss)
+	if len(ss) != 2 {
+
+		err = os.NewError("Missing or multiple :")
+		return
+	}
+
+	if ss[0] != "" {
+		n, e := strconv.Atoi(ss[0])
+		if e != nil {
+			err = e
+			return
+		}
+		r.Low, r.N = true, n
+	}
+	if ss[1] != "" {
+		m, e := strconv.Atoi(ss[1])
+		if e != nil {
+			err = e
+			return
+		}
+		r.High, r.M = true, m
+	}
+	return
+}
+
 
 // Read a Header or Body Condition
 func (p *Parser) readCond(mode int) []Condition {
@@ -347,6 +393,7 @@ func (p *Parser) readCond(mode int) []Condition {
 		j := firstSpace(line)
 		var k, op, v string
 		var neg bool
+		var rng Range
 
 		if j == -1 {
 			// reduced format  "[!] <field>"
@@ -378,12 +425,21 @@ func (p *Parser) readCond(mode int) []Condition {
 			line = trim(line[j:])
 			switch mode { // checkspecial requirements
 			case mode_body:
-				switch k {
-				case "Txt", "Bin":
-				default:
+				if !(hp(k, "Txt") || hp(k, "Bin")) {
 					error("No such condition type '%s' for body on line %d.", k, no)
 					p.okay = false
 					continue
+				}
+				rs := k[3:]
+				if rs != "" {
+					k = k[:3]
+					if r, err := parseRange(rs); err == nil {
+						rng = r
+					} else {
+						error("Unable to parse range '%s' on line %d. %s", rs, no, err.String())
+						p.okay = false
+						continue
+					}
 				}
 			case mode_setcookie:
 				if ci := strings.Index(k, ":"); ci != -1 {
@@ -418,9 +474,9 @@ func (p *Parser) readCond(mode int) []Condition {
 				continue
 			}
 			v = trim(line[j:])
-			if hp(v, "\"") && hs(v,"\"") {
-				v = v[1:len(v)-2]
-			}			
+			if hp(v, "\"") && hs(v, "\"") {
+				v = v[1 : len(v)-1]
+			}
 			if k == "Bin" {
 				v := strings.ToLower(strings.Replace(v, " ", "", -1))
 				if len(v)%2 == 1 {
@@ -439,7 +495,7 @@ func (p *Parser) readCond(mode int) []Condition {
 				}
 			}
 		}
-		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no)}
+		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no), Range: rng}
 		list = append(list, cond)
 		trace("Added to condition (line %d): %s", no, cond.String())
 	}
@@ -817,8 +873,9 @@ func formatCond(title string, m *[]Condition) (f string) {
 		f = title + "\n"
 		longest := 0
 		for _, c := range *m {
-			if len(c.Key) > longest {
-				longest = len(c.Key)
+			k := c.Key + c.Range.String()
+			if len(k) > longest {
+				longest = len(k)
 			}
 		}
 		for _, c := range *m {
@@ -828,7 +885,7 @@ func formatCond(title string, m *[]Condition) (f string) {
 				f += "\t "
 			}
 			if c.Op != "." {
-				f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key, c.Op, quote(c.Val, false))
+				f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key+c.Range.String(), c.Op, quote(c.Val, false))
 			} else {
 				f += c.Key + "\n"
 			}

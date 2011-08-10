@@ -10,7 +10,9 @@ import (
 	"log"
 	"path"
 	"rand"
+	"runtime"
 	"time"
+
 	"github.com/vdobler/webtest/suite"
 	"github.com/vdobler/webtest/tag"
 	"github.com/vdobler/webtest/stat"
@@ -259,6 +261,8 @@ func globalInitialization() {
 		fmt.Fprintf(os.Stderr, "Illegal argument to dump.")
 		os.Exit(2)
 	}
+
+	runtime.GOMAXPROCS(2) // use more than one thread
 }
 
 
@@ -583,6 +587,7 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 
 	for {
 		info("Stresstesting with background load of %d || requests.", load)
+		runtime.GC()
 		result := s.Stresstest(bg, load, rampRep, rampSleep)
 		data = append(data, result)
 

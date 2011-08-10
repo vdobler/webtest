@@ -36,7 +36,7 @@ func nextPart(str string) (pre, vn, rest string) {
 	pre, str = str[:i], str[i+2:]
 	var j int
 	if strings.HasPrefix(str, "NOW") && len(str) > 3 && !isLetter(str[3]) {
-		j = strings.Index(str, "}") 
+		j = strings.Index(str, "}")
 	} else {
 		for j = 0; j < len(str) && isLetter(str[j]); j++ {
 		}

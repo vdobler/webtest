@@ -72,15 +72,37 @@ func (tc *TagCondition) String() (s string) {
 
 // Represent a condition like "!Content-Type ~= "text/html" where Key="Content-Type"
 // Op="~=", Val="text/html" and Neg=true.  For tags Op contains the number of
-// occurences of the tag. Key is "Text", "Bin" or "Tag" for body-testing.
+// occurences of the tag. Key is "Text" or "Bin" body-testing.
 // Line contains the line number in the source
 type Condition struct {
-	Key string
-	Op  string
-	Val string
-	Neg bool
-	Id  string
+	Key   string
+	Op    string
+	Val   string
+	Neg   bool
+	Id    string
+	Range Range
 }
+
+type Range struct {
+	Low, High bool // which is limited?
+	N, M      int  // lower limit and upper limit (
+}
+
+func (r Range) String() (s string) {
+	if r.Low || r.High {
+		s += "["
+		if r.Low {
+			s += fmt.Sprintf("%d", r.N)
+		}
+		s += ":"
+		if r.High {
+			s += fmt.Sprintf("%d", r.M)
+		}
+		s += "]"
+	}
+	return
+}
+
 
 func atoi(s, line string, fallback int) int {
 	i, err := strconv.Atoi(s)
@@ -119,6 +141,23 @@ func toNumber(a, b, line string) (n, m int64) {
 // Check whether v fullfills the condition cond.
 func (cond *Condition) Fullfilled(v string) bool {
 	ans := false
+
+	if cond.Range.Low || cond.Range.High {
+		vv := strings.Split(v, "\n")
+		low, high := 0, len(vv)
+		if cond.Range.Low {
+			low = bound(cond.Range.N, high)
+		}
+		if cond.Range.High {
+			high = bound(cond.Range.M, high)
+		}
+		if high < low {
+			high = low
+		}
+		vv = vv[low:high]
+		v = strings.Join(vv, "\n")
+	}
+
 	switch cond.Op {
 	case ".": // Empty operator: tests existance only.
 		ans = (v != "")
@@ -170,10 +209,38 @@ func hexToBytes(hex string) []byte {
 	return b
 }
 
+func bound(b, n int) int {
+	if b >= 0 {
+		if b <= n {
+			return b
+		}
+		return n
+	} else {
+		if n+b <= n && n+b >= 0 {
+			return n + b
+		}
+		return 0
+	}
+	return 0
+}
+
 // Check whether v fullfills the binary condition cond.
 func (cond *Condition) BinFullfilled(v []byte) bool {
 	ans := false
 	val := hexToBytes(cond.Val)
+
+	low, high := 0, len(v)
+	if cond.Range.Low {
+		low = bound(cond.Range.N, high)
+	}
+	if cond.Range.High {
+		high = bound(cond.Range.M, high)
+	}
+	if high < low {
+		high = low
+	}
+	v = v[low:high]
+
 	switch cond.Op {
 	case ".": // Empty operator: tests existance only.
 		ans = (len(v) > 0)
@@ -202,6 +269,7 @@ func (c *Condition) String() (s string) {
 		s = " "
 	}
 	s += c.Key
+	s += c.Range.String()
 	if c.Op != "." {
 		s += " " + c.Op + " " + c.Val
 	}
