@@ -132,7 +132,7 @@ func deescape(str string) string {
 
 func dequote(str string) string {
 	if hp(str, "\"") && hs(str, "\"") {
-		str = str[1:len(str)]
+		str = str[1 : len(str)-1]
 		return deescape(str)
 	}
 	return str
@@ -281,15 +281,19 @@ func StringList(line string) (list []string) {
 
 	for i := 0; i < len(all); i++ {
 		if hp(all[i], "\"") {
-			s := all[i]
-			i++
-			for ; i < len(all) && !(hs(all[i], "\"") && !hs(all[i], "\\\"")); i++ {
-				s += " " + all[i]
+			if hs(all[i], "\"") {
+				list = append(list, all[i])
+			} else {
+				s := all[i]
+				i++
+				for ; i < len(all) && !(hs(all[i], "\"") && !hs(all[i], "\\\"")); i++ {
+					s += " " + all[i]
+				}
+				if i < len(all) {
+					s += " " + all[i]
+				}
+				list = append(list, dequote(s))
 			}
-			if i < len(all) {
-				s += " " + all[i]
-			}
-			list = append(list, dequote(s))
 		} else {
 			list = append(list, all[i])
 		}

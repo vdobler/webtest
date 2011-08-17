@@ -867,17 +867,14 @@ func TestStresstest(t *testing.T) {
 	time.Sleep(200000000)
 	r200 := suite.Stresstest(background, 200, 5, 100)
 	time.Sleep(200000000)
-	r500 := suite.Stresstest(background, 500, 5, 10)
-	time.Sleep(500000000)
 
-	testPrintStResult("Load   0", r0)
-	testPrintStResult("Load  10", r10)
-	testPrintStResult("Load  30", r30)
-	testPrintStResult("Load  60", r60)
-	testPrintStResult("Load 100", r100)
-	testPrintStResult("Load 150", r150)
-	testPrintStResult("Load 200", r200)
-	testPrintStResult("Load 200", r500)
+	testPrintStResult("Load    0", r0)
+	testPrintStResult("Load   10", r10)
+	testPrintStResult("Load   30", r30)
+	testPrintStResult("Load   60", r60)
+	testPrintStResult("Load  100", r100)
+	testPrintStResult("Load  150", r150)
+	testPrintStResult("Load  200", r200)
 	if r0.Total <= 0 || r0.N <= 0 {
 		t.Error("No tests run without load")
 		t.FailNow()
@@ -885,15 +882,6 @@ func TestStresstest(t *testing.T) {
 	if r0.Fail > 0 || r0.Err > 0 {
 		t.Error("Failures without load")
 		t.FailNow()
-	}
-
-	// There will be failures in the 200 run....
-	if r200.Total <= 0 || r200.N <= 0 {
-		t.Error("No tests run with load 200")
-		t.FailNow()
-	}
-	if r200.Fail == 0 && r200.Err == 0 {
-		t.Error("Expected Failures at load of 200!")
 	}
 
 }

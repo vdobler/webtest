@@ -372,7 +372,7 @@ PARAM
 # the value of the varibale <varname>. 
 # But there are three ways to set a value for a variable in the three
 # sections:
-#  - CONST variables just take a single value, theire use is obvious. 
+#  - CONST variables just take a single value, there use is obvious. 
 #  - SEQ (sequence) variables and 
 #  - RAND (random) values, 
 # The only reasonable use for sequence and random variables is in a repeated 
@@ -381,7 +381,7 @@ PARAM
 # value by random for each round of the test.  
 #
 # Notes: 
-#  - Variable names consist of characters only (no numbers no _).
+#  - Variable names consist of characters only (no numbers, no underscore _).
 #  - The following variable names are reserved for future use:
 #    "GLOBALID", "RANDOM", all variables starting with "ENV" and
 #    "NOW" (see below)
@@ -428,25 +428,26 @@ SETTING
 # -----------------
 #
 # The following variables are provided by the system and cannot be
-# redefined: "NOW" (currently the only one). 
+# redefined: 
+#  - "NOW" (currently the only one). 
 ---------------------------------
 Special Variables
 ---------------------------------
 GET http://some.url
 RESPONSE
-	# NOW is the current time formated as RFC1123 (taht is
+	# NOW is the current time formated as RFC1123 (that is
 	# "Mon, 02 Jan 2006 15:04:05 MST"
-	Date   ==    ${NOW}
+	Date   ==   ${NOW}
 	
 	# Now can be increased/decreased by adding/subtracting timespans.
 	# Formating remains RFC1123
 	Expires >  ${NOW + 3days}
 	
 	# If you need a different time format: add your own fmt definition
-	# on gos time format after a '|' charcter.  Time will be in UTC!
+	# in Go's time format after a '|' charcter.  Time will be in UTC!
 	Last-Modified  >=  ${NOW - 5 hours + 10 minutes | Mon Jan _2 15:04:05 2006}
 	# Possible modifiers are "second", "minute", "hour", "day", "week",
-	# "month" and "year" (all lower case plural accepted).
+	# "month" and "year" (all lower case, plural accepted).
 	# Output is in UTC time format (to prevent bug in Go)
 	
 
@@ -461,7 +462,7 @@ RESPONSE
 #    usefull for iterating over sequence or random variables.  See above
 #    for examples.
 #  - "Trying" means trying at most n times. Pass imediately if one run
-#    succeeds and fail if all n rounds fail. This is usefull to wait for
+#    succeeds and fail if all n rounds fail.  This is usefull to wait for
 #    some background job to complete and check this regularely.
 # Note: Combining repetition and trying is possible, but the result is
 # currently undefined (aka buggy): The test status is solely determined
@@ -484,7 +485,15 @@ SETTING
 # --------
 #
 # Various setting can be applied to each and every test in the SETTING
-# section. Currently the following are implemented.
+# section. Currently the following are implemented:
+#  - Repeat
+#  - Tries
+#  - Sleep
+#  - Max-Time
+#  - Keep-Cookies
+#  - Dump
+#  - Abort
+#
 ---------------------------------
 Settings
 ---------------------------------
@@ -568,6 +577,10 @@ SET-COOKIE
 SETTING
 	# Recieved sookies can be stored in the SEND-COOKIE section of the
 	# Global test.  (Usefull for login/session cookies).
+	# _Important_ notice: Webtest does _not_ implement a proper cookie
+	# jar or even honour any "same origin" policies for cookies:
+	# All kept cookies are sent to all subsequent request, regardless
+	# of domain, path, secure flag, etc.
 	Keep-Cookies  1
 	
 	# Note: Currently the server cannot delete a cookie he set in a 

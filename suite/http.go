@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"strconv"
 	"mime"
+	"mime/multipart"
 	"rand"
 	"time"
 	"path"
@@ -329,16 +330,17 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 	var body *bytes.Buffer = &bytes.Buffer{}
 	var boundary = newBoundary()
 
+	var mpwriter = multipart.NewWriter(body)
+
 	// All non-file parameters come first
 	for n, v := range *param {
 		if len(v) > 0 && strings.HasPrefix(v[0], "@file:") {
-			continue
+			continue // files go at the end
 		}
-		if len(v) > 0 {
+		if true || len(v) > 0 {
 			for _, vv := range v {
 				trace("Added parameter %s with value '%s' to request body.", n, vv)
-				var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n", boundary, n, vv)
-				body.WriteString(part)
+				mpwriter.WriteField(n, vv)
 			}
 		} else {
 			trace("Adding empty parameter %s to request body.", n)
@@ -350,7 +352,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 	// File parameters at bottom
 	for n, v := range *param {
 		if !(len(v) > 0 && strings.HasPrefix(v[0], "@file:")) {
-			continue
+			continue // allready written
 		}
 		filename := v[0][6:]
 		trace("Adding file '%s' as %s to request body.", filename, n)
@@ -361,22 +363,25 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 				ct = "application/octet-stream"
 			}
 		}
+
 		basename := path.Base(filename)
-		var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\n", boundary, n, basename)
-		part += fmt.Sprintf("Content-Type: %s\r\n\r\n", ct)
+		fw, err := mpwriter.CreateFormFile(n, basename)
+		if err != nil {
+			warn("Cannot write file multipart: ", err.String())
+			continue
+		}
+
 		file, err := os.Open(filename)
 		defer file.Close()
 		if err != nil {
 			warn("Cannot read from file '%s': %s.", filename, err.String())
 			continue
 		}
-		body.WriteString(part)
-		body.ReadFrom(file)
-		body.WriteString("\r\n")
+		io.Copy(fw, file)
 	}
-	body.WriteString("--" + boundary + "--\r\n")
+	mpwriter.Close()
 
-	return body, boundary
+	return body, mpwriter.Boundary()
 }
 
 // PostForm issues a POST to the specified URL, 
