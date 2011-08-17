@@ -4,25 +4,23 @@ README
 This project shall provide reliable, easy to use and fast methods and tools 
 to check websites and webinterfaces.
 
-Web test suites can be set up and run. A test can set header information
-to send to the server and check the response: Returned header values and
-the body. To facilliate tests for tags a tag-language allows to find/count
+Webtest suites can be set up and run.  A test can set header information
+to send to the server and check the response:  Returned header values and
+the body.  To facilliate tests for tags a tag-language allows to find/count
 tags matching certain conditions.
 
 The reference-suite.wt is the documentation of how to set up the plain 
 text files used to define a test suite.
 
-webtest itself needs to packages: tag and suite which might be usefull
+Webtest itself needs some packages: tag, suite and stat which might be usefull
 as standalone packages.
 
 Building
 --------
-cd src/tag && make install
-cd src/suite && make install
-make
+Webtest and its sub packeges are gonstall-able.
+Do build manually do:
+make CLEAN
+make PACKAGES
+make webtest
 
-Bugs
-----
-
-Arguments to conditions with leading spaces / quoted test strings are broken.
 
