@@ -130,12 +130,11 @@ func deescape(str string) string {
 	return str
 }
 
-func dequote(str string) string {
+func dequote(str string) (string, os.Error) {
 	if hp(str, "\"") && hs(str, "\"") {
-		str = str[1 : len(str)-1]
-		return deescape(str)
+		return strconv.Unquote(str)
 	}
-	return str
+	return str, nil
 }
 
 // Return index of first space/tab in s or -1 if none found.
@@ -274,32 +273,80 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 //		dog
 //		foo bar
 //		fisch
-//		"mouse"
+//		mouse
 //		shark
-func StringList(line string) (list []string) {
-	all := strings.Fields(line)
+func StringList(line string) (list []string, err os.Error) {
 
-	for i := 0; i < len(all); i++ {
-		if hp(all[i], "\"") {
-			if hs(all[i], "\"") {
-				list = append(list, all[i])
-			} else {
-				s := all[i]
-				i++
-				for ; i < len(all) && !(hs(all[i], "\"") && !hs(all[i], "\\\"")); i++ {
-					s += " " + all[i]
-				}
-				if i < len(all) {
-					s += " " + all[i]
-				}
-				list = append(list, dequote(s))
-			}
+	for len(line) > 0 {
+		var quoted bool
+		var j int
+		if line[0] == '"' {
+			j = endQuoteIndex(line)
+			quoted = true
 		} else {
-			list = append(list, all[i])
+			j = nextSpaceIndex(line) - 1
+			quoted = false
 		}
+
+		var p string
+		if j < len(line) {
+			p = line[0 : j+1]
+			line = line[j+1:]
+		} else {
+			p = line[0:j]
+			if quoted {
+				p += "\"" // gracefuly add missing " at end
+			}
+			line = ""
+		}
+		if quoted {
+			if p, err = dequote(p); err != nil {
+				return
+			}
+		}
+		list = append(list, p)
+		for len(line) > 0 && line[0] == ' ' {
+			line = line[1:]
+		} // TODO: inneficient
 	}
 	return
 }
+
+func nextSpaceIndex(line string) int {
+	n := len(line)
+	for i := 1; i < n; i++ {
+		if line[i] == ' ' {
+			return i
+		}
+	}
+	return n
+}
+
+func endQuoteIndex(line string) int {
+	// fmt.Printf("endQuoteIndex: %s\n", line)
+	n := len(line)
+	var lwb bool // LastWasBackslash
+	for i := 1; i < n; i++ {
+		//fmt.Printf("  %d: ", i)
+		if line[i] == '\\' {
+			lwb = !lwb
+			// fmt.Printf(" toggled lwb to %t\n", lwb)
+			continue
+		}
+		if line[i] == '"' && !lwb {
+			// fmt.Printf(" found quote\n")
+
+			if (i+1 < n && line[i+1] == ' ') || (i+1 == n) {
+				return i
+			}
+		} else {
+			// fmt.Printf("other %c\n", line[i])
+		}
+		lwb = false
+	}
+	return n
+}
+
 
 // Like readMap, but treat value as list of strings
 func (p *Parser) readMultiMap(m *map[string][]string) {
@@ -320,7 +367,12 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 		} else {
 			k = trim(line[:j])
 			line = trim(line[j:])
-			list = StringList(line)
+			var err os.Error
+			list, err = StringList(line)
+			if err != nil {
+				error("Cannot decode '%s': %s.", line, err.String())
+				p.okay = false
+			}
 		}
 		(*m)[k] = list
 		trace("Added to mulit map (line %d): >>>%s<<<: %v", no, k, list)

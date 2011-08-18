@@ -117,8 +117,9 @@ RESPONSE
 	 Expires  >=  Fri, 20 May 2011 12:59:19 GMT
 
 	 
-	 # To negate a condition: Prefix the whole condition with a ! charcter.
-	 # Note: There is no != operator.  Use  !field == val  instead
+	 # To negate a condition: Prefix the _whole_ condition with a '!' 
+	 # character.
+	 # Note: There is _no_  !=  operator.  Use  !field == val  instead
 	!App-Field ~= Illegal
 	
 	 # To disalow the mere existence of a header field:
@@ -190,7 +191,7 @@ BODY
 	 Txt  ==  Whole text of body
 	 # Attention: Only UTF-8 encoded bodys work well.
 	 
-	 # Bin ist the whole text of the body as hexadecimal string
+	 # Bin is the whole text of the body as hexadecimal string
 	 Bin  == 0daf23bcad873f94
 	 # Note: Syntax may change in the future
 	 
@@ -210,34 +211,35 @@ BODY
 	 # backward, ommited positions mean start/end. (Like in python).
 
 	 # Line 4,5,6 or 7 contains text "Status: Fine"
-	 Txt[3:7] ~= Status: Fine
+	 Txt[3:7]  ~=  Status: Fine
 
 	 # Last line in body is "Success"
-	 Txt[-1:] == "Success"
+	 Txt[-1:]  ==  "Success"
 
 	 # Somewhere between byte 300 and 800 there is coffe
 	 Bin[300:800] ~= caffebabe
-	 
+
+
 # HTML/XML tag/element checkings are placed in section TAG
 # Syntax for the tags are like checktag. See documentation in tag.go.
 # The syntax is a bit like
 #   tagSpec   :=  ['!'] [ numOp number ] { simpleTag | tagStructure }
 #   numOp     :=  { '<', '<=', '==', '>=', '>' }
-#   number    :=  <any number >= 0, e.g. 4 or 17>
+#   number    :=  "any number >= 0, e.g. 4 or 17"
 #   simpleTag :=  tagName [class...] [attribute...] [ { '==' | '=D='} content]
-#   tagName   :=  <the lower case tag name: h2, div, iframe, ...>
+#   tagName   :=  "the lower case tag name e.g. h2, div, iframe, ..."
 #   class     :=  [ '!' ] 'class='content
 #   attribute :=  [ '!' ] attrName'='content
-#   attrName  :=  <the lowercase attribute name, e.g. href, title, ...>
+#   attrName  :=  "the lowercase attribute name, e.g. href, title, ..."
 #   content   :=  { '/' regexp '/' | pattern }
-#   regexp    :=  <a valid regular expression>
-#   pattern   :=  <a text pattern with * and ? as the usual wildcards>
+#   regexp    :=  "a valid regular expression"
+#   pattern   :=  "a text pattern with * and ? as the usual wildcards"
 #   tagStruct :=  '[' '\n' moreIndnt { simpleTag | tagStructure } '\n' ']'
-#   moreIndnt :=  <more indentation by tabs/spc than previous/parent tagSpec.>
+#   moreIndnt :=  "more indentation by tabs/spc than previous/parent tagSpec."
 #
 TAG
 	# Check if any h2 tag with a class of 'home' and text content of
-	# 'Quality' is present
+	# 'Quality' is present.  All other attributes are ignored.
 	h2 class=home == Quality
 		
 	# Fail if a h5 tag with content 'WRONG' is present
@@ -305,7 +307,7 @@ TAG
 	# (note the trimming of spaces and the addition of a space
 	# between the two text nodes).
 	# To match the whole text content including nested tags use
-	# the "=D=" deep operator 
+	# the "=D=" deep operator.
 	h2 =D= Hello nice World
 	
 
@@ -323,7 +325,7 @@ Post a Comment
 ---------------------------------
 POST http://my.blog/comment.html
 PARAM
-	# Parameter name and value are given like this.
+	# Parameter name and value are given like this. Note: no '='
 	date    2010-03-04
 	
 	# As a parameter may have seveal values you need to quote values
@@ -342,6 +344,7 @@ PARAM
 	file	@file:relative/path/to/document.pdf
 	# Currently there is a bug: You may not send filenames with
 	# special characters (e.g. spaces)
+	# Note: no space allowwed between '@file:' and the filename 
 	
 	
 #
@@ -349,7 +352,7 @@ PARAM
 # ---------------------------
 #
 # To force the post to use "multipart/form-data" even if no file
-# is uploaded: Use POST:mp as method.
+# is uploaded:  Use POST:mp as method.
 ---------------------------------
 Force Multipart Upload
 ---------------------------------
@@ -416,8 +419,15 @@ RAND
 	Year 	2004 2005 2006 2007
 	
 	# Values with spaces like 'Emil Tom' must be enclosed in quotes as
-	# usual
-	Name	Anna "Emil Tom" Vicktoria 
+	# usual.  Inside double quotes you may use standard go string escapings 
+	# to create special characters e.g. a FEMAL SIGN.
+	Name	Anna "Emil Tom" "Gender: \u2640" "Berta \"The Fat\" Bomb"
+	# Name would be one of:
+	#   Anna
+	#   Emil Tom
+	#   Gender: ♀
+	#   Berta "The Fat" Bomb
+
 SETTING
 	# Repeat the test 7 times.
 	Repeat	7
@@ -569,10 +579,11 @@ SET-COOKIE
 	
 	# If the server sends a cookie which is allready expired or the max age
 	# is lower 0, this cookie is deleted and also deleted in Global if
-	# Keep-Cookies is true
+	# Keep-Cookies is true.  Note: Buggy: The behaviour is the desired one,
+	# not the implemented one.
 	
 	# Note: Cookies must be explicitely deleted, mere expiering will
-	# _not_ remove them.
+	# _not_ remove them. (No cookie jar).
 	
 SETTING
 	# Recieved sookies can be stored in the SEND-COOKIE section of the
@@ -613,11 +624,11 @@ SETTING
 # ------
 #
 # If the very first test in a test suite is named "Global" than this test
-# will not be run, but serve as a template for all subsequent tests:
+# will not be run but serve as a template for all subsequent tests:
 # Settings, Variables, Header fields and Response checks are inherited
-# from global to each test. The test may overwrite them. Body and Tag
+# from global to each test.  The test may overwrite them.  Body and Tag
 # checks cannot be overwritten (as the do not contain some uniq id to
-# identify them): Body and Tag conditions/checks from global are just
+# identify them):  Body and Tag conditions/checks from global are just
 # added to each test.
 #
 # Global is also used to keep cookies, e.g. login cookies which should

@@ -11,5 +11,5 @@ GOFILES=\
 
 include $(GOROOT)/src/Make.pkg
 
-format: $(GOFILES) suite_test.go condition_test.go
+format: $(GOFILES) suite_test.go parser_test.go condition_test.go
 	gofmt -w $^
