@@ -13,8 +13,8 @@ import (
 	"rand"
 	"time"
 	"path"
+	"url"
 )
-
 
 func readBody(r io.ReadCloser) []byte {
 	var bb bytes.Buffer
@@ -86,7 +86,6 @@ func dumpRes(res *http.Response, dump io.Writer) {
 	}
 }
 
-
 // 
 func valid(cookie *http.Cookie) bool {
 	if cookie.MaxAge < 0 {
@@ -104,7 +103,6 @@ func valid(cookie *http.Cookie) bool {
 	trace("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(http.TimeFormat))
 	return true
 }
-
 
 // Take new cookies from recieved, and update/add to cookies 
 func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cookie {
@@ -149,7 +147,6 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 	}
 	return update
 }
-
 
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
@@ -203,24 +200,24 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 	req.Header.Del("Connection")
 	req.Body = nil
 	for redirect := 0; redirect < 10; redirect++ {
-		var url string
+		var url_ string
 
-		if url = response.Header.Get("Location"); url == "" {
+		if url_ = response.Header.Get("Location"); url_ == "" {
 			fmt.Printf("Header:\n%v", response.Header)
 			err = os.NewError(fmt.Sprintf("%d response missing Location header", response.StatusCode))
 			return
 		}
 		if base == nil {
-			req.URL, err = http.ParseURL(url)
+			req.URL, err = url.Parse(url_)
 		} else {
-			req.URL, err = base.ParseURL(url)
+			req.URL, err = base.Parse(url_)
 		}
 		if err != nil {
 			return
 		}
 
-		url = req.URL.String()
-		info("GET %s", url)
+		url_ = req.URL.String()
+		info("GET %s", url_)
 		dumpReq(req, dump)
 
 		if response, err = http.DefaultClient.Do(req); err != nil {
@@ -228,7 +225,7 @@ func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, fi
 		}
 
 		dumpRes(response, dump)
-		finalUrl = url
+		finalUrl = url_
 		cookies = updateCookies(cookies, response.Cookies())
 		for _, c := range response.Cookies() {
 			if _, err := req.Cookie(c.Name); err != nil {
@@ -252,7 +249,7 @@ func urlencode(param map[string][]string) string {
 	s := ""
 	for k, vs := range param {
 		for _, v := range vs {
-			s += fmt.Sprintf("&%s=%s", k, http.URLEscape(v))
+			s += fmt.Sprintf("&%s=%s", k, url.QueryEscape(v))
 		}
 	}
 	if len(s) > 0 {
@@ -263,7 +260,7 @@ func urlencode(param map[string][]string) string {
 
 // Perform a GET request for the test t.
 func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	var url = t.Url // <-- Patched
+	var url_ = t.Url // <-- Patched
 
 	var req http.Request
 	req.Method = "GET"
@@ -273,20 +270,20 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 
 	if len(t.Param) > 0 {
 		ep := urlencode(t.Param)
-		if strings.Contains(url, "?") {
-			url = url + "&" + ep
+		if strings.Contains(url_, "?") {
+			url_ = url_ + "&" + ep
 		} else {
-			url = url + "?" + ep
+			url_ = url_ + "?" + ep
 		}
 	}
-	req.URL, err = http.ParseURL(url)
+	req.URL, err = url.Parse(url_)
 	if err != nil {
-		err = &http.URLError{"Get", url, err}
+		err = &url.Error{"Get", url_, err}
 		return
 	}
 
 	addHeadersAndCookies(&req, t)
-	url = req.URL.String()
+	url_ = req.URL.String()
 	debug("Will get from %s", req.URL.String())
 	r, finalUrl, cookies, err = DoAndFollow(&req, t.Dump)
 	return
@@ -390,7 +387,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 // Caller should close r.Body when done reading from it.
 func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	var req http.Request
-	var url = t.Url
+	var url_ = t.Url
 	req.Method = "POST"
 	req.ProtoMajor = 1
 	req.ProtoMinor = 1
@@ -415,9 +412,9 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 	addHeadersAndCookies(&req, t)
 
 	req.ContentLength = int64(body.Len())
-	req.URL, err = http.ParseURL(url)
+	req.URL, err = url.Parse(url_)
 	if err != nil {
-		return nil, url, cookies, err
+		return nil, url_, cookies, err
 	}
 	debug("Will post to %s", req.URL.String())
 

@@ -4,10 +4,10 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"http"
-	"fmt"
-)
 
+	"fmt"
+	"url"
+)
 
 // Return p percentil of pre-sorted integer data. 0 <= p <= 100.
 func PercentilInt(data []int, p int) int {
@@ -60,7 +60,6 @@ func percentilFloat64(data []float64, p int) float64 {
 	val := lower + dif*(upper-lower)
 	return val
 }
-
 
 // Compute minimum, p percentil, median, average, 100-p percentil and maximum of values in data.
 func SixvalInt(data []int, p int) (min, lq, med, avg, uq, max int) {
@@ -163,12 +162,11 @@ func SixvalFloat64(data []float64, p int) (min, lq, med, avg, uq, max float64) {
 	return
 }
 
-
 // Generate histogram via google charts api).
-func HistogramChartUrlInt(d []int, title, label string) (url string) {
-	url = "http://chart.googleapis.com/chart?cht=bvg&chs=600x300&chxs=0,676767,11.5,0,lt,676767&chxt=x&chdlp=b"
-	url += "&chbh=a&chco=404040&chtt=" + http.URLEscape(strings.Trim(title, " \t\n"))
-	url += "&chdl=" + http.URLEscape(strings.Trim(label, " \t\n"))
+func HistogramChartUrlInt(d []int, title, label string) (url_ string) {
+	url_ = "http://chart.googleapis.com/chart?cht=bvg&chs=600x300&chxs=0,676767,11.5,0,lt,676767&chxt=x&chdlp=b"
+	url_ += "&chbh=a&chco=404040&chtt=" + url.QueryEscape(strings.Trim(title, " \t\n"))
+	url_ += "&chdl=" + url.QueryEscape(strings.Trim(label, " \t\n"))
 
 	// Decide on number of bins
 	min, _, _, _, _, max := SixvalInt(d, 25)
@@ -226,13 +224,13 @@ func HistogramChartUrlInt(d []int, title, label string) (url string) {
 	}
 
 	// Output data to url
-	url += fmt.Sprintf("&chxr=0,%d,%d", low+width/2, high-width/2)
-	url += "&chd=t:"
+	url_ += fmt.Sprintf("&chxr=0,%d,%d", low+width/2, high-width/2)
+	url_ += "&chd=t:"
 	for i, n := range bin {
 		if i > 0 {
-			url += ","
+			url_ += ","
 		}
-		url += fmt.Sprintf("%d", n)
+		url_ += fmt.Sprintf("%d", n)
 	}
 	return
 }

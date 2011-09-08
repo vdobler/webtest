@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vdobler/webtest/tag"
+	"url"
 )
 
 var (
@@ -109,7 +110,6 @@ func (t *Test) Passed(text string) { t.Result = append(t.Result, "Passed "+text)
 func (t *Test) Error(text string)  { t.Result = append(t.Result, "Error  "+text) }
 func (t *Test) Info(text string)   { t.Result = append(t.Result, "       "+text) }
 
-
 // Return number of executed (total), passed and failed tests. 
 func (t *Test) Stat() (passed, failed, errors, info int) {
 	for _, r := range t.Result {
@@ -166,7 +166,6 @@ func NewTest(title string) *Test {
 	return &t
 }
 
-
 // Helper to read a setting of a test.
 func (t *Test) getSetting(name string) int {
 	if t.Setting != nil {
@@ -186,7 +185,6 @@ func (t *Test) Validate() int    { return t.getSetting("Validate") }
 func (t *Test) DoDump() int      { return t.getSetting("Dump") }
 func (t *Test) MaxTime() int     { return t.getSetting("Max-Time") }
 
-
 // Look for name in cookies. Return index if found and -1 otherwise.
 func cookieIndex(cookies []*http.Cookie, name string) int {
 	idx := -1
@@ -198,7 +196,6 @@ func cookieIndex(cookies []*http.Cookie, name string) int {
 	}
 	return idx
 }
-
 
 // Test response header and (set-)cookies.
 func testHeader(resp *http.Response, t, orig *Test) {
@@ -281,7 +278,6 @@ func testHeader(resp *http.Response, t, orig *Test) {
 	return
 }
 
-
 // Test response body.
 func testBody(body []byte, t, orig *Test) {
 	if len(t.BodyCond) > 0 {
@@ -312,7 +308,6 @@ func testBody(body []byte, t, orig *Test) {
 	}
 	return
 }
-
 
 // Perform tag test on response body.
 func testTags(t, orig *Test, doc *tag.Node) {
@@ -389,25 +384,24 @@ func testTags(t, orig *Test, doc *tag.Node) {
 // List of allready checked URLs in this run
 var ValidUrls = map[string]bool{}
 
-
 // If url is considered checkable (and is parsable) an http.URL is returned; else nil.
-func shallCheckUrl(url string, base *http.URL) *http.URL {
-	if strings.HasPrefix(url, "#") || strings.HasPrefix(strings.ToLower(url), "mailto:") {
-		trace("Will not check plain page anchors or mailto links in %s", url)
+func shallCheckUrl(url_ string, base *url.URL) *url.URL {
+	if strings.HasPrefix(url_, "#") || strings.HasPrefix(strings.ToLower(url_), "mailto:") {
+		trace("Will not check plain page anchors or mailto links in %s", url_)
 		return nil
 	}
-	if j := strings.Index(url, "#"); j != -1 {
-		url = url[:j] // Strip #fragment like browsers do
+	if j := strings.Index(url_, "#"); j != -1 {
+		url_ = url_[:j] // Strip #fragment like browsers do
 	}
-	pu, err := http.ParseURL(url)
+	pu, err := url.Parse(url_)
 	if err != nil {
-		error("Cannot parse url " + url)
+		error("Cannot parse url " + url_)
 		return nil
 	}
 	if !pu.IsAbs() {
-		u, e := base.ParseURL(url)
+		u, e := base.Parse(url_)
 		if e != nil {
-			error("Cannot parse %s relative to %s.", url, base.String())
+			error("Cannot parse %s relative to %s.", url_, base.String())
 			return nil
 		}
 		return u
@@ -426,7 +420,7 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 	}
 	trace("Validating links")
 
-	baseUrl, _ := http.ParseURL(base) // Should not fail!
+	baseUrl, _ := url.Parse(base)     // Should not fail!
 	urls := make(map[string]bool, 50) // keys are urls to prevent doubles
 
 	for _, pat := range []string{"a href", "link href", "img src"} {
@@ -434,8 +428,8 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 		for _, tg := range tag.FindAllTags(ts, doc) {
 			for _, a := range tg.Attr {
 				if (a.Key == "href" || a.Key == "src") && a.Val != "" {
-					if url := shallCheckUrl(a.Val, baseUrl); url != nil {
-						urls[url.String()] = true
+					if url_ := shallCheckUrl(a.Val, baseUrl); url_ != nil {
+						urls[url_.String()] = true
 					}
 				}
 			}
@@ -450,12 +444,12 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 	// tmpl.Dump = nil
 	tmpl.Setting = DefaultSettings
 	tmpl.RespCond = []Condition{Condition{Key: "Status-Code", Op: "==", Val: "200"}}
-	for url, _ := range urls {
-		if _, ok := ValidUrls[url]; ok {
-			warn("Will not retest " + url)
+	for url_, _ := range urls {
+		if _, ok := ValidUrls[url_]; ok {
+			warn("Will not retest " + url_)
 		}
 		test := tmpl.Copy()
-		test.Url = url
+		test.Url = url_
 		_, _, err := test.RunSingle(global, false)
 		if err != nil {
 			orig.Failed(fmt.Sprintf("Cannot access `%s': %s", test.Url, err.String()))
@@ -470,12 +464,11 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 			}
 			orig.Failed(s)
 		} else {
-			orig.Passed("Link " + url)
-			ValidUrls[url] = true
+			orig.Passed("Link " + url_)
+			ValidUrls[url_] = true
 		}
 	}
 }
-
 
 // Check if html is valid html
 func testHtmlValidation(t, orig, global *Test, body string) {
@@ -529,7 +522,6 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	}
 }
 
-
 // Add header conditions from global to test.
 func addMissingHeader(test, global *map[string]string) {
 	for k, v := range *global {
@@ -540,7 +532,6 @@ func addMissingHeader(test, global *map[string]string) {
 	}
 }
 
-
 // Add cookie conditions from global to test.
 func addMissingCookies(test, global *map[string]string) {
 	for k, v := range *global {
@@ -550,7 +541,6 @@ func addMissingCookies(test, global *map[string]string) {
 		}
 	}
 }
-
 
 // Add missing response conditions from global.
 func addMissingCond(test, global []Condition) []Condition {
@@ -572,7 +562,6 @@ func addMissingCond(test, global []Condition) []Condition {
 	return test
 }
 
-
 // Add all body conditions from global to test.
 func addAllCond(test, global []Condition) []Condition {
 	for _, cond := range global {
@@ -581,7 +570,6 @@ func addAllCond(test, global []Condition) []Condition {
 	}
 	return test
 }
-
 
 // Prepare the test: Add new stuff from global
 func prepareTest(t, global *Test) *Test {
@@ -615,7 +603,6 @@ func prepareTest(t, global *Test) *Test {
 	return test
 }
 
-
 // Pattern (with shell/path globbing) of content types considered parsable by tag package.
 var ParsableContentTypes []string = []string{"text/html", "text/html;*",
 	"application/xml", "application/xhtml+xml", "application/xml; *", "application/xhtml+xml;*",
@@ -633,7 +620,6 @@ func parsableBody(resp *http.Response) bool {
 	return false
 }
 
-
 // Set up bookkeeping stuff for variable substitutions.
 func (test *Test) init() {
 	// Initialize sequenze count
@@ -650,7 +636,6 @@ func (test *Test) init() {
 		test.Vars = make(map[string]string, cnt)
 	}
 }
-
 
 // Sanitize t (by replacing anything uncomfortable in a filename) by _.
 // The default output path is prepended automatically.
@@ -677,7 +662,6 @@ func titleToFilename(t string) (f string) {
 	f = strings.Replace(f, "--", "-", -1)
 	return
 }
-
 
 // Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
 // field in Param. If global is non nil it will be used as "template" for the
@@ -717,7 +701,6 @@ func (test *Test) Run(global *Test) {
 	return
 }
 
-
 func (test *Test) RunWithoutTest(global *Test) {
 	if test.Repeat() == 0 {
 		info("Test no '%s' is disabled.", test.Title)
@@ -731,7 +714,6 @@ func (test *Test) RunWithoutTest(global *Test) {
 	}
 	return
 }
-
 
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
 	test.init()
@@ -768,9 +750,8 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 	return
 }
 
-
 // Retrive file extension from content type or url.
-func determineExt(url, ct string) string {
+func determineExt(url_, ct string) string {
 	ct = strings.ToLower(ct)
 	if strings.Contains(ct, "text/html") || strings.Contains(ct, "text/xhtml") || strings.Contains(ct, "application/xhtml+xml") {
 		return "html"
@@ -781,7 +762,7 @@ func determineExt(url, ct string) string {
 	if strings.Contains(ct, "application/pdf") {
 		return "pdf"
 	}
-	u, err := http.ParseURL(url)
+	u, err := url.Parse(url_)
 	if err == nil {
 		p := u.Path
 		if i := strings.LastIndex(p, "."); i != -1 {
@@ -793,9 +774,9 @@ func determineExt(url, ct string) string {
 
 // Write body to a new file (name pattern is <TestTitle>.<N>.<FileExtension>).
 // N is increased up to 999 to find a "new" file.
-func dumpBody(body []byte, title, url, ct string) {
+func dumpBody(body []byte, title, url_, ct string) {
 	name := titleToFilename(title)
-	ext := determineExt(url, ct)
+	ext := determineExt(url_, ct)
 	var fname string
 	for i := 0; i < 1000; i++ {
 		fname = fmt.Sprintf("%s.%03d.%s", name, i, ext)
@@ -814,7 +795,6 @@ func dumpBody(body []byte, title, url, ct string) {
 	}
 }
 
-
 // Perform a single run of the test.  Return duration for server response in ms.
 // If request itself failed, then err is non nil and contains the reason.
 // Logs the results of the tests in Result field.
@@ -828,15 +808,15 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 		starttime := time.Nanoseconds()
 		var (
 			response *http.Response
-			url      string
+			url_     string
 			cookies  []*http.Cookie
 			reqerr   os.Error
 		)
 
 		if ti.Method == "GET" {
-			response, url, cookies, reqerr = Get(ti)
+			response, url_, cookies, reqerr = Get(ti)
 		} else if ti.Method == "POST" || ti.Method == "POST:mp" {
-			response, url, cookies, reqerr = Post(ti)
+			response, url_, cookies, reqerr = Post(ti)
 		}
 		endtime := time.Nanoseconds()
 		duration = int((endtime - starttime) / 1000000) // in milliseconds (ms)
@@ -868,12 +848,12 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 			if !skipTests {
 				// Response: Add special fields to header befor testing
 				response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
-				response.Header.Set("Final-Url", url)
+				response.Header.Set("Final-Url", url_)
 				testHeader(response, ti, test)
 
 				// Body:
 				if ti.DoDump() == 3 {
-					dumpBody(body, ti.Title, url, response.Header.Get("Content-Type"))
+					dumpBody(body, ti.Title, url_, response.Header.Get("Content-Type"))
 				}
 				testBody(body, ti, test)
 
@@ -894,7 +874,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 
 					testTags(ti, test, doc)
 					if ti.Validate()&1 != 0 {
-						testLinkValidation(ti, test, global, doc, response, url)
+						testLinkValidation(ti, test, global, doc, response, url_)
 					}
 					if ti.Validate()&2 != 0 {
 						testHtmlValidation(ti, test, global, string(body))
