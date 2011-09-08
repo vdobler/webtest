@@ -17,14 +17,12 @@ var Random *rand.Rand = rand.New(rand.NewSource(time.Seconds()))
 // Global CONST variables
 var Const map[string]string = map[string]string{}
 
-
 func isLetter(x uint8) bool {
 	return (x >= 'a' && x <= 'z') || (x >= 'A' && x <= 'Z')
 }
 func isDigit(x uint8) bool {
 	return (x >= '0' && x <= '9')
 }
-
 
 // Split str into "pre${vn}rest" parts
 func nextPart(str string) (pre, vn, rest string) {
@@ -60,7 +58,6 @@ func randomVar(list []string) string {
 	return list[r]
 }
 
-
 // Retrieve the next value in list (wrapping around). The counter to decide which is the next is taken from t.
 func nextVar(list []string, v string, t *Test) (val string) {
 	i, _ := t.SeqCnt[v]
@@ -70,7 +67,6 @@ func nextVar(list []string, v string, t *Test) (val string) {
 	t.SeqCnt[v] = i
 	return
 }
-
 
 // Compute next value for variable v, fallback to global.
 func varValueFallback(v string, test, global, orig *Test) (value string) {
@@ -111,7 +107,6 @@ func varValue(v string, test, orig *Test) (value string) {
 
 	return
 }
-
 
 // Compute value for NOW variable adjusted by rel (e.g. "+1minute-3hours") and return it as utc/local 
 // time formated as tf.
@@ -163,7 +158,6 @@ func nowValue(rel, tf string, utc bool) string {
 	return t.Format(tf)
 }
 
-
 // Substitute variables in str with their right values.
 func substitute(str string, test, global, orig *Test) string {
 	pre, vn, post := nextPart(str)
@@ -196,7 +190,6 @@ func substitute(str string, test, global, orig *Test) string {
 	trace("Will use '%s' as value for var %s.", val, vn)
 	return pre + val + substitute(post, test, global, orig)
 }
-
 
 // Special function to dig into nested tags and replace variables with their value there too.
 func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {

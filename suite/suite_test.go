@@ -15,12 +15,11 @@ var (
 	port       = ":54123"
 	host       = "http://localhost"
 	theSuite   *Suite
-	skipStress bool
+	skipStress bool = true
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
-var testserverStayAlive int64 = 0
-
+var testserverStayAlive int64 = 120
 
 func TestNextPart(t *testing.T) {
 	var nextPartER [][4]string = [][4]string{[4]string{"Hallo", "Hallo", "", ""},
@@ -80,7 +79,6 @@ func TestNowValue(t *testing.T) {
 func TestStop(t *testing.T) {
 	// os.Exit(0)
 }
-
 
 var suiteTmpl = `
 ----------------------
@@ -327,7 +325,6 @@ SETTING
 	Tries  2
 `
 
-
 var cookieSuite = fmt.Sprintf(`
 ----------------------
 Global
@@ -417,11 +414,9 @@ TAG
 `,
 	host, port)
 
-
 func TestServer(t *testing.T) {
 	go StartHandlers(port, t)
 }
-
 
 func StartHandlers(addr string, t *testing.T) (err os.Error) {
 	http.Handle("/html.html", http.HandlerFunc(htmlHandler))
@@ -429,6 +424,7 @@ func StartHandlers(addr string, t *testing.T) (err os.Error) {
 	http.Handle("/post", http.HandlerFunc(postHandler))
 	http.Handle("/404.html", http.NotFoundHandler())
 	http.Handle("/cookie.html", http.HandlerFunc(cookieHandler))
+	http.Handle("/redirect/", http.HandlerFunc(redirectHandler))
 	fmt.Printf("\nRunning test server on %s\n", addr)
 	err = http.ListenAndServe(addr, nil)
 	if err != nil {
@@ -519,6 +515,76 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func lastPath(req *http.Request) string {
+	p := req.URL.Path
+	if n := strings.LastIndex(p, "/"); n > -1 {
+		return p[n+1:]
+	}
+
+	return ""
+}
+
+// Multiredirect:
+//  /redirect  -->  /redirect/first         cookie "rda" on /
+//  /redirect/first --> /redirect/second    cookie "rdb" on /redirect
+//  /redirect/second --> /redirect/third    cookie "rdc" on /otherpath
+//  /redirect/third --> /redirect/fourth    cookie "clearme" maxage = 0
+//  /redirect/fourth --> /redirect/last     200 iff rda, rdb present and rdc and clearme absent; 500 else
+//
+
+func redirectHandler(w http.ResponseWriter, req *http.Request) {
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	switch lastPath(req) {
+	case "redirect", "":
+		w.Header().Set("Location", host+port+"/redirect/first")
+		w.Header().Set("Set-Cookie", "rda=rda; Path=/")
+		w.WriteHeader(302)
+		return
+	case "first":
+		w.Header().Set("Location", host+port+"/redirect/second")
+		w.Header().Set("Set-Cookie", "rdb=rdb; Path=/redirect")
+		w.WriteHeader(302)
+		return
+	case "second":
+		w.Header().Set("Location", host+port+"/redirect/third")
+		w.Header().Set("Set-Cookie", "rdc=rdc; Path=/otherpath")
+		w.WriteHeader(302)
+		return
+	case "third":
+		w.Header().Set("Location", host+port+"/redirect/fourth")
+		w.Header().Set("Set-Cookie", "clearme=; MaxAge=-1")
+		w.WriteHeader(302)
+		return
+	case "fourth":
+		w.Header().Set("Location", host+port+"/redirect/last")
+		rdav, rdae := req.Cookie("rda")
+		rdbv, rdbe := req.Cookie("rdb")
+		_, rdce := req.Cookie("rdc")
+		_, cme := req.Cookie("clearme")
+		if rdae == nil && rdav.Value == "rda" && rdbe == nil && rdbv.Value == "rdb" && rdce != nil && cme != nil {
+			w.WriteHeader(302)
+		} else {
+			w.WriteHeader(500)
+			body := "<html><body><h1>Wrong cookies</h1><pre>"
+			for _, c := range req.Cookies() {
+				body += fmt.Sprintf("\n%#v\n", *c)
+			}
+			body += "</pre></body></html>"
+			w.Write([]byte(body))
+		}
+		return
+	case "last":
+		w.WriteHeader(200)
+		w.Write([]byte("<html><body><h1>No more redirects.</h1></body></html>"))
+		return
+	default:
+		w.WriteHeader(404)
+		w.Write([]byte("<html><body><h1>Oooops..." + lastPath(req) + "</h1></body></html>"))
+		return
+	}
+}
 
 func binHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/data")
@@ -534,7 +600,6 @@ func binHandler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(c)
 	w.Write([]byte("\001\007Hallo Welt!\n\377\376"))
 }
-
 
 func code(s string) string {
 	return "<code>" + s + "</code>" // TODO: escape html
@@ -566,7 +631,6 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-
 func passed(test *Test, t *testing.T) bool {
 	if !strings.HasPrefix(test.Status(), "PASSED") {
 		f := ""
@@ -581,7 +645,6 @@ func passed(test *Test, t *testing.T) bool {
 	}
 	return true
 }
-
 
 func failed(test *Test, t *testing.T) bool {
 	if strings.HasPrefix(test.Status(), "PASSED") {
@@ -631,7 +694,6 @@ TAG
 
 }
 
-
 func TestBasic(t *testing.T) {
 	if theSuite == nil {
 		t.Fatal("No Suite.")
@@ -649,7 +711,6 @@ func TestBin(t *testing.T) {
 	theSuite.RunTest(2)
 	passed(&theSuite.Test[2], t)
 }
-
 
 func TestSequence(t *testing.T) {
 	if theSuite == nil {
@@ -752,7 +813,6 @@ func TestTries(t *testing.T) {
 	failed(&theSuite.Test[16], t)
 }
 
-
 func TestCookies(t *testing.T) {
 	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
 	cs, err := p.ReadSuite()
@@ -781,12 +841,48 @@ func TestCookies(t *testing.T) {
 	passed(&cs.Test[4], t)
 }
 
+func TestRedirect(t *testing.T) {
+	LogLevel = 7
+	var redirectionSuite = fmt.Sprintf(`
+----------------------
+Global
+----------------------
+GET http://wont.use
+CONST
+	URL	 %s%s
+
+----------------------
+Redirect
+----------------------
+GET ${URL}/redirect/
+SEND-COOKIE
+	clearme     somevalue
+RESPONSE
+	Final-Url	==	${URL}/redirect/last
+	Status-Code	==	200
+SET-COOKIE
+	rda:Value   ==  rda
+	rdb:Value   ==  rdb
+	rdc:Value   ==  rdc
+	!clearme
+`, host, port)
+
+	p := NewParser(strings.NewReader(redirectionSuite), "redirectionSuite")
+	cs, err := p.ReadSuite()
+	if err != nil {
+		t.Fatalf("Cannot read suite: %s", err.String())
+	}
+
+	cs.RunTest(0)
+	if !passed(&cs.Test[0], t) {
+		t.Fail()
+	}
+}
 
 func TestStayAlife(t *testing.T) {
 	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
 	time.Sleep(1000000000 * testserverStayAlive)
 }
-
 
 var backgroundSuite = `
 ----------------------

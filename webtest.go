@@ -53,7 +53,6 @@ var stopRTJ int = 5            // five fold increase in avg resp time in _one_ r
 var stopRTI int = 50           // fifty fold increase in avg resp time from value without background load 
 var stopMPR = 250              // maximum number of parallel background requests
 
-
 // Some logging stuff
 var logger *log.Logger
 
@@ -113,7 +112,6 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 	}
 	return false
 }
-
 
 // Print usage information and exit.
 func help() {
@@ -182,7 +180,6 @@ func help() {
 	os.Exit(1)
 }
 
-
 // Const-variables which can be set via the command line. Statisfied flag.Value interface.
 type cmdlVar struct{ m map[string]string }
 
@@ -196,7 +193,6 @@ func (c cmdlVar) Set(s string) bool {
 	c.m[part[0]] = part[1]
 	return true
 }
-
 
 // Set up internal state from command line.
 func globalInitialization() {
@@ -283,7 +279,6 @@ func globalInitialization() {
 	runtime.GOMAXPROCS(2) // use more than one thread
 }
 
-
 // Main method for webtest.
 func main() {
 
@@ -312,7 +307,6 @@ func main() {
 		testOrBenchmark(flag.Args())
 	}
 }
-
 
 // Helps debuging tagspecs.
 func tagDebug(tagspec, filename string) {
@@ -360,7 +354,6 @@ func tagDebug(tagspec, filename string) {
 
 	os.Exit(0)
 }
-
 
 // Standard test or benchmarking.
 func testOrBenchmark(filenames []string) {
@@ -416,7 +409,6 @@ func abbrevTitle(n int, title string) string {
 	return fmt.Sprintf("Test %2d: %-25s", n, title)
 }
 
-
 // Benchmarking
 func benchmark(suites []*suite.Suite) {
 	var result string = "\n======== Results ===============================================================\n"
@@ -468,7 +460,6 @@ func benchmark(suites []*suite.Suite) {
 		file.Write([]byte(charts))
 	}
 }
-
 
 // Testting
 func test(suites []*suite.Suite) {
@@ -573,7 +564,6 @@ func test(suites []*suite.Suite) {
 	}
 }
 
-
 // Read a webtest suite from file.
 func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) {
 	var file *os.File
@@ -593,7 +583,6 @@ func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) 
 	s.Name = basename
 	return
 }
-
 
 // Real stresstest: Ramp up load until "collaps".
 func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
@@ -656,7 +645,6 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	fmt.Printf(text)
 }
 
-
 //  Perform stresstest.
 func stresstest(bgfilename, testfilename string) {
 	// Read background and test suite
@@ -678,7 +666,6 @@ func stresstest(bgfilename, testfilename string) {
 	// perform increasing stresstests
 	stressramp(background, testsuite, suite.ConstantStep{rampStart, rampStep})
 }
-
 
 // Generate Google chart for stresstest results.
 func stressChartUrl(data []suite.StressResult) (url string) {

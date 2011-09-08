@@ -148,7 +148,6 @@ func cleanText(s string) string {
 	return s
 }
 
-
 // Try to remove javascript tags from the html.
 // This is basically buggy as it will not try to understand the javascript.
 func removeJavascript(h string) string {
@@ -168,7 +167,6 @@ func removeJavascript(h string) string {
 	}
 	return h
 }
-
 
 // Parse the given html and return the root node of the document.
 // Parsing starts at the first StartToken and will ignore other stuff.
@@ -202,7 +200,6 @@ func ParseHtml(h string) (root *Node, err os.Error) {
 	}
 	return
 }
-
 
 func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.Error) {
 	node = new(Node)

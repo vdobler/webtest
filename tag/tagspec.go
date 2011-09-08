@@ -99,7 +99,6 @@ type TagSpec struct {
 	Sub []*TagSpec
 }
 
-
 // Make a deep copy of ts which does not share data with ts.
 func (ts *TagSpec) DeepCopy() *TagSpec {
 	cp := new(TagSpec)
@@ -113,7 +112,6 @@ func (ts *TagSpec) DeepCopy() *TagSpec {
 
 	return cp
 }
-
 
 // Yield a string representation of a TagSpec
 func (ts *TagSpec) String() string {
@@ -164,11 +162,9 @@ func ts2str(ts *TagSpec, indent int) string {
 	return s
 }
 
-
 func trim(s string) string {
 	return strings.Trim(s, " \t")
 }
-
 
 func validId(s string) bool {
 	if len(s) == 0 {
@@ -181,7 +177,6 @@ func validId(s string) bool {
 	}
 	return true
 }
-
 
 // Decompose texttual tag specification spec into a TagSpec.
 // Returns nil on error.  
@@ -289,7 +284,6 @@ func indentDepth(s string) (d int) {
 	// trace("Indent depth of '%#v' == %d.", s, d)
 	return
 }
-
 
 // Parse a textual tagspec into internal struct.
 func ParseTagSpec(spec string) (ts *TagSpec, err os.Error) {

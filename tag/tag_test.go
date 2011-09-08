@@ -38,7 +38,6 @@ func check(doc *Node, spec, expectedId string, t *testing.T) {
 	t.Error("In " + spec + ": No id")
 }
 
-
 func checkN(doc *Node, spec string, t *testing.T) {
 	// fmt.Printf("Spec: %s\n", spec)
 	ts := MustParse(spec, t)
@@ -52,7 +51,6 @@ func checkN(doc *Node, spec string, t *testing.T) {
 		t.Error("Found: " + spec)
 	}
 }
-
 
 var testSimpleHtml = `<!DOCTYPE html>
 <html>
@@ -91,7 +89,6 @@ var testSimpleHtml = `<!DOCTYPE html>
 	</h3>
 </body>
 </html>`
-
 
 func TestBasics(t *testing.T) {
 	doc, err := ParseHtml(testSimpleHtml)
@@ -144,7 +141,6 @@ func TestBasics(t *testing.T) {
 
 	// check(doc, "", "", t)
 }
-
 
 func TestTextcontent(t *testing.T) {
 	doc, err := ParseHtml(testSimpleHtml)

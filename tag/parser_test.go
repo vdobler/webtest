@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-
 var testStructureHtml = `<html>
 <body>
 	<h1> A </h1>
@@ -109,7 +108,6 @@ func TestHtmlEntitiesParsing(t *testing.T) {
 	}
 }
 
-
 func TestBrokenClosingTagParsing(t *testing.T) {
 	testHtmlParsing(testBrokenHtml1, []string{"html", "body", "div", "span"}, t)
 }
@@ -128,7 +126,6 @@ func BenchmarkParsing(b *testing.B) {
 		_, _ = ParseHtml(testSimpleHtml)
 	}
 }
-
 
 func TestAlmostOkay(t *testing.T) {
 	var almostOkay = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -154,7 +151,6 @@ func TestAlmostOkay(t *testing.T) {
 		t.FailNow()
 	}
 }
-
 
 func TestScript(t *testing.T) {
 	var html = `<!DOCTYPE html>

@@ -106,9 +106,13 @@ func valid(cookie *http.Cookie) bool {
 
 // Take new cookies from recieved, and update/add to cookies 
 func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cookie {
-	var update []*http.Cookie = make([]*http.Cookie, 0)
+	trace("Updating list of %d cookies with %d fresh set cookies", len(cookies), len(recieved))
+	// TODO: find solution with less allocations
+	var update []*http.Cookie = make([]*http.Cookie, len(cookies))
+	copy(update, cookies)
 
 	for _, cookie := range recieved {
+		trace("Cookie recieved: %s", cookie.String())
 		// Prevent against bugs in http package which does not parse expires and maxage field properly
 		for _, up := range cookie.Unparsed {
 			if strings.HasPrefix(strings.ToLower(up), "expires=") && len(up) > 10 {
@@ -126,166 +130,162 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 			}
 		}
 
-		if !valid(cookie) {
-			update = append(update, &http.Cookie{Name: cookie.Name, Value: cookie.Value, MaxAge: -999})
+		isValid := valid(cookie)
+		if !isValid {
+			trace("Invalid cookie %s.", cookie.Name)
 			continue
 		}
 
-		var found bool
-		for _, c := range cookies {
-			if c.Name == cookie.Name {
-				trace("Overwriting existing cookie %s with new Value %s.", cookie.Name, cookie.Value)
-				update = append(update, &http.Cookie{Name: cookie.Name, Value: cookie.Value})
-				break
-			}
-		}
-		if !found && valid(cookie) {
-			trace("Adding new cookie %s with value %s.", cookie.Name, cookie.Value)
-			update = append(update, cookie)
-		}
-
+		trace("Adding cookie %v", *cookie)
+		update = append(update, cookie)
 	}
 	return update
 }
 
-// Perform the request and follow up to 10 redirects.
-// All cookie setting are collected, the final URL is reported.
-func DoAndFollow(req *http.Request, dump io.Writer) (response *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	// TODO: set referrer header on redirects.
-
-	/*
-		// Move User-Agent from Header to Request
-		if ua := req.UserAgent(); ua != "" {
-			req.UserAgent = ua
-			req.Header.Del("User-Agent")
-		}
-	*/
-
-	info("%s %s", req.Method, req.URL.String())
-	dumpReq(req, dump)
-	response, err = http.DefaultClient.Do(req)
-	if err != nil {
-		return
+func nonfollowing(req *http.Request, via []*http.Request) os.Error {
+	if len(via) > 0 {
+		return os.NewError("WE DONT FOLLOW")
 	}
-	dumpRes(response, dump)
-
-	finalUrl = response.Request.URL.String()
-	cookies = updateCookies(cookies, response.Cookies())
-	for _, c := range response.Cookies() {
-		if _, err := req.Cookie(c.Name); err != nil {
-			req.AddCookie(c)
-		}
-	}
-	//	req.Cookie = updateCookies(req.Cookie, response.Cookies())
-
-
-	if !shouldRedirect(response.StatusCode) {
-		return
-	}
-
-	// TODO: will reach this point only for POST->redirect. Use DefaultClient here to handle 
-	// the following redirects.
-
-	// Start redirecting to final destination
-	response.Body.Close()
-	var base = req.URL
-
-	// Following the redirect chain is done with a cleaned/empty GET request.
-	req.Method = "GET"
-	req.ProtoMajor = 1
-	req.ProtoMinor = 1
-	req.Header.Del("Content-Type")
-	req.Header.Del("Content-Length")
-	req.Header.Del("Accept-Encoding")
-	req.Header.Del("Connection")
-	req.Body = nil
-	for redirect := 0; redirect < 10; redirect++ {
-		var url_ string
-
-		if url_ = response.Header.Get("Location"); url_ == "" {
-			fmt.Printf("Header:\n%v", response.Header)
-			err = os.NewError(fmt.Sprintf("%d response missing Location header", response.StatusCode))
-			return
-		}
-		if base == nil {
-			req.URL, err = url.Parse(url_)
-		} else {
-			req.URL, err = base.Parse(url_)
-		}
-		if err != nil {
-			return
-		}
-
-		url_ = req.URL.String()
-		info("GET %s", url_)
-		dumpReq(req, dump)
-
-		if response, err = http.DefaultClient.Do(req); err != nil {
-			return
-		}
-
-		dumpRes(response, dump)
-		finalUrl = url_
-		cookies = updateCookies(cookies, response.Cookies())
-		for _, c := range response.Cookies() {
-			if _, err := req.Cookie(c.Name); err != nil {
-				req.AddCookie(c)
-			}
-		}
-		// req.Cookie = updateCookies(req.Cookie, response.SetCookie)
-
-		if !shouldRedirect(response.StatusCode) {
-			return
-		}
-		response.Body.Close()
-		base = req.URL
-
-	}
-	err = os.NewError("Too many redirects.")
-	return
+	return nil
 }
 
-func urlencode(param map[string][]string) string {
-	s := ""
-	for k, vs := range param {
-		for _, v := range vs {
-			s += fmt.Sprintf("&%s=%s", k, url.QueryEscape(v))
+func shouldSend(cookie *http.Cookie, req *http.Request) bool {
+	if cookie.Secure && req.URL.Scheme != "https" {
+		trace("Wont send secure cookie to " + req.URL.Scheme)
+		return false
+	}
+	if cookie.HttpOnly && !(req.URL.Scheme == "https" || req.URL.Scheme == "http") {
+		trace("Wont send HttpOnly cookie to " + req.URL.Scheme)
+		return false
+	}
+	if cookie.Expires.Year > 0 && cookie.Expires.Seconds() >= time.UTC().Seconds() {
+		trace("Wont send expired cookie.")
+		return false
+	}
+	if !strings.HasPrefix(req.URL.Path, cookie.Path) {
+		trace("Wont send " + cookie.Path + " cookie in request to " + req.URL.Path)
+		return false
+	}
+
+	// strict same domain!
+	if cookie.Domain != "" && req.URL.Host != cookie.Domain {
+		trace("Wont send " + cookie.Domain + " cookie to " + req.URL.Host)
+		return false
+	}
+	return true
+}
+
+var nonfollowingClient http.Client = http.Client{Transport: nil, CheckRedirect: nonfollowing}
+
+// Perform the request and follow up to 10 redirects.
+// All cookie setting are collected, the final URL is reported.
+func DoAndFollow(ireq *http.Request, dump io.Writer) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
+	info("%s %s", ireq.Method, ireq.URL.String())
+
+	var base *url.URL
+	redirectChecker := func(req *http.Request, via []*http.Request) os.Error {
+		if len(via) >= 10 {
+			return os.NewError("stopped after 10 redirects")
 		}
+		return nil
 	}
-	if len(s) > 0 {
-		s = s[1:]
+
+	var via []*http.Request
+
+	req := ireq
+	urlStr := "" // next relative or absolute URL to fetch (after first request)
+	for redirect := 0; ; redirect++ {
+		if redirect != 0 {
+			req = new(http.Request)
+			req.Method = ireq.Method
+			req.Header = make(http.Header)
+			req.URL, err = base.Parse(urlStr)
+			if err != nil {
+				break
+			}
+			if len(via) > 0 {
+				// Add the Referer header.
+				lastReq := via[len(via)-1]
+				if lastReq.URL.Scheme != "https" {
+					req.Header.Set("Referer", lastReq.URL.String())
+				}
+
+				err = redirectChecker(req, via)
+				if err != nil {
+					break
+				}
+			}
+			for _, cookie := range cookies {
+				if !shouldSend(cookie, req) {
+					trace("Skipped cookie %s.", cookie)
+				} else {
+					trace("Adding cookie to request in redirect: %s", cookie)
+					req.AddCookie(&http.Cookie{Name: cookie.Name, Value: cookie.Value})
+				}
+			}
+
+		}
+		dumpReq(req, dump)
+		urlStr = req.URL.String()
+		if r, err = nonfollowingClient.Do(req); err != nil {
+			if strings.HasSuffix(err.String(), "WE DONT FOLLOW") {
+				err = nil
+			} else {
+				return
+			}
+		}
+		dumpRes(r, dump)
+
+		finalUrl = r.Request.URL.String()
+		cookies = updateCookies(cookies, r.Cookies())
+
+		if shouldRedirect(r.StatusCode) {
+			r.Body.Close()
+			if urlStr = r.Header.Get("Location"); urlStr == "" {
+				err = os.NewError(fmt.Sprintf("%d response missing Location header", r.StatusCode))
+				break
+			}
+			base = req.URL
+			via = append(via, req)
+			continue
+		}
+		return
 	}
-	return s
+
+	method := ireq.Method
+	err = &url.Error{method[0:1] + strings.ToLower(method[1:]), urlStr, err}
+	return
+
 }
 
 // Perform a GET request for the test t.
 func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	var url_ = t.Url // <-- Patched
-
-	var req http.Request
-	req.Method = "GET"
-	req.ProtoMajor = 1
-	req.ProtoMinor = 1
-	req.Header = http.Header{}
+	var testurl = t.Url // <-- Patched
 
 	if len(t.Param) > 0 {
-		ep := urlencode(t.Param)
-		if strings.Contains(url_, "?") {
-			url_ = url_ + "&" + ep
+		values := make(url.Values)
+		for k, vs := range t.Param {
+			for _, v := range vs {
+				values.Add(k, v)
+			}
+		}
+
+		ep := values.Encode()
+		if strings.Contains(testurl, "?") {
+			testurl = testurl + "&" + ep
 		} else {
-			url_ = url_ + "?" + ep
+			testurl = testurl + "?" + ep
 		}
 	}
-	req.URL, err = url.Parse(url_)
+
+	req, err := http.NewRequest("GET", testurl, nil)
 	if err != nil {
-		err = &url.Error{"Get", url_, err}
 		return
 	}
 
-	addHeadersAndCookies(&req, t)
-	url_ = req.URL.String()
+	addHeadersAndCookies(req, t)
 	debug("Will get from %s", req.URL.String())
-	r, finalUrl, cookies, err = DoAndFollow(&req, t.Dump)
+	r, finalUrl, cookies, err = DoAndFollow(req, t.Dump)
 	return
 }
 
@@ -386,12 +386,6 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 //
 // Caller should close r.Body when done reading from it.
 func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	var req http.Request
-	var url_ = t.Url
-	req.Method = "POST"
-	req.ProtoMajor = 1
-	req.ProtoMinor = 1
-	req.Close = true
 	var body *bytes.Buffer
 	var contentType string
 	if hasFile(&t.Param) || t.Method == "POST:mp" {
@@ -400,25 +394,27 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 		contentType = "multipart/form-data; boundary=" + boundary
 	} else {
 		contentType = "application/x-www-form-urlencoded"
-		bodystr := urlencode(t.Param)
+		values := make(url.Values)
+		for k, vs := range t.Param {
+			for _, v := range vs {
+				values.Add(k, v)
+			}
+		}
+		bodystr := values.Encode()
 		body = bytes.NewBuffer([]byte(bodystr))
 	}
 
-	req.Body = nopCloser{body}
-	req.Header = http.Header{
-		"Content-Type":   {contentType},
-		"Content-Length": {strconv.Itoa(body.Len())},
-	}
-	addHeadersAndCookies(&req, t)
-
-	req.ContentLength = int64(body.Len())
-	req.URL, err = url.Parse(url_)
+	req, err := http.NewRequest("POST", t.Url, body)
 	if err != nil {
-		return nil, url_, cookies, err
+		return
 	}
+
+	req.Header.Set("Content-Type", contentType)
+	addHeadersAndCookies(req, t)
+
 	debug("Will post to %s", req.URL.String())
 
-	r, finalUrl, cookies, err = DoAndFollow(&req, t.Dump)
+	r, finalUrl, cookies, err = DoAndFollow(req, t.Dump)
 	return
 }
 

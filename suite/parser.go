@@ -11,7 +11,6 @@ import (
 	"github.com/vdobler/webtest/tag"
 )
 
-
 var DefaultSettings = map[string]int{"Repeat": 1,
 	"Tries":        1,
 	"Max-Time":     -1,
@@ -21,7 +20,6 @@ var DefaultSettings = map[string]int{"Repeat": 1,
 	"Dump":         0,
 	"Validate":     0,
 }
-
 
 type ParserError struct {
 	cause string
@@ -107,7 +105,6 @@ func (p *Parser) readLines() {
 	}
 }
 
-
 // Abrevations for strings.HasPrefix
 func hp(s, p string) bool {
 	return strings.HasPrefix(s, p)
@@ -152,7 +149,6 @@ func firstSpace(s string) int {
 	}
 	return ti
 }
-
 
 // Read a string->string map. Stopp if unindented line is found
 func (p *Parser) readMap(m *map[string]string) {
@@ -264,7 +260,6 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 	}
 }
 
-
 // Split line at spaces into fields. Quotes can be used to hold together a
 // filed containing spaces. E.g. 
 // 		cat dog "foo bar" fish "mouse" shark
@@ -346,7 +341,6 @@ func endQuoteIndex(line string) int {
 	}
 	return n
 }
-
 
 // Like readMap, but treat value as list of strings
 func (p *Parser) readMultiMap(m *map[string][]string) {
@@ -430,7 +424,6 @@ func parseRange(s string) (r Range, err os.Error) {
 	}
 	return
 }
-
 
 // Read a Header or Body Condition
 func (p *Parser) readCond(mode int) []Condition {
@@ -683,7 +676,6 @@ func (p *Parser) readTagCond() []TagCondition {
 	return list
 }
 
-
 // Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
@@ -805,7 +797,6 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	return
 }
 
-
 // 
 // ------------------------------------------------------------------------
 // Pretty Printing --------------------------------------------------------
@@ -829,7 +820,6 @@ func quote(s string, containedSpacesNeedQuotes bool) string {
 	return "\"" + s + "\""
 }
 
-
 // Prety print a map m with title. 
 func formatMap(title string, m *map[string]string) (f string) {
 	if len(*m) == 0 {
@@ -848,7 +838,6 @@ func formatMap(title string, m *map[string]string) (f string) {
 	}
 	return
 }
-
 
 func formatSettings(m *map[string]int) (f string) {
 	if len(*m) == 0 {
@@ -921,7 +910,6 @@ func formatMultiMap(title string, m *map[string][]string) (f string) {
 	}
 	return
 }
-
 
 // Pretty print a list of Conditions m.
 func formatCond(title string, m *[]Condition) (f string) {

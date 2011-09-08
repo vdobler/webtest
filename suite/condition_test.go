@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-
 func pr(s string) Range {
 	r, err := parseRange(s)
 	if err != nil {
@@ -61,7 +60,6 @@ func TestRangedParsing(t *testing.T) {
 		t.Errorf("[2:x]")
 	}
 }
-
 
 func TestRangedCondition(t *testing.T) {
 	var s = `This is a

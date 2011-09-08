@@ -198,7 +198,7 @@ func cookieIndex(cookies []*http.Cookie, name string) int {
 }
 
 // Test response header and (set-)cookies.
-func testHeader(resp *http.Response, t, orig *Test) {
+func testHeader(resp *http.Response, cookies []*http.Cookie, t, orig *Test) {
 	if len(t.RespCond) > 0 {
 		debug("Testing Header")
 		for _, c := range t.RespCond {
@@ -227,7 +227,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 		} else {
 			name = cc.Key
 		}
-		idx := cookieIndex(resp.Cookies(), name)
+		idx := cookieIndex(cookies, name)
 
 		if cc.Op == "." {
 			// just test existence
@@ -248,7 +248,7 @@ func testHeader(resp *http.Response, t, orig *Test) {
 				orig.Failed(fmt.Sprintf("%s: Cookie was not set at all.", ci))
 				continue
 			}
-			rc := resp.Cookies()[idx]
+			rc := cookies[idx]
 			var v string
 			switch field {
 			case "Value":
@@ -849,7 +849,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 				// Response: Add special fields to header befor testing
 				response.Header.Set("Status-Code", fmt.Sprintf("%d", response.StatusCode))
 				response.Header.Set("Final-Url", url_)
-				testHeader(response, ti, test)
+				testHeader(response, cookies, ti, test)
 
 				// Body:
 				if ti.DoDump() == 3 {

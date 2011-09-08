@@ -6,7 +6,6 @@ import (
 	// "strings"
 )
 
-
 func TestSimpleParsing(t *testing.T) {
 	examples := []string{"a", "h3", "h1 class=xyz", "a href=/domain.org/path", "p == ABC xyz"}
 

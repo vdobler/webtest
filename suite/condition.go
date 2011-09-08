@@ -69,7 +69,6 @@ func (tc *TagCondition) String() (s string) {
 	return
 }
 
-
 // Represent a condition like "!Content-Type ~= "text/html" where Key="Content-Type"
 // Op="~=", Val="text/html" and Neg=true.  For tags Op contains the number of
 // occurences of the tag. Key is "Text" or "Bin" body-testing.
@@ -102,7 +101,6 @@ func (r Range) String() (s string) {
 	}
 	return
 }
-
 
 func atoi(s, line string, fallback int) int {
 	i, err := strconv.Atoi(s)
@@ -283,7 +281,7 @@ func (c *Condition) Info(txt string) string {
 	}
 
 	if len(vs) > MaxConditionLen {
-		vs = vs[:MaxConditionLen] + "..."
+		vs = vs[:MaxConditionLen-8-3] + "..." + vs[len(vs)-8:]
 	}
 
 	return fmt.Sprintf("%s (%s) '%s'", txt, c.Id, vs)
@@ -292,7 +290,7 @@ func (c *Condition) Info(txt string) string {
 func (c *TagCondition) Info(txt string) string {
 	vs := strings.Replace(strings.Replace(c.String(), "\n", "\\n", -1), "\t", " ", -1)
 	if len(vs) > MaxConditionLen {
-		vs = vs[:MaxConditionLen] + "..."
+		vs = vs[:MaxConditionLen-8-3] + "..." + vs[len(vs)-8:]
 	}
 
 	return fmt.Sprintf("%s (%s) '%s'", txt, c.Id, vs)

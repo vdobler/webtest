@@ -76,7 +76,6 @@ package tag
 
 */
 
-
 import (
 	"fmt"
 	"html"
@@ -145,7 +144,6 @@ func containsAttr(attr []html.Attribute, name string, cntnt Content) bool {
 	}
 	return false
 }
-
 
 // Check if ts matches the tag node
 func Matches(ts *TagSpec, node *Node) bool {
@@ -228,7 +226,6 @@ func Matches(ts *TagSpec, node *Node) bool {
 	return true
 }
 
-
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.
 func FindTag(ts *TagSpec, root *Node) *Node {
@@ -269,7 +266,6 @@ func findAllTags(ts *TagSpec, node *Node, lp *[]*Node) {
 		findAllTags(ts, child, lp)
 	}
 }
-
 
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.

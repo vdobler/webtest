@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-
 func TestDequote(t *testing.T) {
 	tests := [][]string{[]string{"abc", "abc"},
 		[]string{"abc xyz", "abc xyz"},
@@ -26,7 +25,6 @@ func TestDequote(t *testing.T) {
 	}
 }
 
-
 func TestEndQuoteIndex(t *testing.T) {
 	type eqt struct {
 		line string
@@ -45,7 +43,6 @@ func TestEndQuoteIndex(t *testing.T) {
 	}
 
 }
-
 
 //  foo bar baz  -->  [foo, bar, baz]
 //  foo "bar" baz --> [foo, bar, baz]

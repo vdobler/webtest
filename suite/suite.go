@@ -78,7 +78,6 @@ func (s *Suite) RunTest(n int) {
 	s.Test[n].Run(s.Global)
 }
 
-
 func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
 	if n < 0 || n >= len(s.Test) {
 		error("No such test")
@@ -87,7 +86,6 @@ func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
 	dur, f, err = s.Test[n].Bench(s.Global, count)
 	return
 }
-
 
 // Run the request (while skipping tests) of test and reply on done when finished.
 func bgRun(test, global *Test, done chan bool) {
@@ -131,7 +129,6 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 	}
 }
 
-
 // Structure to collect results from a stresstest run.
 type StressResult struct {
 	Load  int   // number of parallel background requests
@@ -144,7 +141,6 @@ type StressResult struct {
 	MinRT int64 // minimum response time in ms
 	Total int   // total number of tests performed
 }
-
 
 // Perform reps runs of s while running load of load parallel background request taken from bg.
 func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result StressResult) {
@@ -201,7 +197,6 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 	return
 }
 
-
 // Stepper is a load-increaser which yields the next number of background tasks.
 type Stepper interface {
 	Next(current int) int
@@ -219,7 +214,6 @@ func (cs ConstantStep) Next(current int) int {
 	}
 	return current + cs.Step
 }
-
 
 // Implements Stepper and increases at a constant factor (exponential).
 type FactorStep struct {
