@@ -86,6 +86,32 @@ func dumpRes(res *http.Response, dump io.Writer) {
 	}
 }
 
+/*
+ Cookie Handling
+ ---------------
+
+ First Problem
+  - GET domain.net/ with cookie a=vala
+  - redirect to other.org/
+  - GET other.org/  Send cookie?  Depends on domain of cookie
+ Solution:
+ A very simple cookiejar.
+
+ Second Problem
+  - GET domain.net/a with cookie a=vala
+  - redirect to domain.net/b with "Set-Cookie: a=; Max-Age: 0" aka delete cookie
+  - GET domain.net/b  Send Cookie?  What to report?
+ Solution:
+ a very simple Cookie jar.
+
+ Header Values
+ -------------
+ Problem: Which Headers to send on a redirect chain?
+ Solution: All the ones requested...
+
+*/
+
+
 // 
 func valid(cookie *http.Cookie) bool {
 	if cookie.MaxAge < 0 {
@@ -142,57 +168,74 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 	return update
 }
 
-func nonfollowing(req *http.Request, via []*http.Request) os.Error {
-	if len(via) > 0 {
-		return os.NewError("WE DONT FOLLOW")
-	}
-	return nil
-}
 
-func shouldSend(cookie *http.Cookie, req *http.Request) bool {
-	if cookie.Secure && req.URL.Scheme != "https" {
-		trace("Wont send secure cookie to " + req.URL.Scheme)
+// Test weather to send cookie to the given url.
+func shouldSend(cookie *http.Cookie, u *url.URL) bool {
+	if cookie.Secure && u.Scheme != "https" {
+		trace("Wont send secure cookie to " + u.Scheme)
 		return false
 	}
-	if cookie.HttpOnly && !(req.URL.Scheme == "https" || req.URL.Scheme == "http") {
-		trace("Wont send HttpOnly cookie to " + req.URL.Scheme)
+	if cookie.HttpOnly && !(u.Scheme == "https" || u.Scheme == "http") {
+		trace("Wont send HttpOnly cookie to " + u.Scheme)
 		return false
 	}
 	if cookie.Expires.Year > 0 && cookie.Expires.Seconds() >= time.UTC().Seconds() {
 		trace("Wont send expired cookie.")
 		return false
 	}
-	if !strings.HasPrefix(req.URL.Path, cookie.Path) {
-		trace("Wont send " + cookie.Path + " cookie in request to " + req.URL.Path)
+	if cookie.Path != "" && !strings.HasPrefix(u.Path, cookie.Path) {
+		trace("Wont send " + cookie.Path + " cookie to " + u.Path)
 		return false
 	}
 
-	// strict same domain!
-	if cookie.Domain != "" && req.URL.Host != cookie.Domain {
-		trace("Wont send " + cookie.Domain + " cookie to " + req.URL.Host)
-		return false
+	// We do allow toplevel wildcard domains like .org :-)
+	if cookie.Domain != "" {
+		if cookie.Domain[0] == '.' {
+			if !strings.HasSuffix(u.Host, cookie.Domain) {
+				trace("Wont send wildcard " + cookie.Domain + " cookie to " + u.Host)
+				return false
+			}
+		} else if u.Host != cookie.Domain {
+			trace("Wont send " + cookie.Domain + " cookie to " + u.Host)
+			return false
+		}
 	}
 	return true
 }
 
-var nonfollowingClient http.Client = http.Client{Transport: nil, CheckRedirect: nonfollowing}
+
+// A client which does not follow any redirects.
+var nonfollowingClient http.Client = http.Client{
+    Transport: nil, 
+    CheckRedirect: func(req *http.Request, via []*http.Request) os.Error {
+		if len(via) > 0 {
+			return os.NewError("WE DONT FOLLOW")
+		}
+		return nil
+	},
+}
+
+
+func redirectChecker(req *http.Request, via []*http.Request) os.Error {
+	if len(via) >= 10 {
+		return os.NewError("stopped after 10 redirects")
+	}
+	return nil
+}
+
 
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
-func DoAndFollow(ireq *http.Request, dump io.Writer) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
+func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
 	info("%s %s", ireq.Method, ireq.URL.String())
 
 	var base *url.URL
-	redirectChecker := func(req *http.Request, via []*http.Request) os.Error {
-		if len(via) >= 10 {
-			return os.NewError("stopped after 10 redirects")
-		}
-		return nil
-	}
 
 	var via []*http.Request
 
 	req := ireq
+	addHeadersAndCookies(req, t)
+
 	urlStr := "" // next relative or absolute URL to fetch (after first request)
 	for redirect := 0; ; redirect++ {
 		if redirect != 0 {
@@ -203,6 +246,7 @@ func DoAndFollow(ireq *http.Request, dump io.Writer) (r *http.Response, finalUrl
 			if err != nil {
 				break
 			}
+			addHeadersAndCookies(req, t)
 			if len(via) > 0 {
 				// Add the Referer header.
 				lastReq := via[len(via)-1]
@@ -216,7 +260,7 @@ func DoAndFollow(ireq *http.Request, dump io.Writer) (r *http.Response, finalUrl
 				}
 			}
 			for _, cookie := range cookies {
-				if !shouldSend(cookie, req) {
+				if !shouldSend(cookie, req.URL) {
 					trace("Skipped cookie %s.", cookie)
 				} else {
 					trace("Adding cookie to request in redirect: %s", cookie)
@@ -225,7 +269,7 @@ func DoAndFollow(ireq *http.Request, dump io.Writer) (r *http.Response, finalUrl
 			}
 
 		}
-		dumpReq(req, dump)
+		dumpReq(req, t.Dump)
 		urlStr = req.URL.String()
 		if r, err = nonfollowingClient.Do(req); err != nil {
 			if strings.HasSuffix(err.String(), "WE DONT FOLLOW") {
@@ -234,7 +278,7 @@ func DoAndFollow(ireq *http.Request, dump io.Writer) (r *http.Response, finalUrl
 				return
 			}
 		}
-		dumpRes(r, dump)
+		dumpRes(r, t.Dump)
 
 		finalUrl = r.Request.URL.String()
 		cookies = updateCookies(cookies, r.Cookies())
@@ -283,9 +327,8 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 		return
 	}
 
-	addHeadersAndCookies(req, t)
 	debug("Will get from %s", req.URL.String())
-	r, finalUrl, cookies, err = DoAndFollow(req, t.Dump)
+	r, finalUrl, cookies, err = DoAndFollow(req, t)
 	return
 }
 
@@ -414,7 +457,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 
 	debug("Will post to %s", req.URL.String())
 
-	r, finalUrl, cookies, err = DoAndFollow(req, t.Dump)
+	r, finalUrl, cookies, err = DoAndFollow(req, t)
 	return
 }
 

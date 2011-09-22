@@ -539,7 +539,8 @@ func redirectHandler(w http.ResponseWriter, req *http.Request) {
 	switch lastPath(req) {
 	case "redirect", "":
 		w.Header().Set("Location", host+port+"/redirect/first")
-		w.Header().Set("Set-Cookie", "rda=rda; Path=/")
+		w.Header().Add("Set-Cookie", "rda=rda; Path=/")
+		w.Header().Add("Set-Cookie", "clearme=eraseme; Path=/")
 		w.WriteHeader(302)
 		return
 	case "first":
@@ -554,7 +555,7 @@ func redirectHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	case "third":
 		w.Header().Set("Location", host+port+"/redirect/fourth")
-		w.Header().Set("Set-Cookie", "clearme=; MaxAge=-1")
+		w.Header().Set("Set-Cookie", "clearme=; Path=/; Max-Age=0")
 		w.WriteHeader(302)
 		return
 	case "fourth":
@@ -857,6 +858,8 @@ Redirect
 GET ${URL}/redirect/
 SEND-COOKIE
 	clearme     somevalue
+	theOther othervalue
+
 RESPONSE
 	Final-Url	==	${URL}/redirect/last
 	Status-Code	==	200

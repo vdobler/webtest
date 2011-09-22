@@ -546,12 +546,24 @@ SETTING
 -------------------
 Cookies
 --------------------
-GET http://some.url
+GET http://www.some.url/home
 
 SEND-COOKIE
 	# The easier cookie stuff: Send cookie with name SESSIONID and value
 	# 123ABCxyz along with request
 	SESSIONID	123ABCxyz
+
+	# Functions below not jet implemented.  Currently you cannot set 
+	# Domain, Path, Expires ... of any cookie you send
+	# For request which lead to fancy redirect chains where the cookie
+	# might not be sent to all steps: ownCookie wont be sent to
+	# www.other.url and not to www.some.url/different if these requests
+	# are made during the redirect chain
+	# ownCookie   theValue
+	# ownCookie:Domain   *.some.url
+	# ownCookie:Path     /home
+	# ownCookie:Secure   false
+
 
 SET-COOKIE
 	# The complicated stuff: Test wether server requests to set a cookie.
@@ -636,3 +648,25 @@ SETTING
 #
 # See Global-"Test" above for an example
 
+
+#
+# Pre- and Post Task
+# ------------------
+GET http://some.url
+BEFORE
+	# Everything in the BEFORE section will be executed before doing the
+	# actual GET request.
+	# All commands are simple shell commands and are executed in the 
+	# current working directory. 
+	mysql -batch -u admin -p admin < setupdb.sql
+
+AFTER
+	# Everything in the AFTER section will be executed after doing the
+	# actual request and running the tests on the response.
+	# If you prefix a command with '!' the test will marekd as error
+	# if the command terminates with a non 0 return code.
+	! python check-state.py
+	mysql < teardown.sql
+
+
+    
