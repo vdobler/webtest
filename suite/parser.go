@@ -379,6 +379,7 @@ const (
 	mode_setcookie = iota
 )
 
+// Parse strings like "[:10]" or "[50:-2]" into a Range.
 func parseRange(s string) (r Range, err os.Error) {
 	if s == "" {
 		return
@@ -423,6 +424,30 @@ func parseRange(s string) (r Range, err os.Error) {
 		r.High, r.M = true, m
 	}
 	return
+}
+
+// Read a list of shell conditions 
+func (p *Parser) readShellCond() [][]string {
+	var list [][]string = make([][]string, 0, 3)
+
+	for p.i < len(p.line)-1 {
+		p.i++
+		line := p.line[p.i].line
+		if !hp(line, "\t") {
+			p.i--
+			break
+		}
+
+		line = trim(line)
+		args, err := StringList(line)
+		if err != nil {
+			error("Unable to parse command '%s' on line %d: %s", line, p.line[p.i].no, err.String())
+			p.okay = false
+			continue
+		}
+		list = append(list, args)
+	}
+	return list
 }
 
 // Read a Header or Body Condition
@@ -767,6 +792,10 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.readMultiMap(&test.Seq)
 		case "TAG", "TAGS":
 			test.Tag = p.readTagCond()
+		case "BEFORE":
+			test.Before = p.readShellCond()
+		case "AFTER":
+			test.After = p.readShellCond()
 		default:
 			error("Unknow section '%s' in line %d. Skipped.", line, no)
 			err = ParserError{"Unknown Section"}

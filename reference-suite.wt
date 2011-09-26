@@ -629,7 +629,39 @@ SETTING
 	# 3 will just dump the recieved response body (and create a new file 
 	# each time)
 	Dump  1
-	
+
+
+#
+# Pre- and Post Task
+# ------------------
+# 
+# You may execute (and test their outcome) arbitary commands before and
+# after running the test.  These commands are executed really before
+# and after which means only once befor repeating or trying tests.
+# The commands are search in the PATH but you may give full paths.
+# Use double quotes " to group words into one argument.  If the command
+# cannot be run, it aborts abnormaly or returns anything but 0 it is
+# considerued an error.  The test itself is not performed after a 
+# failed BEFORE condition.
+#
+GET http://some.url
+BEFORE
+	# Everything in the BEFORE section will be executed before doing the
+	# actual GET request.
+	# All commands are simple shell commands and are executed in the 
+	# current working directory.  The shell is initialized with the
+	# content of .webtestrc (also in the current wd).  Return value
+	# checking works like described in the AFTER section below.
+	bash -c "mysql -batch -u admin -p admin < setupdb.sql"
+
+AFTER
+	# Everything in the AFTER section will be executed after doing the
+	# actual request and running the tests on the response.
+	# An After condition (same for BEFORE conditions) is considered
+	# a failure if the return value is != 0.
+	python check-state.py
+	bash -c "if [ -f threaddump.bin ]; then exit 1; else exit 0; fi"
+
 
 #
 # Global
@@ -647,26 +679,3 @@ SETTING
 # be present in subsequent tests.
 #
 # See Global-"Test" above for an example
-
-
-#
-# Pre- and Post Task
-# ------------------
-GET http://some.url
-BEFORE
-	# Everything in the BEFORE section will be executed before doing the
-	# actual GET request.
-	# All commands are simple shell commands and are executed in the 
-	# current working directory. 
-	mysql -batch -u admin -p admin < setupdb.sql
-
-AFTER
-	# Everything in the AFTER section will be executed after doing the
-	# actual request and running the tests on the response.
-	# If you prefix a command with '!' the test will marekd as error
-	# if the command terminates with a non 0 return code.
-	! python check-state.py
-	mysql < teardown.sql
-
-
-    

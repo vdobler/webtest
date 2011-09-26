@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"mime"
 	"mime/multipart"
-	"rand"
 	"time"
 	"path"
 	"url"
@@ -111,7 +110,6 @@ func dumpRes(res *http.Response, dump io.Writer) {
 
 */
 
-
 // 
 func valid(cookie *http.Cookie) bool {
 	if cookie.MaxAge < 0 {
@@ -168,7 +166,6 @@ func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cook
 	return update
 }
 
-
 // Test weather to send cookie to the given url.
 func shouldSend(cookie *http.Cookie, u *url.URL) bool {
 	if cookie.Secure && u.Scheme != "https" {
@@ -203,11 +200,10 @@ func shouldSend(cookie *http.Cookie, u *url.URL) bool {
 	return true
 }
 
-
 // A client which does not follow any redirects.
 var nonfollowingClient http.Client = http.Client{
-    Transport: nil, 
-    CheckRedirect: func(req *http.Request, via []*http.Request) os.Error {
+	Transport: nil,
+	CheckRedirect: func(req *http.Request, via []*http.Request) os.Error {
 		if len(via) > 0 {
 			return os.NewError("WE DONT FOLLOW")
 		}
@@ -215,14 +211,12 @@ var nonfollowingClient http.Client = http.Client{
 	},
 }
 
-
 func redirectChecker(req *http.Request, via []*http.Request) os.Error {
 	if len(via) >= 10 {
 		return os.NewError("stopped after 10 redirects")
 	}
 	return nil
 }
-
 
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
@@ -346,46 +340,24 @@ func hasFile(param *map[string][]string) bool {
 	return false
 }
 
-// allowed characters in a multipart boundary and own random numner generator
-var multipartChars []byte = []byte("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-var boundaryRand *rand.Rand = rand.New(rand.NewSource(time.Seconds()))
-
-// Consruct a new random boundary for multipart messages
-func newBoundary() string {
-	n := 15 + boundaryRand.Intn(20)
-	b := [60]byte{}
-	for i := 0; i < 60-n; i++ {
-		b[i] = '-'
-	}
-	for i := 60 - n; i < 60; i++ {
-		b[i] = multipartChars[boundaryRand.Intn(46)]
-	}
-	boundary := string(b[:])
-	trace("New boundary: %s", boundary)
-	return boundary
-}
-
 // Format the parameter map as a multipart message body.
 func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 	var body *bytes.Buffer = &bytes.Buffer{}
-	var boundary = newBoundary()
 
 	var mpwriter = multipart.NewWriter(body)
-
 	// All non-file parameters come first
 	for n, v := range *param {
 		if len(v) > 0 && strings.HasPrefix(v[0], "@file:") {
 			continue // files go at the end
 		}
-		if true || len(v) > 0 {
+		if len(v) > 0 {
 			for _, vv := range v {
 				trace("Added parameter %s with value '%s' to request body.", n, vv)
 				mpwriter.WriteField(n, vv)
 			}
 		} else {
 			trace("Adding empty parameter %s to request body.", n)
-			var part = fmt.Sprintf("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n\r\n", boundary, n)
-			body.WriteString(part)
+			mpwriter.WriteField(n, "")
 		}
 	}
 

@@ -2,6 +2,7 @@ package suite
 
 import (
 	"encoding/base64"
+	"exec"
 	"fmt"
 	"http"
 	"io"
@@ -46,9 +47,12 @@ type Test struct {
 	Result     []string            // list of pass/fails reports
 	Body       []byte              // body of last non-failing response
 	Dump       io.Writer           // a writer to dump requests and responses to
+	Before     [][]string
+	After      [][]string
 }
 
-// Make a deep copy of src. dest will not share any data structures with src.
+// Make a deep copy of src. dest will not share "any" data structures with src.
+// Except Dump,Before and After
 func (src *Test) Copy() (dest *Test) {
 	dest = new(Test)
 	dest.Title = src.Title
@@ -84,6 +88,11 @@ func (src *Test) Copy() (dest *Test) {
 	dest.Vars = copyMap(src.Vars)
 	dest.Result = make([]string, len(src.Result))
 	copy(dest.Result, src.Result)
+
+	dest.Dump = src.Dump
+	dest.Before = src.Before
+	dest.After = src.After
+
 	return
 }
 
@@ -175,6 +184,7 @@ func (t *Test) getSetting(name string) int {
 	}
 	return DefaultSettings[name]
 }
+
 // Let compiler find misspellings...
 func (t *Test) Repeat() int      { return t.getSetting("Repeat") }
 func (t *Test) Sleep() int       { return t.getSetting("Sleep") }
@@ -795,15 +805,46 @@ func dumpBody(body []byte, title, url_, ct string) {
 	}
 }
 
+// Execute shell command
+func executeShellCmd(cmdline []string) (e int, s string) {
+	cmd := exec.Command(cmdline[0], cmdline[1:]...)
+	if err := cmd.Start(); err != nil {
+		e = -9999
+		s = fmt.Sprintf("Cannot start %s: %s", cmdline[0], err.String())
+		return
+	}
+	err := cmd.Wait()
+	if err == nil {
+		e, s = 0, ""
+		return
+	}
+	if wm, ok := err.(*os.Waitmsg); ok {
+		e = wm.ExitStatus()
+		s = wm.String()
+		return
+	}
+
+	e = -9998
+	s = err.String()
+	return
+}
+
 // Perform a single run of the test.  Return duration for server response in ms.
 // If request itself failed, then err is non nil and contains the reason.
 // Logs the results of the tests in Result field.
 func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []byte, err os.Error) {
 	ti := prepareTest(test, global)
+
+	// Before Commands
+	for _, cmd := range ti.Before {
+		if rv, msg := executeShellCmd(cmd); rv != 0 {
+			test.Error(fmt.Sprintf("Before cmd %d: %s: %s", rv, cmd, msg))
+			return
+		}
+	}
+
 	tries := ti.Tries()
-
 	var tryCnt int
-
 	for {
 		starttime := time.Nanoseconds()
 		var (
@@ -908,6 +949,14 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 		test.Result = make([]string, 0)
 		// fmt.Printf("\n-----\n%s\n=========\n", test.Status()) 
 
+	}
+
+	// After Commands
+	for _, cmd := range ti.After {
+		if rv, msg := executeShellCmd(cmd); rv != 0 {
+			test.Error(fmt.Sprintf("After cmd %d: %s: %s", rv, cmd, msg))
+			return
+		}
 	}
 
 	return

@@ -39,8 +39,12 @@ RESPONSE
 TAG
 	h2 class=home == Qualität für Sie!
 SETTINGS
-	Repeat  4
-	Sleep   500
+	Repeat  2
+	Sleep   250
+BEFORE
+	bash -c "touch '_hallo_welt_'; exit 3"
+AFTER 
+	bash -c "for n in 1 2 3 4; do touch _hallo_welt_$n; done"
 	
 
 ----------------------------------
