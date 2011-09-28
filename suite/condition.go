@@ -70,9 +70,8 @@ func (tc *TagCondition) String() (s string) {
 }
 
 // Represent a condition like "!Content-Type ~= "text/html" where Key="Content-Type"
-// Op="~=", Val="text/html" and Neg=true.  For tags Op contains the number of
-// occurences of the tag. Key is "Text" or "Bin" body-testing.
-// Line contains the line number in the source
+// Op="~=", Val="text/html" and Neg=true.  Key is "Text" or "Bin" body-testing.
+// Id contains an identifier to the source
 type Condition struct {
 	Key   string
 	Op    string
@@ -99,6 +98,26 @@ func (r Range) String() (s string) {
 		}
 		s += "]"
 	}
+	return
+}
+
+// Represent a condition in a logfile
+type LogCondition struct {
+	Path string // path to the logfile
+	Op   string // operator: ~= (contains); /= (regexp match); _= (line start); =_ (line end)
+	Val  string // value/patern
+	Neg  bool   // negation
+	Id   string // reference to source
+}
+
+// String represnetation of condition c.
+func (c *LogCondition) String() (s string) {
+	if c.Neg {
+		s = "!"
+	} else {
+		s = " "
+	}
+	s += c.Path + "  " + c.Op + "  " + c.Val
 	return
 }
 

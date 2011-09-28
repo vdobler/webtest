@@ -36,6 +36,7 @@ type Test struct {
 	CookieCond []Condition         // conditions for recieved cookies
 	BodyCond   []Condition         // conditions for the body (text or binary)
 	Tag        []TagCondition      // list of tags to look for in the body
+	Log        []LogCondition      // list of conditions to test on "log" files
 	Pre        []string            // currently unused: list of test which are prerequisites to this test
 	Param      map[string][]string // request parameter
 	Setting    map[string]int      // setting like repetition, sleep time, etc. for this test
@@ -47,8 +48,8 @@ type Test struct {
 	Result     []string            // list of pass/fails reports
 	Body       []byte              // body of last non-failing response
 	Dump       io.Writer           // a writer to dump requests and responses to
-	Before     [][]string
-	After      [][]string
+	Before     [][]string          // list of commands to execute before test
+	After      [][]string          // list of commands to execute afterwards
 }
 
 // Make a deep copy of src. dest will not share "any" data structures with src.
@@ -92,6 +93,7 @@ func (src *Test) Copy() (dest *Test) {
 	dest.Dump = src.Dump
 	dest.Before = src.Before
 	dest.After = src.After
+	dest.Log = src.Log
 
 	return
 }
@@ -711,6 +713,7 @@ func (test *Test) Run(global *Test) {
 	return
 }
 
+// Execute test, but do not test conditions. Usefull as background task in loadtesting.
 func (test *Test) RunWithoutTest(global *Test) {
 	if test.Repeat() == 0 {
 		info("Test no '%s' is disabled.", test.Title)
@@ -725,6 +728,7 @@ func (test *Test) RunWithoutTest(global *Test) {
 	return
 }
 
+// Benchmark test.
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
 	test.init()
 	test.Dump = nil              // prevent dumping during benchmarking
@@ -829,17 +833,79 @@ func executeShellCmd(cmdline []string) (e int, s string) {
 	return
 }
 
+// Return filesize of file path (or -1 on error).
+func filesize(path string) int64 {
+	file, err := os.Open(path)
+	if err != nil {
+		if err == os.ENOENT {
+			return 0
+		}
+		return -1
+	}
+	defer file.Close()
+	fi, err := file.Stat()
+	if err != nil {
+		return -1
+	}
+	return fi.Size
+}
+
+func checkLog(test *Test, buf []byte, log LogCondition) {
+	txt := string(buf)
+	trace("Checking %s on: %s", log.String(), txt)
+	switch log.Op {
+	case "~=":
+		if strings.Index(txt, log.Val) == -1 {
+			trace("Not found")
+			if !log.Neg {
+				test.Failed(fmt.Sprintf("Missing %s in log %s (%s)", log.Val, log.Path, log.Id))
+				return
+			}
+		} else if log.Neg {
+			trace("FOund")
+			test.Failed(fmt.Sprintf("Forbidden %s in log %s (%s)", log.Val, log.Path, log.Id))
+			return
+		}
+	case "/=":
+		panic("Operator /= unimplemented for logfiles")
+		return
+	case "_=", "=_":
+	default:
+		panic("No such operator '" + log.Op + "' for logfiles")
+	}
+	test.Passed("Log okay: " + log.String())
+}
+
 // Perform a single run of the test.  Return duration for server response in ms.
 // If request itself failed, then err is non nil and contains the reason.
 // Logs the results of the tests in Result field.
 func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []byte, err os.Error) {
 	ti := prepareTest(test, global)
 
-	// Before Commands
-	for _, cmd := range ti.Before {
-		if rv, msg := executeShellCmd(cmd); rv != 0 {
-			test.Error(fmt.Sprintf("Before cmd %d: %s: %s", rv, cmd, msg))
-			return
+	// Before Commands and log
+	var logfilesize map[string]int64 // sizes of log files in byte; same order as test.Log
+	if !skipTests {
+		for _, cmd := range ti.Before {
+			if rv, msg := executeShellCmd(cmd); rv != 0 {
+				test.Error(fmt.Sprintf("Before cmd %d: %s: %s", rv, cmd, msg))
+				duration = 0
+				err = os.NewError("Failed before condition")
+				return
+			}
+		}
+		trace("Number of logfile tests: %d", len(ti.Log))
+		if len(ti.Log) > 0 {
+			logfilesize = make(map[string]int64)
+			for _, log := range ti.Log {
+				if _, ok := logfilesize[log.Path]; ok {
+					continue
+				}
+				logfilesize[log.Path] = filesize(log.Path)
+				trace("Filesize of %s = %d", log.Path, logfilesize[log.Path])
+				if logfilesize[log.Path] == -1 {
+					test.Error(fmt.Sprintf("Cannot check logfile %s", log.Path))
+				}
+			}
 		}
 	}
 
@@ -866,7 +932,6 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 			test.Error(reqerr.String())
 			err = Error("Error: " + reqerr.String())
 		} else {
-
 			body = readBody(response.Body)
 
 			trace("Recieved cookies: %v", cookies)
@@ -875,9 +940,11 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 					global.Cookie = make(map[string]string)
 				}
 
+				// TODO: proper cookie handling of expiration/deletion
 				for _, c := range cookies {
 					if c.MaxAge == -999 { // Delete
-						trace("Deleting cookie %s from global (delete req from server).", c.Name)
+						trace("Deleting cookie %s from global (delete req from server).",
+							c.Name)
 						global.Cookie[c.Name] = "", false
 					} else {
 						trace("Storing cookie %s in global.", c.Name)
@@ -925,9 +992,11 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 				// Timing:
 				if max := ti.MaxTime(); max > 0 {
 					if duration > max {
-						test.Failed(fmt.Sprintf("Response exeeded Max-Time of %d (was %d).", max, duration))
+						test.Failed(fmt.Sprintf("Response exeeded Max-Time of %d (was %d).",
+							max, duration))
 					} else {
-						test.Passed(fmt.Sprintf("Response took %d ms (allowed %d).", duration, max))
+						test.Passed(fmt.Sprintf("Response took %d ms (allowed %d).",
+							duration, max))
 					}
 				}
 
@@ -935,6 +1004,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 		}
 
 		if test.Sleep() > 0 {
+			trace("Sleeping for %d seconds.", test.Sleep())
 			time.Sleep(1000000 * int64(test.Sleep()))
 		}
 
@@ -951,12 +1021,39 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 
 	}
 
-	// After Commands
-	for _, cmd := range ti.After {
-		if rv, msg := executeShellCmd(cmd); rv != 0 {
-			test.Error(fmt.Sprintf("After cmd %d: %s: %s", rv, cmd, msg))
-			return
+	// After Commands and Logfile
+	if !skipTests {
+		for _, cmd := range ti.After {
+			if rv, msg := executeShellCmd(cmd); rv != 0 {
+				test.Error(fmt.Sprintf("After cmd %d: %s: %s", rv, cmd, msg))
+				return
+			}
 		}
+
+		for _, log := range ti.Log {
+			if logfilesize[log.Path] == -1 {
+				continue
+			}
+			file, err := os.Open(log.Path)
+			if err != nil {
+				test.Error(fmt.Sprintf("Cannot open logfile %s", log.Path))
+				continue
+			}
+			defer file.Close()
+			os, err := file.Seek(logfilesize[log.Path], 0)
+			if err != nil || os != logfilesize[log.Path] {
+				test.Error(fmt.Sprintf("Cannot seek in logfile %s", log.Path))
+				continue
+			}
+			buf, err := ioutil.ReadAll(file)
+			if err != nil {
+				test.Error(fmt.Sprintf("Cannot read logfile %s", log.Path))
+				continue
+			}
+			checkLog(test, buf, log)
+			file.Close()
+		}
+
 	}
 
 	return

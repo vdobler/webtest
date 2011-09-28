@@ -576,6 +576,63 @@ func (p *Parser) readCond(mode int) []Condition {
 	return list
 }
 
+// Read a Header or Body Condition
+func (p *Parser) readLogCond() []LogCondition {
+	var list []LogCondition = make([]LogCondition, 0, 3)
+
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		if !hp(line, "\t") {
+			p.i--
+			return list
+		}
+
+		// Normal format is "[!] <field> <op> <value>", reduced format is just "[!] <field>"
+		line = trim(line)
+		var k, op, v string
+		var neg bool
+		if hp(line, "!") {
+			neg = true
+			line = trim(line[1:])
+		}
+		j := firstSpace(line)
+
+		if j == -1 {
+			error("Cannot read log condition on line %d.", no)
+			p.okay = false
+			continue
+		}
+		k = trim(line[:j])
+		line = trim(line[j:])
+		j = firstSpace(line)
+		if j == -1 {
+			error("Cannot read log condition on line %d.", no)
+			p.okay = false
+			continue
+		}
+		op = trim(line[:j])
+		switch op {
+		case "_=", "=_", "~=", "/=":
+		default:
+			error("Unknown operator '%s' in %s:%d.", op, p.name, no)
+			p.okay = false
+			continue
+		}
+		v = trim(line[j:])
+		var err os.Error
+		if v, err = dequote(v); err != nil {
+			error("Cannot read string on line %d: %s", no, err.String())
+			p.okay = false
+			continue
+		}
+		cond := LogCondition{Path: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no)}
+		list = append(list, cond)
+		trace("Added to condition (line %d): %s", no, cond.String())
+	}
+	return list
+}
+
 // Helper to extract count an spec from strings like ">= 5  a href=/index.html"
 // off is the number of charactes to strip before trying to read an int.
 func numStr(line string, off, no int) (n int, spec string, err os.Error) {
@@ -792,6 +849,8 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.readMultiMap(&test.Seq)
 		case "TAG", "TAGS":
 			test.Tag = p.readTagCond()
+		case "LOG", "LOGS":
+			test.Log = p.readLogCond()
 		case "BEFORE":
 			test.Before = p.readShellCond()
 		case "AFTER":
@@ -967,6 +1026,35 @@ func formatCond(title string, m *[]Condition) (f string) {
 	return
 }
 
+// Pretty print a list of commands/args
+func formatCommand(title string, cmd [][]string) (f string) {
+	if len(cmd) == 0 {
+		return
+	}
+	f = title + "\n"
+	for _, c := range cmd {
+		f += "\t"
+		for _, a := range c {
+			f += quote(a, true) + " "
+		}
+	}
+	f += "\n"
+	return
+}
+
+// Pretty print a list of log conditions. 
+func formatLogCond(lc []LogCondition) (f string) {
+	if len(lc) == 0 {
+		return
+	}
+	f = "LOG\n"
+	for _, c := range lc {
+		f += "\t" + c.String() + "\n"
+	}
+
+	return
+}
+
 // String representation as as used by the parser.
 func (t *Test) String() (s string) {
 	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
@@ -974,6 +1062,7 @@ func (t *Test) String() (s string) {
 	s += formatMap("CONST", &t.Const)
 	s += formatMultiMap("SEQ", &t.Seq)
 	s += formatMultiMap("RAND", &t.Rand)
+	s += formatCommand("BEFORE", t.Before)
 	s += formatMultiMap("PARAM", &t.Param)
 	s += formatMap("HEADER", &t.Header)
 	s += formatMap("SEND-COOKIE", &t.Cookie)
@@ -996,6 +1085,8 @@ func (t *Test) String() (s string) {
 			specSet[k] = v
 		}
 	}
+	s += formatCommand("AFTER", t.After)
+	s += formatLogCond(t.Log)
 	s += formatSettings(&specSet)
 
 	return

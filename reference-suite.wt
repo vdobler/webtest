@@ -664,6 +664,44 @@ AFTER
 
 
 #
+# Checking Log Files
+# ------------------
+# 
+# Checking additions to one ore more logfiles can be checked in the
+# section LOG:  
+#
+# Please note:  If log rotation happens during the test, then the
+# test is not accurate as it might miss a log record.  Writing log files
+# is typically done asyncronousely so we might miss entries.  Please
+# add some (long enough) sleep time to your tests if the internal grace
+# period of 250 ms isn't long enough (e.g. for emails).
+#
+# The format of a log file condition is:
+#   [!]  <path/to/logfile>  <op>  <pattern>   
+# with <op> one of the following operators:
+#   ~=   contains
+#   /=   regexp match
+#   _=   line starts with
+#   =_   line ends with
+# The rest of the operators known from the RESPONSE section are undefined.
+# Please note: No spaces in the path to the logfile.
+# Before running any tests the length of the logfile is recorded.  After
+# Running all the tests (that is after all repetitions and tries) the log
+# file is openend and the new lines are matched against the conditions.
+#
+GET http://some.url
+LOG
+	# Make sure no ERROR is is reported in the log file
+	! server/log/error.log ~= ERROR
+
+	# Make sure the following warning is logged:
+	../server/log/access.log /= .*WARNING.*Unauthorized access from.*
+
+	# Make sure that a email is recieved
+	/var/mail/testuser _= Subject: Weekly Traffic Summary
+
+
+#
 # Global
 # ------
 #

@@ -40,12 +40,15 @@ TAG
 	h2 class=home == Qualität für Sie!
 SETTINGS
 	Repeat  2
-	Sleep   250
+	Sleep   10000
 BEFORE
-	bash -c "touch '_hallo_welt_'; exit 3"
+	bash -c "echo Stamp1 FALSCH > log.log; echo Stamp2 Wichtig >> log.log"
 AFTER 
 	bash -c "for n in 1 2 3 4; do touch _hallo_welt_$n; done"
-	
+LOG 
+	! log.log ~= FALSCH
+	log.log ~= Wichtig
+
 
 ----------------------------------
 KTBE: Meldungsarchiv Erz

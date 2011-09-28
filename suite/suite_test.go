@@ -19,7 +19,7 @@ var (
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
-var testserverStayAlive int64 = 120
+var testserverStayAlive int64 = 0
 
 func TestNextPart(t *testing.T) {
 	var nextPartER [][4]string = [][4]string{[4]string{"Hallo", "Hallo", "", ""},
@@ -323,6 +323,34 @@ TAG
 SETTING
 	Dump   1
 	Tries  2
+
+# Test no 18
+----------------------
+Logfile (Pass)
+----------------------
+GET ${URL}/html.html
+BEFORE 
+	bash -c "echo Stamp0 ABC > log.log; echo Stamp1 FALSCH >> log.log; echo Stamp2 Wichtig >> log.log"
+SETTING
+	Sleep   150
+LOG
+	log.log ~= Wichtig
+	log.log _= Stamp[html]
+	log.log _= Sehr Wichtig
+	! log.log ~= Komisch
+
+# Test no 19
+----------------------
+Logfile (Fail)
+----------------------
+GET ${URL}/html.html
+BEFORE 
+	bash -c "echo Stamp0 ABC > log.log; echo Stamp1 FALSCH >> log.log; echo Stamp2 Wichtig >> log.log"
+SETTING
+	Sleep   150
+LOG
+	! log.log ~= Wichtig
+	log.log ~= Komisch
 `
 
 var cookieSuite = fmt.Sprintf(`
@@ -456,6 +484,15 @@ var htmlPat = `<!DOCTYPE html>
 var xCounter = map[string]int{"foo": 0, "bar": 0, "baz": 0} // used for tries
 
 func htmlHandler(w http.ResponseWriter, req *http.Request) {
+	if log, err := os.OpenFile("log.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666); err == nil {
+		log.WriteString("Stamp[html] Sehr Wichtig\nStamp[html] Hubba Buba\n")
+		log.Sync()
+		log.Close()
+		trace("Wrote to log.log")
+	} else {
+		panic(err.String())
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Fancy-Header", "Important Value")
 	w.WriteHeader(200)
@@ -814,6 +851,19 @@ func TestTries(t *testing.T) {
 	failed(&theSuite.Test[16], t)
 }
 
+func TestLogfiles(t *testing.T) {
+	LogLevel = 5
+	if theSuite == nil {
+		t.Fatal("No Suite.")
+	}
+	theSuite.RunTest(17)
+	passed(&theSuite.Test[17], t)
+
+	theSuite.RunTest(18)
+	failed(&theSuite.Test[18], t)
+	LogLevel = 2
+}
+
 func TestCookies(t *testing.T) {
 	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
 	cs, err := p.ReadSuite()
@@ -843,7 +893,6 @@ func TestCookies(t *testing.T) {
 }
 
 func TestRedirect(t *testing.T) {
-	LogLevel = 7
 	var redirectionSuite = fmt.Sprintf(`
 ----------------------
 Global
