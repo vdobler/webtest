@@ -553,17 +553,29 @@ SEND-COOKIE
 	# 123ABCxyz along with request
 	SESSIONID	123ABCxyz
 
-	# Functions below not jet implemented.  Currently you cannot set 
-	# Domain, Path, Expires ... of any cookie you send
-	# For request which lead to fancy redirect chains where the cookie
-	# might not be sent to all steps: ownCookie wont be sent to
-	# www.other.url and not to www.some.url/different if these requests
-	# are made during the redirect chain
-	# ownCookie   theValue
-	# ownCookie:Domain   *.some.url
-	# ownCookie:Path     /home
-	# ownCookie:Secure   false
+	# Note: SESSIONID will be sent to each host on any request during
+	# prcessing/following this request.
 
+	# If the request will be redirected to different stations
+	# and not all of them shall recieve the cookie you may
+	# specifiy domain, path and secure (https only) of the
+	# cookie in the following ways:
+
+	# send only to my.domain.org
+	ownCookie:my.domain.org   theValue
+
+	# send only to any host in .domain.org
+	ownCookie:.domain.org   theValue
+
+	# send only to resources below /some/path/ on my.domain.org
+	ownCookie:my.domain.org:/some/path/  theValue
+
+	# send only to resources below /path/ on my.domain.org on https requests
+	ownCookie:sso.domain.org:/path/:secure   theValue
+
+	# Note: You cannot specify path with out domain and you cannot
+	# declare a cookie secure without a path.
+	# You cannot set expiration or http only.
 
 SET-COOKIE
 	# The complicated stuff: Test wether server requests to set a cookie.

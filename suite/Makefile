@@ -7,7 +7,8 @@ GOFILES=\
 	condition.go\
 	variables.go\
 	parser.go\
-	http.go
+	http.go\
+	cookie.go
 
 include $(GOROOT)/src/Make.pkg
 
