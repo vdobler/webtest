@@ -1,6 +1,6 @@
 #
-#  Reference Suite for Webtest
-# ===============================
+##  Reference Suite for Webtest
+## ===============================
 #
 # Webtest test suites are simple text files in UTF-8 (without BOM).
 # Line endings may be \n or \r\n and you are stupid _and_ ugly if you use
@@ -41,8 +41,8 @@ CONST
 
 	
 #
-# General Structure of Test Cases
-# -------------------------------
+## General Structure of Test Cases
+## -------------------------------
 #
 # The most basic and simple test case: See if a server answers.
 #
@@ -73,8 +73,8 @@ RESPONSE
 
 
 #
-# Checking Response Header Fields
-# -------------------------------
+## Checking Response Header Fields
+## -------------------------------
 #
 # More on response fields checking: Recieved header fields can be accessed
 # by their name (no trailing colon), e.g. "Content-Type". 
@@ -135,8 +135,8 @@ RESPONSE
 	 
 	
 #
-# Setting Request Header fields
-# -----------------------------
+##  Setting Request Header fields
+##  -----------------------------
 #
 # You may specify any request header field in the HEADER section by just
 # naming them and their value.  Note: There is a special syntax for sending
@@ -156,8 +156,8 @@ HEADER
 
 	
 #
-# Basic Authorization
-# --------------------
+##  Basic Authorization
+##  --------------------
 #
 # To use basic authorization you can provide the Authorization header
 # yourself, or you can use the special fake Basic-Authorization header.
@@ -175,17 +175,15 @@ HEADER
 	
 	
 #
-# Testing the Response Body
-# -------------------------
+## Testing the Response Body
+## -------------------------
 # There are three ways to test the content of the recieved body:
 # Simple tests are specified in the BODY section, HTML tags can be checked
-# in the TAG section.
+# in the TAG section: See checking HTML Tags below
 ---------------------------------
-Ping Content
+Checking Response Content
 ---------------------------------
 GET http://host.to.ping/path.html
-
-# All simple test are placed in the body section
 BODY
 	 # Txt is the whole text of the body
 	 Txt  ==  Whole text of body
@@ -220,6 +218,10 @@ BODY
 	 Bin[300:800] ~= caffebabe
 
 
+#
+## Checking HTML Tags
+## ------------------
+#
 # HTML/XML tag/element checkings are placed in section TAG
 # Syntax for the tags are like checktag. See documentation in tag.go.
 # The syntax is a bit like
@@ -237,6 +239,10 @@ BODY
 #   tagStruct :=  '[' '\n' moreIndnt { simpleTag | tagStructure } '\n' ']'
 #   moreIndnt :=  "more indentation by tabs/spc than previous/parent tagSpec."
 #
+---------------------------------
+Checking HTML Tags
+---------------------------------
+GET http://host.to.ping/path.html
 TAG
 	# Check if any h2 tag with a class of 'home' and text content of
 	# 'Quality' is present.  All other attributes are ignored.
@@ -312,8 +318,8 @@ TAG
 	
 
 #
-# Sending Parameters
-# ------------------
+## Sending Parameters
+## ------------------
 #
 # Arbitary parameters can be specified in the PARAM section. 
 # For GET requests they are appended to the given URL. POST requests 
@@ -348,8 +354,8 @@ PARAM
 	
 	
 #
-# Forcing multipart/form-data
-# ---------------------------
+## Forcing multipart/form-data
+## ---------------------------
 #
 # To force the post to use "multipart/form-data" even if no file
 # is uploaded:  Use POST:mp as method.
@@ -363,8 +369,8 @@ PARAM
 	
 	
 #
-# Variable Subtitutions
-# ---------------------
+## Variable Subtitutions
+## ---------------------
 #
 # There are three types of variable substitutions, all can be used like shell
 # variables: const variables (just sounds strange), sequence variables and
@@ -434,8 +440,8 @@ SETTING
 
 
 #
-# Special Veriables
-# -----------------
+## Special Veriables
+## -----------------
 #
 # The following variables are provided by the system and cannot be
 # redefined: 
@@ -462,8 +468,8 @@ RESPONSE
 	
 
 #
-# Repeating Tests
-# ---------------
+## Repeating Tests
+## ---------------
 #
 # There are two different ways to "repeat" a test: Setting the the setting
 # "Repeat" or "Tries" to a number greater 0.
@@ -491,8 +497,8 @@ SETTING
 
 
 #
-# Settings
-# --------
+## Settings
+## --------
 #
 # Various setting can be applied to each and every test in the SETTING
 # section. Currently the following are implemented:
@@ -538,94 +544,95 @@ SETTING
 	
 
 #
-# Cookies
-# -------
+## Cookies
+## -------
 #
 # Cookies can be sent along with the request and recieved cookies
 # (Set-Cookie) can be checked.  Both have their own section.
+#
+# A cookie is identified by the browser based on the trippel 
+# (name, domain, path).  These three parts are given here separated by 
+# colons.  Name is allways first, and you may omit the domain and/or
+# the path:  The path defaults to "/" and the domain to the domain
+# of the request URL if this testcase.
 -------------------
 Cookies
 --------------------
-GET http://www.some.url/home
+GET http://www.some.url/home/user/xyz
 
 SEND-COOKIE
-	# The easier cookie stuff: Send cookie with name SESSIONID and value
-	# 123ABCxyz along with request
-	SESSIONID	123ABCxyz
+	# Send cookie mySpecialCookie with value someValue along with
+	# the request.
+	# The domain set to www.some.url and path is set to /. This is
+	# important only if the original request results in a rederict to a 
+	# different host or different path (where this cookie wouldn't be 
+	# sent).
+	mySpecialCookie   someValue
 
-	# Note: SESSIONID will be sent to each host on any request during
-	# prcessing/following this request.
+	# Full version of how to specifiy a cookie:
 
-	# If the request will be redirected to different stations
-	# and not all of them shall recieve the cookie you may
-	# specifiy domain, path and secure (https only) of the
-	# cookie in the following ways:
+	ownCookie:www.some.url:/home:secure   theValue
 
-	# send only to my.domain.org
-	ownCookie:my.domain.org   theValue
+	# This will send ownCookie (with value theValue) only to host
+	# www.some.url (and all subdomains like abc.www.some.url)
+	# and only to request with a path starting with /home and
+	# only to secure https request.
+	# Note: This cookie would _not_ be sent on the initial request
+	# given in the GET as this request isn't secure (it's http).
+	# But it _would_ be sent e.g. to https://abc.some.url/home/login
+	# if the initial request redirects to this URL.
 
-	# send only to any host in .domain.org
+	# You may omit ":secure" if sending to http is okay and you
+	# may omit domain and/or path as described above.
+
+	# Wildcard domains work (as in the browsers)
 	ownCookie:.domain.org   theValue
 
-	# send only to resources below /some/path/ on my.domain.org
-	ownCookie:my.domain.org:/some/path/  theValue
-
-	# send only to resources below /path/ on my.domain.org on https requests
-	ownCookie:sso.domain.org:/path/:secure   theValue
-
-	# Note: You cannot specify path with out domain and you cannot
-	# declare a cookie secure without a path.
-	# You cannot set expiration or http only.
+	# Please note: 
+	#  - You cannot declare a cookie secure without a domain and a path.
+	#  - You cannot set expiration (just dont send it!). 
+	#  - You cannot declare HttpOnly cookies (it's implicit, we)
+	#    handle only http.
 
 SET-COOKIE
-	# The complicated stuff: Test wether server requests to set a cookie.
-	
-	# make sure the server wants to set cookie with name "just-present"
-	# or make sure that no cookie "illegal" was set. (Values do not matter)
-	just-present
-	!illegal
-	
-	# Two ways to check the value of the cookie, the first is just an
-	# abrevation for the later, the general form
-	name        ==  full-value
-	name:Value  ~=  contained
-	
-	# Check other fields of the cookie. Please note: As the dot '.' is not
-	# explicitely forbiden in cookie names, but ':' is, the colon is the
-	# field delimiter
-	name:Path     _=  /some/path
-	name:Secure   ==  true
-	name:Domain   ==  www.mydomain.org
-	name:HttpOnly ==  false
-	name:MaxAge   ==  0
-	name:Expires  ~=  Nov 2013
-	name:Expires   >  Mon, 02 Jan 2006 15:04:05 MST
-	
-	# If the server sends a cookie which is allready expired or the max age
-	# is lower 0, this cookie is deleted and also deleted in Global if
-	# Keep-Cookies is true.  Note: Buggy: The behaviour is the desired one,
-	# not the implemented one.
-	
-	# Note: Cookies must be explicitely deleted, mere expiering will
-	# _not_ remove them. (No cookie jar).
-	
+	# The complicated stuff: Test wether server requests to set or
+	# delete a cookie.
+		
+	# You may use the common operators ==, ~=, _=, =_, /= to check the
+	# value:
+	name:domain.org:/path   ==  value
+
+	# As described above omiting domain and/or path is possible with
+	# the usefull defaults.
+	name             ==  value
+	name:domain.org  ==  value
+	name:/path       ==  value
+
+	# Cookies sent/set by the server can contain additional flags.
+	# You may check for them as follows:
+	name:domain.org:/path:Secure   == true
+	name:domain.org:/path:HttpOnly ==  false
+	name:domain.org:/path:MaxAge   ==  0
+	name:domain.org:/path:Expires  ~=  Nov 2013
+	name:domain.org:/path:Expires   >  Mon, 02 Jan 2006 15:04:05 MST
+	# You may neither omit domain nor path in this syntax.
+
+	# You may test if the server requested to delete the cookie with
+	# the following syntax:
+	name:domain.org:/path:Delete == true
+	# It checks if the servers request would delete the cookie reliable
+	# in common browsers.  Such cookies would be deleted in the Global
+	# too if Keep-Cookies is true
+
 SETTING
-	# Recieved sookies can be stored in the SEND-COOKIE section of the
+	# Recieved cookies can be stored in the SEND-COOKIE section of the
 	# Global test.  (Usefull for login/session cookies).
-	# _Important_ notice: Webtest does _not_ implement a proper cookie
-	# jar or even honour any "same origin" policies for cookies:
-	# All kept cookies are sent to all subsequent request, regardless
-	# of domain, path, secure flag, etc.
 	Keep-Cookies  1
-	
-	# Note: Currently the server cannot delete a cookie he set in a 
-	# previous test (neither by Expires nor MaxAge) if Keep-Cookies
-	# was set.
 	
 
 #
-# Debuging
-# --------
+## Debuging
+## --------
 #
 # Setting Dump to 1 will dump the whole request/response talk to a
 # .dump-file. The filename is constructed from the test name. 
@@ -644,8 +651,8 @@ SETTING
 
 
 #
-# Pre- and Post Task
-# ------------------
+## Pre- and Post Task
+## ------------------
 # 
 # You may execute (and test their outcome) arbitary commands before and
 # after running the test.  These commands are executed really before
@@ -656,28 +663,30 @@ SETTING
 # considerued an error.  The test itself is not performed after a 
 # failed BEFORE condition.
 #
+-----------------------
+Pre + Post Tasks
+-----------------------
 GET http://some.url
 BEFORE
 	# Everything in the BEFORE section will be executed before doing the
 	# actual GET request.
-	# All commands are simple shell commands and are executed in the 
-	# current working directory.  The shell is initialized with the
-	# content of .webtestrc (also in the current wd).  Return value
-	# checking works like described in the AFTER section below.
+	# All commands are are executed in the current working directory.
+	# Return value checking works like described in the AFTER section 
+	# below.
 	bash -c "mysql -batch -u admin -p admin < setupdb.sql"
 
 AFTER
 	# Everything in the AFTER section will be executed after doing the
 	# actual request and running the tests on the response.
-	# An After condition (same for BEFORE conditions) is considered
+	# An AFTER condition (same for BEFORE conditions) is considered
 	# a failure if the return value is != 0.
-	python check-state.py
+	/home/tester/bin/python check-state.py
 	bash -c "if [ -f threaddump.bin ]; then exit 1; else exit 0; fi"
 
 
 #
-# Checking Log Files
-# ------------------
+## Checking Log Files
+## ------------------
 # 
 # Checking additions to one ore more logfiles can be checked in the
 # section LOG:  
@@ -701,6 +710,9 @@ AFTER
 # Running all the tests (that is after all repetitions and tries) the log
 # file is openend and the new lines are matched against the conditions.
 #
+-----------------------
+Logfile Checking
+-----------------------
 GET http://some.url
 LOG
 	# Make sure no ERROR is is reported in the log file
@@ -714,8 +726,8 @@ LOG
 
 
 #
-# Global
-# ------
+## Global
+## ------
 #
 # If the very first test in a test suite is named "Global" than this test
 # will not be run but serve as a template for all subsequent tests:

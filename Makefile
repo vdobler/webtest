@@ -23,3 +23,9 @@ format: $(GOFILES)
 	cd tag && $(MAKE) format
 	cd suite && $(MAKE) format
 	cd stat && $(MAKE) format
+
+doc:
+	awk -f wt2tex.awk reference-suite.wt > webtest.tex
+	pdflatex webtest.tex
+	pdflatex webtest.tex
+	pdflatex webtest.tex

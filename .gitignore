@@ -10,5 +10,9 @@ _test
 _testmain.go
 wtresults_2011-*
 webtest
+webtest.aux
+webtest.tex
+webtest.toc
+webtest.pdf
 
 
