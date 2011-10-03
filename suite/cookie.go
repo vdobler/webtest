@@ -12,18 +12,16 @@ import (
 	"time"
 )
 
-
 const (
 	NO_TOPLEVEL_DOMAIN = iota
 	SAME_OR_SUBDOMAIN
 	STRICT_SAME_DOMAIN
 )
 
-
 // All cookies in the jar have a efective domain of the form ".www.domain.org"
 // 
 type CookieJar struct {
-	cookies []*http.Cookie   // all our cookies accessible by domain
+	cookies []*http.Cookie // all our cookies accessible by domain
 	mutex   sync.Mutex
 	policy  int
 }
@@ -32,6 +30,20 @@ type CookieJar struct {
 func NewCookieJar() *CookieJar {
 	cj := &CookieJar{}
 	cj.cookies = make([]*http.Cookie, 0, 10)
+	return cj
+}
+
+// Copy returns a new cookie jar with the same cookies.
+func (jar *CookieJar) Copy() *CookieJar {
+	cj := &CookieJar{}
+	jar.mutex.Lock()
+	n := len(jar.cookies)
+	cj.cookies = make([]*http.Cookie, n)
+	for i := 0; i < n; i++ {
+		nc := *jar.cookies[i]
+		cj.cookies[i] = &nc
+	}
+	jar.mutex.Unlock()
 	return cj
 }
 
@@ -44,22 +56,31 @@ func expiredOrDeleted(c *http.Cookie) bool {
 	if c.Expires.Year == 0 {
 		return false
 	}
-	
+
 	return c.Expires.Seconds() >= time.UTC().Seconds()
 }
 
 // Find looks up the index of cookie in our cookie jar.
 // The lookup is based on an exact match of the (Name, Domain, Path) tripple.
-func (jar *CookieJar) Find(domain, path, name string) int {
+func (jar *CookieJar) find(domain, path, name string) (int, *http.Cookie) {
 	for i, c := range jar.cookies {
-		if c.Domain == domain && path==c.Path && name==c.Name {
-			return i
+		if c.Domain == domain && path == c.Path && name == c.Name {
+			return i, c
 		}
 	}
-	return -1
+	return -1, nil
 }
 
+// Contains looks up the cookie in our cookie jar and returns nil if not found.
+// The lookup is based on an exact match of the (Name, Domain, Path) tripple.
+func (jar *CookieJar) Contains(domain, path, name string) *http.Cookie {
+	_, c := jar.find(domain, path, name)
+	return c
+}
 
+func (jar *CookieJar) All() []*http.Cookie {
+	return jar.cookies
+}
 
 // Update will update (add new, update existing or remove deleted) the jar 
 // with the given cookie as recieved from domain.
@@ -68,6 +89,9 @@ func (jar *CookieJar) Update(cookie http.Cookie, domain string) {
 	// make sure Domain is set (and starts with '.' and Path is set
 	// TODO: prevent stuff like .net or .co.uk ....
 	if cookie.Domain == "" {
+		if domain == "" {
+			panic("Not both empty")
+		}
 		cookie.Domain = domain
 	}
 	if cookie.Domain[0] != '.' {
@@ -85,15 +109,15 @@ func (jar *CookieJar) Update(cookie http.Cookie, domain string) {
 	jar.mutex.Lock()
 	defer jar.mutex.Unlock()
 
-	idx := jar.Find(cookie.Domain, cookie.Path, cookie.Name)
-	
+	idx, _ := jar.find(cookie.Domain, cookie.Path, cookie.Name)
+
 	if expiredOrDeleted(&cookie) {
 		if idx != -1 {
 			jar.cookies = append(jar.cookies[:idx], jar.cookies[idx+1:]...)
 		}
 		return
 	}
-	
+
 	if idx == -1 { // new cookie
 		jar.cookies = append(jar.cookies, &cookie)
 	} else { // update
@@ -130,25 +154,32 @@ func (jar *CookieJar) Select(u *url.URL) (cookies []*http.Cookie) {
 	list := make([]*http.Cookie, 0, 5)
 	tbd := make([]int, 0, 2) // Expired Cookies
 	for i, c := range jar.cookies {
-		if !jar.domainMatch(host, c.Domain) { continue }
-		if !pathMatch(path, c.Path) { continue }
-		if c.HttpOnly && !(u.Scheme=="http" || u.Scheme=="https") { continue }
-		if c.Secure && u.Scheme != "https" { continue }
+		if !jar.domainMatch(host, c.Domain) {
+			continue
+		}
+		if !pathMatch(path, c.Path) {
+			continue
+		}
+		if c.HttpOnly && !(u.Scheme == "http" || u.Scheme == "https") {
+			continue
+		}
+		if c.Secure && u.Scheme != "https" {
+			continue
+		}
 		if expiredOrDeleted(c) {
 			tbd = append(tbd, i)
 		}
 		list = append(list, c)
 	}
-	
+
 	// Remove expired cookies from list
-	if len(tbd)> 0 {
+	if len(tbd) > 0 {
 		jar.mutex.Lock()
 		for i, idx := range tbd {
 			jar.cookies = append(jar.cookies[:idx-i], jar.cookies[idx+1-i:]...)
 		}
 		jar.mutex.Unlock()
 	}
-
 
 	// map of name to cookie to send
 	m := make(map[string]*http.Cookie)

@@ -3,10 +3,12 @@ package suite
 import (
 	"bufio"
 	"fmt"
+	"http"
 	"io"
 	"os"
 	"strconv"
 	"strings"
+	"url"
 
 	"github.com/vdobler/webtest/tag"
 )
@@ -173,6 +175,143 @@ func (p *Parser) readMap(m *map[string]string) {
 		}
 		(*m)[k] = v
 		trace("Added to map (line %d): %s: %s", no, k, v)
+	}
+}
+
+// parse smth like  "name:domain:path:Secure ~= value", line must be trimmed
+func parseCookieLine(line, host string) (name, domain, path, field, op, value string, err os.Error) {
+	j := firstSpace(line)
+	if j == -1 {
+		err = os.NewError("Unparsable cookie definition")
+		return
+	}
+	cl, line := line[:j], trim(line[j:])
+	cls := strings.Split(cl, ":")
+	name = cls[0]
+	switch len(cls) {
+	case 4:
+		domain, path, field = cls[1], cls[2], strings.ToLower(cls[3])
+	case 3:
+		domain, path = cls[1], cls[2]
+	case 2:
+		if cls[1] != "" && cls[1][0] == '/' {
+			path = cls[1]
+		} else {
+			domain = cls[1]
+		}
+	case 1:
+	default:
+		err = os.NewError("Too many ':' in cookie definition.")
+		return
+	}
+
+	j = firstSpace(line)
+	if j == -1 {
+		err = os.NewError("Missing operator in cookie definition")
+		return
+	}
+
+	op, value = line[:j], trim(line[j:])
+	switch op {
+	case ":=", "==", "~=", "_=", "=_", "/=", ">", ">=", "<", "<=":
+	default:
+		err = os.NewError(fmt.Sprintf("Unknown operator '%s'.", op))
+		return
+	}
+	if value == "" {
+		err = os.NewError("Missing value in cookie definition")
+		return
+	}
+
+	// Add defaults of path and domain
+	if path == "" {
+		path = "/"
+	}
+	if path[0] != '/' {
+		err = os.NewError(fmt.Sprintf("Illegal path '%s' in cookie.", path))
+		return
+	}
+	if domain == "" {
+		domain = host
+	}
+
+	return
+}
+
+// 
+func (p *Parser) readCookieCond(host string) (cc []Condition) {
+	cc = make([]Condition, 0, 10)
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		if !hp(line, "\t") {
+			p.i--
+			return
+		}
+		line = trim(line)
+		cond := Condition{}
+		if line[0] == '!' {
+			cond.Neg = true
+			line = trim(line[1:])
+		}
+		name, domain, path, field, op, value, err := parseCookieLine(line, host)
+		if err != nil {
+			error("%s on line %d.", err.String(), no)
+			p.okay = false
+			continue
+		}
+		if op == ":=" {
+			error("Wrong operator '%s' on line %d.", op, no)
+			p.okay = false
+			continue
+		}
+		switch field {
+		case "":
+			field = "value"
+		case "secure", "httponly", "maxage", "expires", "delete", "deleted", "value":
+		default:
+			error("Unknown cookie field '%s' on line %d.", field, no)
+			p.okay = false
+			continue
+		}
+
+		cond.Key = fmt.Sprintf("%s:%s:%s:%s", name, domain, path, field)
+		cond.Op = op
+		cond.Val = value
+		cond.Id = fmt.Sprintf("%s (line %d)", cond.String(), no)
+		cc = append(cc, cond)
+	}
+	return
+}
+
+// 
+func (p *Parser) readSendCookies(jar *CookieJar, host string) {
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		if !hp(line, "\t") {
+			p.i--
+			return
+		}
+		line = trim(line)
+		name, domain, path, field, op, value, err := parseCookieLine(line, host)
+		if err != nil {
+			error("%s on line %d.", err.String(), no)
+			p.okay = false
+			continue
+		}
+		if op != ":=" {
+			error("Wrong operator '%s' on line %d.", op, no)
+			p.okay = false
+			continue
+		}
+		if field != "" && field != "secure" {
+			error("Wrong field '%s' (only secure allowed) on line %d.", field, no)
+			p.okay = false
+			continue
+		}
+		cookie := http.Cookie{Name: name, Domain: domain, Path: path, Value: value, Secure: field == "secure"}
+		jar.Update(cookie, "")
 	}
 }
 
@@ -464,9 +603,16 @@ func (p *Parser) readCond(mode int) []Condition {
 
 		// Normal format is "[!] <field> <op> <value>", reduced format is just "[!] <field>"
 		line = trim(line)
+		if len(line) == 0 {
+			continue
+		}
+		var neg bool
+		if line[0] == '!' {
+			line = trim(line[1:])
+			neg = true
+		}
 		j := firstSpace(line)
 		var k, op, v string
-		var neg bool
 		var rng Range
 
 		if j == -1 {
@@ -478,27 +624,11 @@ func (p *Parser) readCond(mode int) []Condition {
 			}
 			op = "."
 			k = line
-			if hp(k, "!") {
-				neg = true
-				k = k[1:]
-			}
-			if mode == mode_setcookie {
-				if strings.Contains(k, ":") {
-					error("Missing value cookie:field condition on line %d.", no)
-					p.okay = false
-					continue
-				}
-			}
 		} else {
 			// normal format "[!] <field> <op> <value>"
 			k = trim(line[:j])
-			if hp(k, "!") {
-				neg = true
-				k = k[1:]
-			}
 			line = trim(line[j:])
-			switch mode { // checkspecial requirements
-			case mode_body:
+			if mode == mode_body {
 				if !(hp(k, "Txt") || hp(k, "Bin")) {
 					error("No such condition type '%s' for body on line %d.", k, no)
 					p.okay = false
@@ -514,20 +644,6 @@ func (p *Parser) readCond(mode int) []Condition {
 						p.okay = false
 						continue
 					}
-				}
-			case mode_setcookie:
-				if ci := strings.Index(k, ":"); ci != -1 {
-					switch k[ci+1:] {
-					case "Value", "Path", "Expires", "Secure", "Domain", "HttpOnly", "MaxAge":
-						// fine: allowed field
-					default:
-						error("No such cookie field '%s' on line %d.", k[ci+1], no)
-						p.okay = false
-						continue
-					}
-				} else {
-					// Auto-append :Value
-					k += ":Value"
 				}
 			}
 			j = firstSpace(line)
@@ -641,15 +757,19 @@ func numStr(line string, off, no int) (n int, spec string, err os.Error) {
 	line = trim(line[off:])
 	i := firstSpace(line)
 	if i < 0 {
-		error("Missing space after %s in line %d", beg, no)
-		err = ParserError{"Missing space"}
-		return
+		i = strings.Index(line, "[")
+		if i < 0 {
+			cause := fmt.Sprintf("Missing space after %s in line %d", beg, no)
+			error(cause)
+			err = ParserError{cause}
+			return
+		}
 	}
 	n, err = strconv.Atoi(line[:i])
 	if err != nil {
 		return
 	}
-	spec = line[i+1:]
+	spec = trim(line[i:])
 	trace("n=%d, spec=%s", n, spec)
 	return
 }
@@ -666,6 +786,12 @@ func (p *Parser) readTagCond() []TagCondition {
 			return list
 		}
 		line = trim(line)
+		if len(line) == 0 {
+			continue
+		}
+		for hp(line, "! ") { //  transform "!  =3 a href == xyz" to "!=3 a href == xyz"
+			line = "!" + line[2:]
+		}
 
 		cond := TagCondition{}
 		cond.Id = fmt.Sprintf("%s:%d", p.name, no)
@@ -798,13 +924,19 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			}
 			p.i++
 			line, no = trim(p.line[p.i].line), p.line[p.i].no
+			// TODO: check giveb url on parsability
 			if hp(line, "GET ") {
-				url := trim(line[3:])
-				if i := strings.Index(url, "#"); i != -1 {
+				urll := trim(line[3:])
+				if i := strings.Index(urll, "#"); i != -1 {
 					warn("URL may not contain fragment (#-part) in line %d.", no)
-					url = url[:i]
+					urll = urll[:i]
 				}
-				test.Method, test.Url = "GET", url
+				test.Method, test.Url = "GET", urll
+				if _, ue := url.Parse(urll); ue != nil {
+					error("Malformed url '" + urll + "': " + ue.String())
+					err = ParserError{"Malformed url '" + urll + "': " + ue.String()}
+					return
+				}
 				continue
 			} else if hp(line, "POST ") {
 				test.Method, test.Url = "POST", trim(line[4:])
@@ -830,11 +962,11 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "HEADER":
 			p.readMap(&test.Header)
 		case "SEND-COOKIE", "SEND-COOKIES", "COOKIE", "COOKIES":
-			p.readMap(&test.Cookie)
+			p.readSendCookies(test.Jar, "{CURRENT}")
 		case "RESPONSE":
 			test.RespCond = p.readCond(mode_other)
 		case "SET-COOKIE", "RECIEVED-COOKIE":
-			test.CookieCond = p.readCond(mode_setcookie)
+			test.CookieCond = p.readCookieCond("{CURRENT}")
 		case "BODY":
 			test.BodyCond = p.readCond(mode_body)
 		case "PARAM", "PARAMETERS":
@@ -857,7 +989,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			test.After = p.readShellCond()
 		default:
 			error("Unknow section '%s' in line %d. Skipped.", line, no)
-			err = ParserError{"Unknown Section"}
+			err = ParserError{"Unknown Section " + line}
 			return
 		}
 
@@ -1037,8 +1169,8 @@ func formatCommand(title string, cmd [][]string) (f string) {
 		for _, a := range c {
 			f += quote(a, true) + " "
 		}
+		f += "\n"
 	}
-	f += "\n"
 	return
 }
 
@@ -1055,6 +1187,22 @@ func formatLogCond(lc []LogCondition) (f string) {
 	return
 }
 
+func formatSendCookies(jar *CookieJar) (s string) {
+	if len(jar.All()) == 0 {
+		return
+	}
+	s = "SEND-COOKIE\n"
+	for _, cookie := range jar.All() {
+		s += fmt.Sprintf("\t%s:%s:%s", cookie.Name, cookie.Domain, cookie.Path)
+		if cookie.Secure {
+			s += ":Secure"
+		}
+		s += "  :=  "
+		s += cookie.Value + "\n" // TODO: encode/quote
+	}
+	return
+}
+
 // String representation as as used by the parser.
 func (t *Test) String() (s string) {
 	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
@@ -1065,7 +1213,7 @@ func (t *Test) String() (s string) {
 	s += formatCommand("BEFORE", t.Before)
 	s += formatMultiMap("PARAM", &t.Param)
 	s += formatMap("HEADER", &t.Header)
-	s += formatMap("SEND-COOKIE", &t.Cookie)
+	s += formatSendCookies(t.Jar)
 	s += formatCond("RESPONSE", &t.RespCond)
 	s += formatCond("SET-COOKIE", &t.CookieCond)
 	s += formatCond("BODY", &t.BodyCond)

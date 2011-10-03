@@ -52,8 +52,8 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 		}
 	}
 
-	for cn, cv := range t.Cookie {
-		req.AddCookie(&http.Cookie{Name: cn, Value: cv})
+	for _, cookie := range t.Jar.Select(req.URL) {
+		req.AddCookie(cookie)
 	}
 }
 

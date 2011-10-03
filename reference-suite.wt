@@ -567,11 +567,11 @@ SEND-COOKIE
 	# important only if the original request results in a rederict to a 
 	# different host or different path (where this cookie wouldn't be 
 	# sent).
-	mySpecialCookie   someValue
+	mySpecialCookie  :=  someValue
 
 	# Full version of how to specifiy a cookie:
 
-	ownCookie:www.some.url:/home:secure   theValue
+	ownCookie:www.some.url:/home:secure  :=  theValue
 
 	# This will send ownCookie (with value theValue) only to host
 	# www.some.url (and all subdomains like abc.www.some.url)
@@ -586,7 +586,7 @@ SEND-COOKIE
 	# may omit domain and/or path as described above.
 
 	# Wildcard domains work (as in the browsers)
-	ownCookie:.domain.org   theValue
+	ownCookie:.domain.org  :=  theValue
 
 	# Please note: 
 	#  - You cannot declare a cookie secure without a domain and a path.

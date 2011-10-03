@@ -31,7 +31,7 @@ type Test struct {
 	Method     string              // Method: GET or POST (in future also POST:mp for multipart posts)
 	Url        string              // full URL
 	Header     map[string]string   // key/value pairs for request header
-	Cookie     map[string]string   // cookie-name/value pairs for cookies to send in request
+	Jar        *CookieJar          // cookies to send
 	RespCond   []Condition         // list of conditions the response header must fullfill
 	CookieCond []Condition         // conditions for recieved cookies
 	BodyCond   []Condition         // conditions for the body (text or binary)
@@ -60,7 +60,7 @@ func (src *Test) Copy() (dest *Test) {
 	dest.Method = src.Method
 	dest.Url = src.Url
 	dest.Header = copyMap(src.Header)
-	dest.Cookie = copyMap(src.Cookie)
+	dest.Jar = src.Jar.Copy()
 	dest.RespCond = make([]Condition, len(src.RespCond))
 	copy(dest.RespCond, src.RespCond)
 	dest.CookieCond = make([]Condition, len(src.CookieCond))
@@ -161,7 +161,7 @@ func NewTest(title string) *Test {
 	t := Test{Title: title}
 
 	t.Header = make(map[string]string)
-	t.Cookie = make(map[string]string)
+	t.Jar = NewCookieJar()
 	t.Param = make(map[string][]string)
 	t.Setting = make(map[string]int, len(DefaultSettings))
 	t.Const = make(map[string]string)
@@ -198,15 +198,47 @@ func (t *Test) DoDump() int      { return t.getSetting("Dump") }
 func (t *Test) MaxTime() int     { return t.getSetting("Max-Time") }
 
 // Look for name in cookies. Return index if found and -1 otherwise.
-func cookieIndex(cookies []*http.Cookie, name string) int {
-	idx := -1
-	for i, c := range cookies {
-		if c.Name == name {
-			idx = i
-			break
+// Looup happens from behind as last setting wins in browser.
+func cookieIndex(cookies []*http.Cookie, name, domain, path string) int {
+	for i := len(cookies) - 1; i >= 0; i-- {
+		c := cookies[i]
+		if c.Name == name && strings.HasSuffix(domain, c.Domain) && strings.HasPrefix(path, c.Path) {
+			return i
 		}
 	}
-	return idx
+	return -1
+}
+
+// Test if a cookie deletion is reliable:
+// Reliable deleting a cookie requires all of
+//   Max-Age: 0
+//   Expires is set and before NOW()
+//   Value is empty
+func testCookieDeletion(orig *Test, c *http.Cookie, neg bool, ci string) {
+	if neg {
+		orig.Error("You cannot test on 'not deletion' of cookie.")
+	}
+	return
+
+	// Reliable deleted == Max-Age: 0 AND Expired in the past
+	if c.MaxAge < 0 && c.Expires.Year != 0 && c.Expires.Seconds() < time.UTC().Seconds() && c.Value == "" {
+		orig.Passed(ci)
+	} else {
+		cause := ci + ": "
+		if c.MaxAge >= 0 {
+			cause += "Missing 'Max-Age: 0'."
+		}
+		if c.Value != "" {
+			cause += "Value '" + c.Value + "' given."
+		}
+		if c.Expires.Year == 0 {
+			cause += " Expires not set."
+		} else if c.Expires.Seconds() >= time.UTC().Seconds() {
+			cause += fmt.Sprintf(" Wrong Expires '%s'.",
+				c.Expires.Format(http.TimeFormat))
+		}
+		orig.Failed(cause)
+	}
 }
 
 // Test response header and (set-)cookies.
@@ -226,68 +258,54 @@ func testHeader(resp *http.Response, cookies []*http.Cookie, t, orig *Test) {
 
 	if len(t.CookieCond) > 0 {
 		debug("Testing Cookies")
+		for _, cc := range t.CookieCond {
+			testSingleCookie(orig, cc, cookies)
+		}
+	}
+}
+
+func testSingleCookie(orig *Test, cc Condition, cookies []*http.Cookie) {
+	ci := cc.Info("cookie")
+	a := strings.Split(cc.Key, ":")
+	name, domain, path, field := a[0], a[1], a[2], a[3]
+	idx := cookieIndex(cookies, name, domain, path)
+	if cc.Op == "." {
+		panic("'Mere cookie existence' not implemented jet....")
 	} else {
-		return
-	}
-
-	for _, cc := range t.CookieCond {
-		ci := cc.Info("cookie")
-		var name, field string
-		if fi := strings.Index(cc.Key, ":"); fi != -1 {
-			name = cc.Key[:fi]
-			field = cc.Key[fi+1:]
-		} else {
-			name = cc.Key
+		if idx == -1 {
+			orig.Failed(fmt.Sprintf("%s: Cookie was not set at all.", ci))
+			return
 		}
-		idx := cookieIndex(cookies, name)
-
-		if cc.Op == "." {
-			// just test existence
-			if field != "" {
-				error("Ooooops: field but op==.")
-			}
-			if idx != -1 && cc.Neg {
-				orig.Failed(fmt.Sprintf("%s: Cookie _was_ set.", ci))
-			} else if (idx != -1 && !cc.Neg) || (idx == -1 && cc.Neg) {
-				orig.Passed(ci)
-			} else if idx == -1 && !cc.Neg {
-				orig.Failed(fmt.Sprintf("%s: Cookie was not set.", ci))
-			} else {
-				error("Oooops: This cannot happen....")
-			}
+		rc := cookies[idx]
+		var v string
+		switch field {
+		case "value":
+			v = rc.Value
+		case "path":
+			v = rc.Path
+		case "domain":
+			v = rc.Domain
+		case "expires":
+			v = rc.Expires.Format(http.TimeFormat)
+		case "secure":
+			v = fmt.Sprintf("%t", rc.Secure)
+		case "httponly":
+			v = fmt.Sprintf("%t", rc.HttpOnly)
+		case "maxage":
+			v = fmt.Sprintf("%d", rc.MaxAge)
+		case "delete":
+			testCookieDeletion(orig, rc, cc.Neg, ci)
+			return
+		default:
+			orig.Error(ci + ": Oooops: Unknown cookie field " + field)
+			return
+		}
+		if !cc.Fullfilled(v) {
+			orig.Failed(fmt.Sprintf("%s: Got '%s'", ci, v))
 		} else {
-			if idx == -1 {
-				orig.Failed(fmt.Sprintf("%s: Cookie was not set at all.", ci))
-				continue
-			}
-			rc := cookies[idx]
-			var v string
-			switch field {
-			case "Value":
-				v = rc.Value
-			case "Path":
-				v = rc.Path
-			case "Domain":
-				v = rc.Domain
-			case "Expires":
-				v = rc.Expires.Format(http.TimeFormat)
-			case "Secure":
-				v = fmt.Sprintf("%t", rc.Secure)
-			case "HttpOnly":
-				v = fmt.Sprintf("%t", rc.HttpOnly)
-			case "MaxAge":
-				v = fmt.Sprintf("%d", rc.MaxAge)
-			default:
-				error("Oooops: Unknown cookie field " + field)
-			}
-			if !cc.Fullfilled(v) {
-				orig.Failed(fmt.Sprintf("%s: Got '%s'", ci, v))
-			} else {
-				orig.Passed(ci)
-			}
+			orig.Passed(ci)
 		}
 	}
-	return
 }
 
 // Test response body.
@@ -545,11 +563,10 @@ func addMissingHeader(test, global *map[string]string) {
 }
 
 // Add cookie conditions from global to test.
-func addMissingCookies(test, global *map[string]string) {
-	for k, v := range *global {
-		if _, ok := (*test)[k]; !ok {
-			(*test)[k] = v
-			trace("Adding missing cookie %s =%s", k, v)
+func addMissingCookies(test, global *CookieJar, u *url.URL) {
+	for _, cookie := range global.Select(u) {
+		if test.Contains(cookie.Domain, cookie.Path, cookie.Name) == nil {
+			test.Update(*cookie, cookie.Domain)
 		}
 	}
 }
@@ -596,7 +613,8 @@ func prepareTest(t, global *Test) *Test {
 	test := t.Copy()
 	if global != nil {
 		addMissingHeader(&test.Header, &global.Header)
-		addMissingCookies(&test.Cookie, &global.Cookie)
+		u, _ := url.Parse(test.Url) // TODO: make sure during pasring that url is parsabel :)
+		addMissingCookies(test.Jar, global.Jar, u)
 		test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
 	}
@@ -610,6 +628,15 @@ func prepareTest(t, global *Test) *Test {
 		test.Header["Authorization"] = "Basic " + string(encoded)
 		test.Header["Basic-Authorization"] = "", false
 	}
+
+	// Domain in cookie defaults to possible changable host of request...
+	if u, eu := url.Parse(test.Url); eu == nil {
+		host := u.Host
+		for i := range test.Jar.cookies {
+			test.Jar.cookies[i].Domain = strings.Replace(test.Jar.cookies[i].Domain, "{CURRENT}", host, 1)
+		}
+	}
+
 	test.Dump = t.Dump
 	supertrace("Test to execute = \n%s", test.String())
 	return test
@@ -936,20 +963,14 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 
 			trace("Recieved cookies: %v", cookies)
 			if len(cookies) > 0 && test.KeepCookies() == 1 && global != nil {
-				if global.Cookie == nil {
-					global.Cookie = make(map[string]string)
+				if global.Jar == nil {
+					global.Jar = NewCookieJar()
 				}
 
-				// TODO: proper cookie handling of expiration/deletion
+				u, _ := url.Parse(url_)
 				for _, c := range cookies {
-					if c.MaxAge == -999 { // Delete
-						trace("Deleting cookie %s from global (delete req from server).",
-							c.Name)
-						global.Cookie[c.Name] = "", false
-					} else {
-						trace("Storing cookie %s in global.", c.Name)
-						global.Cookie[c.Name] = c.Value
-					}
+					trace("Updating cookie %s in global jar.", c.Name)
+					global.Jar.Update(*c, u.Host)
 				}
 			}
 

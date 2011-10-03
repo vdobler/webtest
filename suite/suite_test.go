@@ -366,9 +366,9 @@ Display Cookies
 ----------------------
 GET ${URL}/cookie.html
 SEND-COOKIE
-	MyFirst     MyFirstCookieValue
-	Sessionid   abc123XYZ
-	JSESSIONID  5AE613FC082DEB79484C774677651164
+	MyFirst     := MyFirstCookieValue
+	Sessionid   := abc123XYZ
+	JSESSIONID  := 5AE613FC082DEB79484C774677651164
 	
 TAG
 	li == Sessionid :: abc123XYZ
@@ -386,12 +386,12 @@ RESPONSE
 	Final-Url	==	${URL}/post
 SET-COOKIE
 	TheSession         ~=  randomsessionid
-	TheSession:Value   ==  randomsessionid
-	TheSession:Path    _=  /de/
-	TheSession:Secure  ==  true
-	TheSession:Domain  =_  .org
-	TheSession:Expires  <  ${NOW + 1 year}
-	TheSession:Expires  >  ${NOW + 1 day}
+	TheSession:::Value   ==  randomsessionid
+	TheSession:::Path    _=  /de/
+	TheSession:::Secure  ==  true
+	TheSession:::Domain  =_  .org
+	TheSession:::Expires  <  ${NOW + 1 year}
+	TheSession:::Expires  >  ${NOW + 1 day}
 	
 BODY
 	Txt  ~=  Post Page 
@@ -422,7 +422,7 @@ PARAM
 RESPONSE
 	Final-Url	==	${URL}/post
 SET-COOKIE
-	TheSession:MaxAge   <   0
+	TheSession:::MaxAge   <   0
 	!TheSession         ~=  randomsessionid
 BODY
 	Txt  ~=  Post Page 
