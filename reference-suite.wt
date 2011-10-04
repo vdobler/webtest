@@ -34,10 +34,10 @@ RESPONSE
 	Status-Code == 200
 SETTINGS
 	# Any request taking longer than 45 seconds is considered an error.
-	Max-Time  45000
+	Max-Time  :=  45000
 CONST
 	# The global BaseUrl of our test server.
-	BaseUrl   http://localhost:8080
+	BaseUrl  :=  http://localhost:8080
 
 	
 #
@@ -149,7 +149,7 @@ GET http://host.to.ping/path.html
 # The header section: add special request header fields here.
 HEADER
 	# add the Accept-Language fields with given value. Note: No colon (:)
-	Accept-Language  de,fr,en
+	Accept-Language  := de,fr,en
 	# Quotes could be used around the value to include leading or trailing
 	# spaces, but request header fields normaly do not contain spaces at 
 	# all.
@@ -171,7 +171,7 @@ HEADER
 	# base64 encoded. No "Basic-Authorization" header will be sent,
 	# instead a correct Authorization header will be sent:
 	# Authorization: Basic=<base64 encoded user credentials>
-	Basic-Authorization	username:password
+	Basic-Authorization  :=  username:password
 	
 	
 #
@@ -332,22 +332,22 @@ Post a Comment
 POST http://my.blog/comment.html
 PARAM
 	# Parameter name and value are given like this. Note: no '='
-	date    2010-03-04
+	date  :=  2010-03-04
 	
 	# As a parameter may have seveal values you need to quote values
 	# with spaces as a space is the delimiter for the different values.
-	name	"Grigori Perelman"
-	text	"A Proof of the Poincare Conjecture"
+	name  :=  "Grigori Perelman"
+	text  :=  "A Proof of the Poincare Conjecture"
 	
 	# Sending multiple values of a parameter (e.g. checkbox)
-	categorie  genius nerd
+	categorie  :=  genius nerd
 	
 	# If one of the multiple values contains a space: Surround _this_
 	# one with quotes
-	categorie  proof "hilbert problem" theorem
+	categorie  :=  proof "hilbert problem" theorem
 	
 	# To send a file use the following syntax:
-	file	@file:relative/path/to/document.pdf
+	file  :=  @file:relative/path/to/document.pdf
 	# Currently there is a bug: You may not send filenames with
 	# special characters (e.g. spaces)
 	# Note: no space allowwed between '@file:' and the filename 
@@ -364,8 +364,8 @@ Force Multipart Upload
 ---------------------------------
 POST:mp http://my.blog/comment.html
 PARAM
-	name     anonymous
-	comment  Cool!
+	name     :=  anonymous
+	comment  :=  Cool!
 	
 	
 #
@@ -406,28 +406,28 @@ Variables
 # resulting in URL beeing http://my.blog/entries/show
 GET ${BaseUrl}/show
 PARAM
-	month 	${Month}
-	year	${Year}
-	user	user-${Name}
+	month 	:=  ${Month}
+	year	:=  ${Year}
+	user	:=  user-${Name}
 TAG
 	# Variable substitution is done in the content part of tags only:
 	# All other elements do not allow variables.
 	h2 == Hello ${Name}!
 CONST
 	# Set value of BaseUrl to http://my.blog/entries. Note: No = sign!
-	BaseUrl  http://my.blog/entries
+	BaseUrl  :=  http://my.blog/entries
 SEQ
 	# Month will be 1 on first run of test, 2 on second, and so on.
 	# Will restart beeing 1 on 13th run of test.
-	Month	1 2 3 4 5 6 7 8 9 10 11 12
+	Month  :=  1 2 3 4 5 6 7 8 9 10 11 12
 RAND
 	# Year is one of the given four selected randomly on each test run.
-	Year 	2004 2005 2006 2007
+	Year  :=  2004 2005 2006 2007
 	
 	# Values with spaces like 'Emil Tom' must be enclosed in quotes as
 	# usual.  Inside double quotes you may use standard go string escapings 
 	# to create special characters e.g. a FEMAL SIGN.
-	Name	Anna "Emil Tom" "Gender: \u2640" "Berta \"The Fat\" Bomb"
+	Name  :=  Anna "Emil Tom" "Gender: \u2640" "Berta \"The Fat\" Bomb"
 	# Name would be one of:
 	#   Anna
 	#   Emil Tom
@@ -436,7 +436,7 @@ RAND
 
 SETTING
 	# Repeat the test 7 times.
-	Repeat	7
+	Repeat	:=  7
 
 
 #
@@ -491,9 +491,9 @@ BODY
 	Txt ~= Job 123 finished.
 SETTING
 	# Wait two seconds after each test
-	Sleep  2000
+	Sleep  :=  2000
 	# Try at most 60 times: Fail if not finished after approx 2 minutes.
-	Tries  60
+	Tries  :=  60
 
 
 #
@@ -516,31 +516,31 @@ Settings
 GET http://host.to.ping/path.html
 SETTING
 	# Number of repetitions of the test.  Set to 0 to "disable" this test.
-	Repeat    12
+	Repeat  :=  12
 	
 	# Number of tries this test is executed at most. The test passes if
 	# one try succeeds (the rest of the possible tries are skipped) and 
 	# fails if all tries fail.
-	Tries    5
+	Tries    := 5
 	# Setting both Tries and Repeat to values > 1 is (currently) undefined. 
 	
 	# Time in ms to sleep after test
-	Sleep    250
+	Sleep   :=  250
 	
 	# Fail if answer is not recievd in less than 300 ms.
-	Max-Time    300
+	Max-Time   :=  300
 	
 	# Keep (store in Global) cookies set by the server answer.  See
 	# below.  Use 0 to turn storage off.
-	Keep-Cookies    1
+	Keep-Cookies  :=  1
 	
 	# Dump (see below in Debugging)
-	Dump    0
+	Dump   :=  0
 	
 	# Abort test suite and fail immediately if this tests fails.
 	# Usefull to skip test which cannot be tested because some setup task
 	# failed.
-	Abort    1
+	Abort  :=  1
 	
 
 #
@@ -627,7 +627,7 @@ SET-COOKIE
 SETTING
 	# Recieved cookies can be stored in the SEND-COOKIE section of the
 	# Global test.  (Usefull for login/session cookies).
-	Keep-Cookies  1
+	Keep-Cookies  :=  1
 	
 
 #
@@ -647,7 +647,7 @@ SETTING
 	# 1 and 2 will dump the whole wiretalk of request and response while
 	# 3 will just dump the recieved response body (and create a new file 
 	# each time)
-	Dump  1
+	Dump  :=  1
 
 
 #
@@ -704,6 +704,8 @@ AFTER
 #   /=   regexp match
 #   _=   line starts with
 #   =_   line ends with
+#   >    logfile did grow more than given number of bytes (unimplemented)
+#   <    logfile did not grow more (unimplemented)
 # The rest of the operators known from the RESPONSE section are undefined.
 # Please note: No spaces in the path to the logfile.
 # Before running any tests the length of the logfile is recorded.  After
@@ -724,6 +726,9 @@ LOG
 	# Make sure that a email is recieved
 	/var/mail/testuser _= Subject: Weekly Traffic Summary
 
+	# Make sure this request does not fill the disk if repeated:
+	# Logfile must not grow less than 120 bytes.  Unimplemented
+	# server/log/error.log < 120
 
 #
 ## Global

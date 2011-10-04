@@ -122,10 +122,7 @@ func trim(s string) string {
 }
 
 func deescape(str string) string {
-	str = strings.Replace(str, "\\\"", "\"", -1)
-	str = strings.Replace(str, "\\n", "\n", -1)
-	str = strings.Replace(str, "\\t", "\t", -1)
-
+	str = fmt.Sprintf("%#v", str)
 	return str
 }
 
@@ -138,7 +135,7 @@ func dequote(str string) (string, os.Error) {
 
 // Return index of first space/tab in s or -1 if none found.
 func firstSpace(s string) int {
-	si := strings.Index(s, " ")
+	si := strings.Index(s, " ") // TODO: use IndexAny?
 	ti := strings.Index(s, "\t")
 	if si == -1 && ti == -1 {
 		return -1
@@ -168,10 +165,21 @@ func (p *Parser) readMap(m *map[string]string) {
 			k = line
 		} else {
 			k = trim(line[:j])
-			v = trim(line[j:])
+			line = trim(line[j:])
+			if !hp(line, ":=") {
+				error("Missing ':=' in line %d.", no)
+				p.okay = false
+				continue
+			}
+			v = trim(line[2:])
+
 		}
-		if hp(v, "\"") && hs(v, "\"") {
-			v = v[1 : len(v)-2]
+		if s, err := dequote(v); err != nil {
+			error("Malformed string '%s' in line %d.", v, no)
+			p.okay = false
+			continue
+		} else {
+			v = s
 		}
 		(*m)[k] = v
 		trace("Added to map (line %d): %s: %s", no, k, v)
@@ -338,17 +346,21 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 			continue
 		}
 
-		k = trim(line[:j])
+		k, line = trim(line[:j]), trim(line[j:])
 		if _, ok := DefaultSettings[k]; !ok {
-			error("Unknown settign '%s'.", k)
+			error("Unknown settign '%s' in line %d.", k, no)
 			p.okay = false
 			continue
 		}
 
-		v = trim(line[j:])
-		if v[0] == '=' { // gracefully eat = sign
-			v = strings.ToLower(trim(v[1:]))
+		if !hp(line, ":=") {
+			error("Missing ':=' in line %d.", no)
+			p.okay = false
+			continue
 		}
+
+		v = strings.ToLower(trim(line[2:]))
+
 		// Some numbers may be given as cleartext. This allows stuff like
 		// SETTING
 		//     Dump         append
@@ -500,6 +512,12 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 		} else {
 			k = trim(line[:j])
 			line = trim(line[j:])
+			if !hp(line, ":=") {
+				error("Missing ':=' in line %d.", no)
+				p.okay = false
+				continue
+			}
+			line = trim(line[2:])
 			var err os.Error
 			list, err = StringList(line)
 			if err != nil {
@@ -1014,228 +1032,5 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	if !p.okay {
 		err = ParserError{"General problems."}
 	}
-	return
-}
-
-// 
-// ------------------------------------------------------------------------
-// Pretty Printing --------------------------------------------------------
-// ------------------------------------------------------------------------
-//
-func needQuotes(s string, containedSpacesNeedQuotes bool) bool {
-	if containedSpacesNeedQuotes && strings.Contains(s, " ") {
-		return true
-	}
-	return strings.Contains(s, "\"") || strings.HasPrefix(s, " ") || strings.HasSuffix(s, " ") || strings.Contains(s, "\n") || strings.Contains(s, "\t")
-}
-
-func quote(s string, containedSpacesNeedQuotes bool) string {
-	if !needQuotes(s, containedSpacesNeedQuotes) {
-		return s
-	}
-	s = strings.Replace(s, "\"", "\\\"", -1)
-	s = strings.Replace(s, "\n", "\\n", -1)
-	s = strings.Replace(s, "\t", "\\t", -1)
-
-	return "\"" + s + "\""
-}
-
-// Prety print a map m with title. 
-func formatMap(title string, m *map[string]string) (f string) {
-	if len(*m) == 0 {
-		return
-	}
-
-	f = title + "\n"
-	longest := 0
-	for k, _ := range *m {
-		if len(k) > longest {
-			longest = len(k)
-		}
-	}
-	for k, v := range *m {
-		f += fmt.Sprintf("\t%-*s  %s\n", longest, k, quote(v, false))
-	}
-	return
-}
-
-func formatSettings(m *map[string]int) (f string) {
-	if len(*m) == 0 {
-		return
-	}
-
-	f = "SETTING\n"
-	longest := 0
-	for k, _ := range *m {
-		if len(k) > longest {
-			longest = len(k)
-		}
-	}
-	for k, v := range *m {
-		f += fmt.Sprintf("\t%-*s  ", longest, k)
-		switch k {
-		case "Dump":
-			switch v {
-			case 0:
-				f += "false"
-			case 1:
-				f += "create"
-			case 2:
-				f += "append"
-			case 3:
-				f += "body"
-			default:
-				f += fmt.Sprintf("%d", v)
-			}
-		case "Validate":
-			switch v {
-			case 0:
-				f += "false"
-			case 1:
-				f += "links"
-			case 2:
-				f += "html"
-			case 3:
-				f += "links+html"
-			default:
-				f += fmt.Sprintf("%d", v)
-			}
-
-		default:
-			f += fmt.Sprintf("%d", v)
-		}
-		f += "\n"
-	}
-
-	return
-}
-
-// Pretty print a multi-map m.
-func formatMultiMap(title string, m *map[string][]string) (f string) {
-	if len(*m) > 0 {
-		f = title + "\n"
-		longest := 0
-		for k, _ := range *m {
-			if len(k) > longest {
-				longest = len(k)
-			}
-		}
-		for k, l := range *m {
-			f += fmt.Sprintf("\t%-*s ", longest, k)
-			for _, v := range l {
-				f += " " + quote(v, true)
-			}
-			f += "\n"
-		}
-	}
-	return
-}
-
-// Pretty print a list of Conditions m.
-func formatCond(title string, m *[]Condition) (f string) {
-	if len(*m) > 0 {
-		f = title + "\n"
-		longest := 0
-		for _, c := range *m {
-			k := c.Key + c.Range.String()
-			if len(k) > longest {
-				longest = len(k)
-			}
-		}
-		for _, c := range *m {
-			if c.Neg {
-				f += "\t!"
-			} else {
-				f += "\t "
-			}
-			if c.Op != "." {
-				f += fmt.Sprintf("%-*s  %2s  %s\n", longest, c.Key+c.Range.String(), c.Op, quote(c.Val, false))
-			} else {
-				f += c.Key + "\n"
-			}
-		}
-	}
-	return
-}
-
-// Pretty print a list of commands/args
-func formatCommand(title string, cmd [][]string) (f string) {
-	if len(cmd) == 0 {
-		return
-	}
-	f = title + "\n"
-	for _, c := range cmd {
-		f += "\t"
-		for _, a := range c {
-			f += quote(a, true) + " "
-		}
-		f += "\n"
-	}
-	return
-}
-
-// Pretty print a list of log conditions. 
-func formatLogCond(lc []LogCondition) (f string) {
-	if len(lc) == 0 {
-		return
-	}
-	f = "LOG\n"
-	for _, c := range lc {
-		f += "\t" + c.String() + "\n"
-	}
-
-	return
-}
-
-func formatSendCookies(jar *CookieJar) (s string) {
-	if len(jar.All()) == 0 {
-		return
-	}
-	s = "SEND-COOKIE\n"
-	for _, cookie := range jar.All() {
-		s += fmt.Sprintf("\t%s:%s:%s", cookie.Name, cookie.Domain, cookie.Path)
-		if cookie.Secure {
-			s += ":Secure"
-		}
-		s += "  :=  "
-		s += cookie.Value + "\n" // TODO: encode/quote
-	}
-	return
-}
-
-// String representation as as used by the parser.
-func (t *Test) String() (s string) {
-	s = "-------------------------------\n" + t.Title + "\n-------------------------------\n"
-	s += t.Method + " " + t.Url + "\n"
-	s += formatMap("CONST", &t.Const)
-	s += formatMultiMap("SEQ", &t.Seq)
-	s += formatMultiMap("RAND", &t.Rand)
-	s += formatCommand("BEFORE", t.Before)
-	s += formatMultiMap("PARAM", &t.Param)
-	s += formatMap("HEADER", &t.Header)
-	s += formatSendCookies(t.Jar)
-	s += formatCond("RESPONSE", &t.RespCond)
-	s += formatCond("SET-COOKIE", &t.CookieCond)
-	s += formatCond("BODY", &t.BodyCond)
-	if len(t.Tag) > 0 {
-		s += "TAG\n"
-		for i, tagCond := range t.Tag {
-			fts := tagCond.String()
-			if i > 0 && strings.Contains(fts, "\n") {
-				s += "\t\n"
-			}
-			s += "\t" + fts + "\n"
-		}
-	}
-	specSet := make(map[string]int) // map with non-standard settings
-	for k, v := range t.Setting {
-		if dflt, ok := DefaultSettings[k]; ok && v != dflt {
-			specSet[k] = v
-		}
-	}
-	s += formatCommand("AFTER", t.After)
-	s += formatLogCond(t.Log)
-	s += formatSettings(&specSet)
-
 	return
 }

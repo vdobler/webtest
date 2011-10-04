@@ -7,6 +7,7 @@ GOFILES=\
 	condition.go\
 	variables.go\
 	parser.go\
+	prettyp.go\
 	http.go\
 	cookie.go
 

@@ -111,13 +111,13 @@ All Sections
 ---------------------
 GET http://localhost:54123/
 CONST
-	a b
+	a := b
 RAND
-	c d
+	c := d
 SEQ
-	d e
+	d := e
 HEADER
-	MyHeader  abc
+	MyHeader  :=  abc
 RESPONSE
 	Status-Code  == 200
 BODY
@@ -129,7 +129,7 @@ SEND-COOKIE
 SET-COOKIE
 	a:localhost:/MaxAge  > 5
 SETTING
-	Sleep 1
+	Sleep := 1
 BEFORE
 	bash -c echo
 AFTER
@@ -141,16 +141,16 @@ Variants
 ---------------------
 GET http://localhost:54123/
 CONST
-	a b
-	bbb ccc
-	xy foo bar
-	z foo "bar" baz
-	zz  " foo "
+	a := b
+	bbb := ccc
+	xy := foo bar
+	z := foo "bar" baz
+	zz := " foo "
 SEQ
-	c d
-	d e fff 123 "Hallo" "Hallo Welt" xyz
+	c := d
+	d := e fff 123 "Hallo" "Hallo Welt" xyz
 HEADER
-	MyHeader  abc
+	MyHeader := abc
 RESPONSE
 	A  == 200
 	B  /= 200
@@ -267,7 +267,8 @@ SEND-COOKIE
 SET-COOKIE
 	a:localhost:/MaxAge  > 5
 SETTING
-	Sleep 1
+	Sleep := 1
+	Dump := append
 BEFORE
 	bash -c echo
 	bash -c "echo Hallo Welt > _file"
