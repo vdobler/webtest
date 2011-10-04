@@ -273,6 +273,20 @@ BEFORE
 	bash -c echo
 	bash -c "echo Hallo Welt > _file"
 `,
+		`
+---------------------
+Tag Spec
+---------------------
+GET x
+TAG
+	[
+			div
+				h2
+				p
+					span
+				h3
+	]
+`,
 	}
 
 	for i, s := range suites {

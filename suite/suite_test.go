@@ -9,458 +9,44 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"launchpad.net/gocheck"
 )
 
 var (
-	port       = ":54123"
-	host       = "http://localhost"
-	theSuite   *Suite
 	skipStress bool = true
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
 var testserverStayAlive int64 = 0
 
-func TestNextPart(t *testing.T) {
-	var nextPartER [][4]string = [][4]string{[4]string{"Hallo", "Hallo", "", ""},
-		[4]string{"Hallo ${abc}", "Hallo ", "abc", ""},
-		[4]string{"Hallo ${abc", "Hallo ${abc", "", ""},
-		[4]string{"Hallo ${abc.}", "Hallo ${abc.}", "", ""},
-		[4]string{"Hallo ${a} du", "Hallo ", "a", " du"},
-		[4]string{"Hallo ${abc} du ${da} welt", "Hallo ", "abc", " du ${da} welt"},
-		[4]string{"${xyz}", "", "xyz", ""},
-		[4]string{"${xyz} 123", "", "xyz", " 123"},
-		[4]string{"Time ${NOW +3minutes-1hour+12days} UTC", "Time ", "NOW +3minutes-1hour+12days", " UTC"},
-	}
-	for _, exp := range nextPartER {
-		pre, vn, post := nextPart(exp[0])
-		// fmt.Printf("%s:\n", exp[0])
-		if pre != exp[1] || vn != exp[2] || post != exp[3] {
-			t.Error("Expected " + exp[0] + ", " + exp[1] + ", " + exp[2] + " but got " + pre + ", " + vn + ", " + post)
+func TestGoCheckInit(t *testing.T) { gocheck.TestingT(t) }
+
+type S struct{}
+
+var _ = gocheck.Suite(&S{})
+
+func (s *S) SetUpSuite(c *gocheck.C) {
+	go func() {
+		http.Handle("/html.html", http.HandlerFunc(htmlHandler))
+		http.Handle("/bin.bin", http.HandlerFunc(binHandler))
+		http.Handle("/post", http.HandlerFunc(postHandler))
+		http.Handle("/404.html", http.NotFoundHandler())
+		http.Handle("/cookie.html", http.HandlerFunc(cookieHandler))
+		http.Handle("/redirect/", http.HandlerFunc(redirectHandler))
+		fmt.Printf("\nRunning test server on http://localhost:54123\n")
+		if err := http.ListenAndServe(":54123", nil); err != nil {
+			c.Fatalf("Cannot run test server on port: %s", err.String())
 		}
-	}
+	}()
+	time.Sleep(2e8)
 }
 
-func TestNowValue(t *testing.T) {
-	type tft struct {
-		f string
-		i int
-	}
-	// Fri, 03 Jun 2011 21:20:05 UTC
-	//           1         2
-	// 01234567890123456789012345678
-	testNowValues := []struct {
-		d string
-		i int
-	}{{"", 0},
-		{"+1hour", 19},
-		{"+10 hours", 18},
-		{"+2 days", 11},
-		{"+40days", 11},
-		{"+10days - 2hours + 10 seconds", 24},
-		{"+ 1 month", 11},
-		{"+ 12 month", 16},
-		{"+ 13 month", 16},
-		{"- 4 months", 16},
-		{"- 13 month", 16},
-		{"+ 1 year", 16},
-		{"+ 12 year", 16},
-		{"- 11 years", 16},
-	}
-	for _, x := range testNowValues {
-		now := nowValue("", http.TimeFormat, true)
-		then := nowValue(x.d, http.TimeFormat, true)
-		if !(now[x.i:] == then[x.i:]) {
-			t.Error(now + " " + x.d + " unexpected " + then)
-		}
-	}
-}
-
-func TestStop(t *testing.T) {
-	// os.Exit(0)
-}
-
-var suiteTmpl = `
-----------------------
-Global
-----------------------
-GET http://wont.use
-RESPONSE
-	Status-Code	== 200
-CONST
-	URL	 %s%s
-
-# Test no 1
-----------------------
-Basic Test
-----------------------
-GET ${URL}/html.html
-RESPONSE
-	 Fancy-Header  == Important Value
-	!Fancy-Header  == Wrong
-	 Fancy-Header  ~= Important Value
-	 Fancy-Header  ~= Value
-	 Fancy-Header  _= Important
-	 Fancy-Header  _= Important Value
-	!Fancy-Header  _= Value
-	!Fancy-Header  =_ Important
-	 Fancy-Header  =_ Important Value
-	 Fancy-Header  =_ Value
-	 Fancy-Header  /= Important.*
-	 Fancy-Header  /= ^Imp.*lue$
-	!Fancy-Header  /= Wrong
-	!Fancy-Header  /= ^Wro.*ng$
-BODY
-	 Txt  ~= Braunschweig
-	 # 5765696c6572 = hex(Weiler)
-	 Bin  ~= 5765696c6572
-TAG
-	 title == Dummy HTML 1
-	 p class=a
-	!p class=c
-	!p == Wrong.*
-	
-# Test no 2
-----------------------
-Binary Test 1
-----------------------
-GET ${URL}/bin.bin
-RESPONSE
-	Content-Type  ==  application/data
-BODY
-	Txt  ~=  Hallo Welt!
-	Bin  ==  010748616c6c6f2057656c74210aFFFE
-	Bin  _=  01074861
-	Bin  =_  FFFE
-	Bin  ~=  48616c
-
-# Test no 3
-----------------------
-Binary Test 2
-----------------------
-GET ${URL}/bin.bin
-PARAM
-	sc  401
-RESPONSE
-	Status-Code    ==  401
-	Content-Type  ==  application/data
-BODY
-	Txt  ~=  Hallo Welt!
-
-# Test no 4
-----------------------
-Sequence Test
-----------------------
-GET ${URL}/html.html
-SEQ
-	name   Anna Berta Claudia "Doris Dagmar" Emmely
-PARAM
-	text ${name}
-BODY
-	Txt  ~=  ${name}
-SETTING
-	Repeat	3
-
-# Test no 5
-----------------------
-Random Test
-----------------------
-GET ${URL}/html.html
-RAND
-	name   Anna Berta Claudia "Doris Dagmar" Emmely
-PARAM
-	text ${name}
-BODY
-	Txt  ~=  ${name}
-SETTING
-	Repeat	10
-	
-# Test no 6
--------------------------
-Plain Post (no Redirect)
--------------------------
-POST ${URL}/post
-RESPONSE
-	Final-Url	==	${URL}/post
-BODY
-	Txt  ~=  Post Page 
-
-# Test no 7
--------------------------
-Post (with Redirect)
--------------------------
-POST ${URL}/post
-PARAM
-	q		html.html
-RESPONSE
-	Final-Url	==	${URL}/html.html
-TAG
-	h1 == Dummy Document *
-	p class=a == *Braunschweig Weiler
-SETTING
-	Dump 1
-
-	
-# Test no 8
-------------------------
-Too slow
-------------------------
-GET ${URL}/html.html
-PARAM
-	sleep	110
-SETTING
-	Max-Time	100
-	
-	
-# Test no 9
-----------------------
-Variable Subst
-----------------------
-GET ${URL}/html.html
-PARAM
-	text ${SomeGlobal}
-BODY
-	Txt  ~=  GlobalValue
-	
-	
-# Test no 10
-----------------------
-Multiple Parameters
-----------------------
-GET ${URL}/html.html
-PARAM
-	text 	Hund Katze "Anna Berta"
-	
-	
-# Test no 11
--------------------------
-Filepost
--------------------------
-POST ${URL}/post
-PARAM
-	datei	@file:condition.go
-RESPONSE
-	Final-Url	==	${URL}/post
-BODY
-	Txt  ~=  Post Page 
-
-# Test no 12
-----------------------
-Encoding 1
-----------------------
-GET ${URL}/html.html
-PARAM
-	text	"€ & <ÜÖÄ> = üöa" 
-BODY
-	Txt  ~=  UTF-8 Umlaute äöüÄÖÜ Euro €
-	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
-	
-# Test no 13
--------------------------
-Encoding 2
--------------------------
-POST ${URL}/post
-PARAM
-	datei	@file:condition.go
-	text	"€ & <ÜÖÄ> = üöa"
-RESPONSE
-	Final-Url	==	${URL}/post
-BODY
-	Txt  ~=  Post Page 
-	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
-
-# Test no 14
--------------------------
-Multipart Post
--------------------------
-POST:mp ${URL}/post
-RESPONSE
-	Final-Url	==	${URL}/post
-PARAM
-	text ABCDwxyz1234
-BODY
-	Txt  ~=  Post Page
-	Txt  ~= ABCDwxyz1234
-SETTING
-	Dump 1
-
-# Test no 15
-----------------------
-Now
-----------------------
-GET ${URL}/html.html
-PARAM
-	text 	"Its now ${NOW + 3hours -15minutes | 02.01.2006 15:04:05} oclock"
-BODY
-	Txt  ~=  Its now ${NOW + 3hours -15minutes | 02.01.2006 15:04:05} oclock
-SETTING
-	Repeat	5
-	Sleep   1500
-
-----------------------
-Passing Gate
-----------------------
-GET ${URL}/html.html
-PARAM
-	xxx  ${val} 
-SEQ
-	val  foo bar
-TAG
-	h2 class=okay == Finished.
-SETTING
-	Dump   1
-	Repeat 1
-	Tries  5
-
-----------------------
-Failing Gate
-----------------------
-GET ${URL}/html.html
-PARAM
-	xxx  baz
-TAG
-	h2 class=okay == Finished.
-SETTING
-	Dump   1
-	Tries  2
-
-# Test no 18
-----------------------
-Logfile (Pass)
-----------------------
-GET ${URL}/html.html
-BEFORE 
-	bash -c "echo Stamp0 ABC > log.log; echo Stamp1 FALSCH >> log.log; echo Stamp2 Wichtig >> log.log"
-SETTING
-	Sleep   150
-LOG
-	log.log ~= Wichtig
-	log.log _= Stamp[html]
-	log.log _= Sehr Wichtig
-	! log.log ~= Komisch
-
-# Test no 19
-----------------------
-Logfile (Fail)
-----------------------
-GET ${URL}/html.html
-BEFORE 
-	bash -c "echo Stamp0 ABC > log.log; echo Stamp1 FALSCH >> log.log; echo Stamp2 Wichtig >> log.log"
-SETTING
-	Sleep   150
-LOG
-	! log.log ~= Wichtig
-	log.log ~= Komisch
-`
-
-var cookieSuite = fmt.Sprintf(`
-----------------------
-Global
-----------------------
-GET http://wont.use
-CONST
-	URL	 %s%s
-
-----------------------
-Display Cookies
-----------------------
-GET ${URL}/cookie.html
-SEND-COOKIE
-	MyFirst     := MyFirstCookieValue
-	Sessionid   := abc123XYZ
-	JSESSIONID  := 5AE613FC082DEB79484C774677651164
-	
-TAG
-	li == Sessionid :: abc123XYZ
-	li == MyFirst :: MyFirstCookieValue
-	li == JSESSIONID :: 5AE613FC082DEB79484C774677651164
-	
-----------------------
-Login
-----------------------
-POST ${URL}/post
-PARAM
-	# cookie parameter is added to response header by /post handler
-	cookie  TheSession=randomsessionid
-RESPONSE
-	Final-Url	==	${URL}/post
-SET-COOKIE
-	TheSession         ~=  randomsessionid
-	TheSession:::Value   ==  randomsessionid
-	TheSession:::Path    _=  /de/
-	TheSession:::Secure  ==  true
-	TheSession:::Domain  =_  .org
-	TheSession:::Expires  <  ${NOW + 1 year}
-	TheSession:::Expires  >  ${NOW + 1 day}
-	
-BODY
-	Txt  ~=  Post Page 
-SETTING
-	# Store recieved Cookies in Global
-	Keep-Cookies  1
-	Dump          1
-	
-	
----------------------
-Access
----------------------
-GET ${URL}/cookie.html
-TAG
-	li == TheSession :: randomsessionid
-
-SETTING
-	Dump          1
-
-
-----------------------
-Logout
-----------------------
-POST ${URL}/post
-PARAM
-	# cookie parameter is added to response header by /post handler
-	cookie  TheSession=-DELETE-
-RESPONSE
-	Final-Url	==	${URL}/post
-SET-COOKIE
-	TheSession:::MaxAge   <   0
-	!TheSession         ~=  randomsessionid
-BODY
-	Txt  ~=  Post Page 
-SETTING
-	# Store recieved/deleted cookies in Global
-	Keep-Cookies  1
-	Dump          1
-	
----------------------
-Failing Access
----------------------
-GET ${URL}/cookie.html
-TAG
-	! li == *TheSession*
-
-
-`,
-	host, port)
-
-func TestServer(t *testing.T) {
-	go StartHandlers(port, t)
-}
-
-func StartHandlers(addr string, t *testing.T) (err os.Error) {
-	http.Handle("/html.html", http.HandlerFunc(htmlHandler))
-	http.Handle("/bin.bin", http.HandlerFunc(binHandler))
-	http.Handle("/post", http.HandlerFunc(postHandler))
-	http.Handle("/404.html", http.NotFoundHandler())
-	http.Handle("/cookie.html", http.HandlerFunc(cookieHandler))
-	http.Handle("/redirect/", http.HandlerFunc(redirectHandler))
-	fmt.Printf("\nRunning test server on %s\n", addr)
-	err = http.ListenAndServe(addr, nil)
-	if err != nil {
-		fmt.Printf("Cannot run test server on port %s.\nFAIL\n", addr)
-		os.Exit(1)
-	}
-	return
-}
+//
+// ######################################################################
+//
+// Webserver
+//
 
 var htmlPat = `<!DOCTYPE html>
 <html><head><title>Dummy HTML 1</title></head>
@@ -542,7 +128,9 @@ func postHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if t != "" {
-		w.Header().Set("Location", host+port+"/"+t)
+		// w.Header().Set("Location", "http://localhost:54123/"+t)
+		// w.Header().Set("Location", "localhost:54123/"+t)
+		w.Header().Set("Location", "/"+t)
 		w.WriteHeader(302)
 	} else {
 		text := req.FormValue("text")
@@ -575,28 +163,28 @@ func redirectHandler(w http.ResponseWriter, req *http.Request) {
 
 	switch lastPath(req) {
 	case "redirect", "":
-		w.Header().Set("Location", host+port+"/redirect/first")
+		w.Header().Set("Location", "localhost:54123/redirect/first")
 		w.Header().Add("Set-Cookie", "rda=rda; Path=/")
 		w.Header().Add("Set-Cookie", "clearme=eraseme; Path=/")
 		w.WriteHeader(302)
 		return
 	case "first":
-		w.Header().Set("Location", host+port+"/redirect/second")
+		w.Header().Set("Location", "localhost:54123/redirect/second")
 		w.Header().Set("Set-Cookie", "rdb=rdb; Path=/redirect")
 		w.WriteHeader(302)
 		return
 	case "second":
-		w.Header().Set("Location", host+port+"/redirect/third")
+		w.Header().Set("Location", "localhost:54123/redirect/third")
 		w.Header().Set("Set-Cookie", "rdc=rdc; Path=/otherpath")
 		w.WriteHeader(302)
 		return
 	case "third":
-		w.Header().Set("Location", host+port+"/redirect/fourth")
+		w.Header().Set("Location", "localhost:54123/redirect/fourth")
 		w.Header().Set("Set-Cookie", "clearme=; Path=/; Max-Age=0")
 		w.WriteHeader(302)
 		return
 	case "fourth":
-		w.Header().Set("Location", host+port+"/redirect/last")
+		w.Header().Set("Location", "localhost:54123/redirect/last")
 		rdav, rdae := req.Cookie("rda")
 		rdbv, rdbe := req.Cookie("rdb")
 		_, rdce := req.Cookie("rdc")
@@ -652,7 +240,7 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if t := req.FormValue("goto"); t != "" {
-		w.Header().Set("Location", host+port+"/"+t)
+		w.Header().Set("Location", "localhost:54123/"+t)
 		w.WriteHeader(302)
 	} else {
 		w.WriteHeader(200)
@@ -669,278 +257,16 @@ func cookieHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func passed(test *Test, t *testing.T) bool {
-	if !strings.HasPrefix(test.Status(), "PASSED") {
-		f := ""
-		for _, x := range test.Result {
-			if !strings.HasPrefix(x, "Passed") {
-				f += "  " + x + "\n"
-			}
-		}
-		t.Logf("Result from test %s:\n%s", test.Title, f)
-		t.Fail()
-		return false
-	}
-	return true
-}
-
-func failed(test *Test, t *testing.T) bool {
-	if strings.HasPrefix(test.Status(), "PASSED") {
-		t.Logf("Test %s expected to fail but passed.\n%s", test.Title, test.Result)
-		t.Fail()
-		return false
-	}
-	return true
-}
-
-func TestParsing(t *testing.T) {
-	suiteText := fmt.Sprintf(suiteTmpl, host, port)
-	p := NewParser(strings.NewReader(suiteText), "suiteText")
-	var err os.Error
-	theSuite, err = p.ReadSuite()
-	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
-	}
-}
-
-func TestTagStructParsing(t *testing.T) {
-	var tagSuite = `
----------------------
-Tag Spec
----------------------
-GET x
-TAG
-	[
-			div
-				h2
-				p
-					span
-				h3
-	]
-`
-
-	p := NewParser(strings.NewReader(tagSuite), "tagSuite")
-	s, err := p.ReadSuite()
-	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
-	}
-	erg := s.Test[0].String()
-	if !strings.Contains(erg,
-		"  [\n\t\tdiv\n\t\t  h2\n\t\t  p\n\t\t    span\n\t\t  h3\n\t  ]\n") {
-		t.Error("Nested tags parsed wrong: " + fmt.Sprintf("%#v", erg))
-	}
-
-}
-
-func TestBasic(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(0)
-	passed(&theSuite.Test[0], t)
-}
-
-func TestBin(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(1)
-	passed(&theSuite.Test[1], t)
-	theSuite.RunTest(2)
-	passed(&theSuite.Test[2], t)
-}
-
-func TestSequence(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(3)
-	passed(&theSuite.Test[3], t)
-}
-
-func TestRandom(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(4)
-	passed(&theSuite.Test[4], t)
-}
-
-func TestPlainPost(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(5)
-	passed(&theSuite.Test[5], t)
-}
-
-func TestPost(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(6)
-	passed(&theSuite.Test[6], t)
-}
-
-func TestTooSlow(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(7)
-	failed(&theSuite.Test[7], t)
-}
-
-func TestGlobalSubst(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	Const["SomeGlobal"] = "GlobalValue"
-	theSuite.RunTest(8)
-	passed(&theSuite.Test[8], t)
-}
-
-func TestParameters(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(9)
-	passed(&theSuite.Test[9], t)
-}
-
-func TestFileUpload(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(10)
-	passed(&theSuite.Test[10], t)
-}
-
-func TestEncoding(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(11)
-	passed(&theSuite.Test[11], t)
-	theSuite.RunTest(12)
-	passed(&theSuite.Test[12], t)
-}
-
-func TestMultipartPost(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(13)
-	passed(&theSuite.Test[13], t)
-}
-
-func TestNowVariable(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(14)
-	passed(&theSuite.Test[14], t)
-}
-
-func TestTries(t *testing.T) {
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(15)
-	passed(&theSuite.Test[15], t)
-	theSuite.RunTest(16)
-	failed(&theSuite.Test[16], t)
-}
-
-func TestLogfiles(t *testing.T) {
-	LogLevel = 5
-	if theSuite == nil {
-		t.Fatal("No Suite.")
-	}
-	theSuite.RunTest(17)
-	passed(&theSuite.Test[17], t)
-
-	theSuite.RunTest(18)
-	failed(&theSuite.Test[18], t)
-	LogLevel = 2
-}
-
-func TestCookies(t *testing.T) {
-	p := NewParser(strings.NewReader(cookieSuite), "cookieSuite")
-	cs, err := p.ReadSuite()
-	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
-	}
-
-	cs.RunTest(0) // Display Cookies
-	if !passed(&cs.Test[0], t) {
-		t.FailNow()
-	}
-
-	cs.RunTest(1) // Login
-	passed(&cs.Test[1], t)
-	if !passed(&cs.Test[1], t) {
-		t.FailNow()
-	}
-
-	cs.RunTest(2) // Access
-	passed(&cs.Test[2], t)
-
-	cs.RunTest(3) // Logout
-	passed(&cs.Test[3], t)
-
-	cs.RunTest(4) // Failed Access
-	passed(&cs.Test[4], t)
-}
-
-func TestRedirect(t *testing.T) {
-	var redirectionSuite = fmt.Sprintf(`
-----------------------
-Global
-----------------------
-GET http://wont.use
-CONST
-	URL	 %s%s
-
-----------------------
-Redirect
-----------------------
-GET ${URL}/redirect/
-SEND-COOKIE
-	clearme     somevalue
-	theOther othervalue
-
-RESPONSE
-	Final-Url	==	${URL}/redirect/last
-	Status-Code	==	200
-SET-COOKIE
-	rda:Value   ==  rda
-	rdb:Value   ==  rdb
-	rdc:Value   ==  rdc
-	!clearme
-`, host, port)
-
-	p := NewParser(strings.NewReader(redirectionSuite), "redirectionSuite")
-	cs, err := p.ReadSuite()
-	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
-	}
-
-	cs.RunTest(0)
-	if !passed(&cs.Test[0], t) {
-		t.Fail()
-	}
-}
-
-func TestStayAlife(t *testing.T) {
-	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
-	time.Sleep(1000000000 * testserverStayAlive)
-}
-
+//
+// #######################################################################################
+//
+// Stresstesting
+//
 var backgroundSuite = `
 ----------------------
 html
 ----------------------
-GET ${URL}/html.html
+GET http://localhost:54123/html.html
 SETTING
 	Repeat 5
 	Sleep  1
@@ -948,7 +274,7 @@ SETTING
 ----------------------
 bin
 ----------------------
-GET ${URL}/bin.bin
+GET http://localhost:54123/bin.bin
 SETTING
 	Repeat 5
 	Sleep  1
@@ -958,7 +284,7 @@ var stressSuite = `
 ----------------------
 Basic
 ----------------------
-GET ${URL}/html.html
+GET http://localhost:54123/html.html
 RESPONSE
 	Status-Code  ==  200
 BODY
@@ -970,7 +296,7 @@ TAG
 ----------------------
 Binary
 ----------------------
-GET ${URL}/bin.bin
+GET http://localhost:54123/bin.bin
 RESPONSE
 	Content-Type  ==  application/data
 BODY
@@ -982,25 +308,23 @@ func testPrintStResult(txt string, result StressResult) {
 		txt, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
 }
 
-func TestStresstest(t *testing.T) {
+func (s *S) TestStresstest(c *gocheck.C) {
 	if skipStress {
-		return
+		c.Skip("Skipped stresstest")
 	}
 	LogLevel = 1
-	bgText := strings.Replace(backgroundSuite, "${URL}", host+port, -1)
-	suiteText := strings.Replace(stressSuite, "${URL}", host+port, -1)
-	p := NewParser(strings.NewReader(bgText), "background")
+	p := NewParser(strings.NewReader(backgroundSuite), "background")
 	var background *Suite
 	var err os.Error
 	background, err = p.ReadSuite()
 	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
+		c.Fatalf("Cannot read suite: %s", err.String())
 	}
-	p = NewParser(strings.NewReader(suiteText), "suite")
+	p = NewParser(strings.NewReader(stressSuite), "suite")
 	var suite *Suite
 	suite, err = p.ReadSuite()
 	if err != nil {
-		t.Fatalf("Cannot read suite: %s", err.String())
+		c.Fatalf("Cannot read suite: %s", err.String())
 	}
 
 	r0 := suite.Stresstest(background, 0, 3, 100)
@@ -1024,12 +348,499 @@ func TestStresstest(t *testing.T) {
 	testPrintStResult("Load  150", r150)
 	testPrintStResult("Load  200", r200)
 	if r0.Total <= 0 || r0.N <= 0 {
-		t.Error("No tests run without load")
-		t.FailNow()
+		c.Error("No tests run without load")
+		c.FailNow()
 	}
 	if r0.Fail > 0 || r0.Err > 0 {
-		t.Error("Failures without load")
-		t.FailNow()
+		c.Error("Failures without load")
+		c.FailNow()
 	}
 
 }
+
+//
+// ######################################################################
+//
+// Individual Tests
+//
+
+// Helper function to test one test
+func runsingletest(name, st string, no int, ep, ef, ee int, c *gocheck.C) {
+	parser := NewParser(strings.NewReader(st), name)
+	suite, err := parser.ReadSuite()
+	if err != nil {
+		c.Fatalf("Cannot read suite %s: %s", name, err.String())
+		return
+	}
+	if len(suite.Test) <= no {
+		c.Fatalf("Suite %s has only %d tests. %d required to run.", name, len(suite.Test), no)
+		return
+	}
+
+	suite.RunTest(no)
+	p, f, e, _ := suite.Test[no].Stat()
+	// fmt.Printf("pass %d   fail %d   err %d   info %d\n", p, f, e, i)
+	c.Check(p, gocheck.Equals, ep, gocheck.Bug("Wrong number of passed tests"))
+	c.Check(f, gocheck.Equals, ef, gocheck.Bug("Wrong number of failed tests"))
+	c.Check(e, gocheck.Equals, ee, gocheck.Bug("Wrong number of errored tests"))
+
+	if p != ep || f != ef || e != ee {
+		fmt.Println(suite.Test[no].Title)
+		for _, r := range suite.Test[no].Result {
+			fmt.Println(r)
+		}
+	}
+}
+
+// A very basic test
+func (s *S) TestBasic(c *gocheck.C) {
+	st := `
+----------------------
+Basic Test
+----------------------
+GET http://localhost:54123/html.html
+RESPONSE
+	 Fancy-Header  == Important Value
+	!Fancy-Header  == Wrong
+	 Fancy-Header  ~= Important Value
+	 Fancy-Header  ~= Value
+	 Fancy-Header  _= Important
+	 Fancy-Header  _= Important Value
+	!Fancy-Header  _= Value
+	!Fancy-Header  =_ Important
+	 Fancy-Header  =_ Important Value
+	 Fancy-Header  =_ Value
+	 Fancy-Header  /= Important.*
+	 Fancy-Header  /= ^Imp.*lue$
+	!Fancy-Header  /= Wrong
+	!Fancy-Header  /= ^Wro.*ng$
+BODY
+	 Txt  ~= Braunschweig
+	 # 5765696c6572 = hex(Weiler)
+	 Bin  ~= 5765696c6572
+TAG
+	 title == Dummy HTML 1
+	 p class=a
+	!p class=c
+	!p == Wrong.*
+`
+	runsingletest("Basic Test", st, 0, 20, 0, 0, c)
+}
+
+//
+func (s *S) TestBinary(c *gocheck.C) {
+	st := `
+----------------------
+Binary Test 1
+----------------------
+GET http://localhost:54123/bin.bin
+RESPONSE
+	Content-Type  ==  application/data
+BODY
+	Txt  ~=  Hallo Welt!
+	Bin  ==  010748616c6c6f2057656c74210aFFFE
+	Bin  _=  01074861
+	Bin  =_  FFFE
+	Bin  ~=  48616c
+
+# Test no 3
+----------------------
+Binary Test 2
+----------------------
+GET http://localhost:54123/bin.bin
+PARAM
+	sc  :=  401
+RESPONSE
+	Status-Code    ==  401
+	Content-Type  ==  application/data
+BODY
+	Txt  ~=  Hallo Welt!
+`
+	runsingletest("Binary Test 1", st, 0, 6, 0, 0, c)
+	runsingletest("Binary Test 2", st, 1, 3, 0, 0, c)
+}
+
+//
+func (s *S) TestSequence(c *gocheck.C) {
+	st := `
+----------------------
+Sequence Test
+----------------------
+GET http://localhost:54123/html.html
+SEQ
+	name  :=  Anna Berta Claudia "Doris Dagmar" Emmely
+PARAM
+	text  :=  ${name}
+BODY
+	Txt  ~=  ${name}
+SETTING
+	Repeat	:=  3
+`
+	runsingletest("Sequence Test", st, 0, 3, 0, 0, c)
+}
+
+//
+func (s *S) TestRandom(c *gocheck.C) {
+	st := `
+----------------------
+Random Test
+----------------------
+GET http://localhost:54123/html.html
+RAND
+	name :=  Anna Berta Claudia "Doris Dagmar" Emmely
+PARAM
+	text :=  ${name}
+BODY
+	Txt  ~=  ${name}
+SETTING
+	Repeat	:=  10
+`
+	runsingletest("Random Test", st, 0, 10, 0, 0, c)
+}
+
+//
+func (s *S) TestTooSlow(c *gocheck.C) {
+	st := `
+------------------------
+Too slow
+------------------------
+GET http://localhost:54123/html.html
+PARAM
+	sleep  :=  110
+SETTING
+	Max-Time  :=  100
+`
+	runsingletest("Too slow", st, 0, 0, 1, 0, c)
+}
+
+//
+func (s *S) TestPost(c *gocheck.C) {
+	st := `
+-------------------------
+Plain Post (no Redirect)
+-------------------------
+POST http://localhost:54123/post
+RESPONSE
+	Final-Url == http://localhost:54123/post
+BODY
+	Txt  ~=  Post Page 
+
+-------------------------
+Post (with Redirect)
+-------------------------
+POST http://localhost:54123/post
+PARAM
+	q  := html.html
+RESPONSE
+	Final-Url == http://localhost:54123/html.html
+TAG
+	h1 == Dummy Document *
+	p class=a == *Braunschweig Weiler
+SETTING
+	Dump := 1
+
+-------------------------
+Multipart Post
+-------------------------
+POST:mp http://localhost:54123/post
+RESPONSE
+	Final-Url == http://localhost:54123/post
+PARAM
+	text  :=  ABCDwxyz1234
+BODY
+	Txt  ~=  Post Page
+	Txt  ~= ABCDwxyz1234
+SETTING
+	Dump := 1
+`
+	runsingletest("Plain Post", st, 0, 2, 0, 0, c)
+	runsingletest("Post", st, 1, 3, 0, 0, c)
+	runsingletest("Multipart Post", st, 2, 3, 0, 0, c)
+}
+
+//
+func (s *S) TestEncoding(c *gocheck.C) {
+	st := `
+----------------------
+Encoding 1
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	text  :=  "€ & <ÜÖÄ> = üöa" 
+BODY
+	Txt  ~=  UTF-8 Umlaute äöüÄÖÜ Euro €
+	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
+
+-------------------------
+Encoding 2
+-------------------------
+POST http://localhost:54123/post
+PARAM
+	datei  :=  @file:condition.go
+	text   :=  "€ & <ÜÖÄ> = üöa"
+RESPONSE
+	Final-Url  ==  http://localhost:54123/post
+BODY
+	Txt  ~=  Post Page 
+	Txt  ~=  € &amp; &lt;ÜÖÄ&gt; = üöa
+`
+	runsingletest("Encoding 1", st, 0, 2, 0, 0, c)
+	runsingletest("Encoding 2", st, 1, 3, 0, 0, c)
+}
+
+//
+func (s *S) TestNowVariable(c *gocheck.C) {
+	st := `
+----------------------
+Now
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	text :=  "Its now ${NOW + 3hours -15minutes | 02.01.2006 15:04:05} oclock"
+BODY
+	Txt  ~=  Its now ${NOW + 3hours -15minutes | 02.01.2006 15:04:05} oclock
+SETTING
+	Repeat  :=  5
+	Sleep   :=  1500
+`
+	runsingletest("Now", st, 0, 5, 0, 0, c)
+}
+
+//
+func (s *S) TestTries(c *gocheck.C) {
+	st := `
+----------------------
+Passing Gate
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	xxx  :=  ${val} 
+SEQ
+	val  :=  foo bar
+TAG
+	h2 class=okay == Finished.
+SETTING
+	Dump   :=  1
+	Repeat :=  1
+	Tries  :=  5
+
+----------------------
+Failing Gate
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	xxx  :=  baz
+TAG
+	h2 class=okay == Finished.
+SETTING
+	Dump   := 1
+	Tries  := 2
+`
+	runsingletest("Passing Gate", st, 0, 1, 0, 0, c)
+	runsingletest("Failing Gate", st, 1, 0, 1, 0, c)
+}
+
+//
+func (s *S) TestLogfiles(c *gocheck.C) {
+	st := `
+----------------------
+Logfile (Pass)
+----------------------
+GET http://localhost:54123/html.html
+BEFORE 
+	bash -c "echo Stamp0 ABC > log.log; echo Stamp1 FALSCH >> log.log; echo Stamp2 Wichtig >> log.log"
+SETTING
+	Sleep  :=  150
+LOG
+	log.log ~= Wichtig
+	log.log _= Stamp[html]
+	log.log _= Sehr Wichtig
+	! log.log ~= Komisch
+
+----------------------
+Logfile (Fail)
+----------------------
+GET http://localhost:54123/html.html
+BEFORE 
+	bash -c "echo Stamp0 ABC > log.log; echo Stamp1 FALSCH >> log.log; echo Stamp2 Wichtig >> log.log"
+SETTING
+	Sleep  :=  150
+LOG
+	! log.log ~= Wichtig
+	log.log ~= Komisch
+`
+	runsingletest("Logfile pass", st, 0, 4, 0, 0, c)
+	runsingletest("Logfile fail", st, 1, 0, 2, 0, c)
+}
+
+//
+func (s *S) TestFilePost(c *gocheck.C) {
+	st := `
+-------------------------
+Filepost
+-------------------------
+POST http://localhost:54123/post
+PARAM
+	datei  :=  @file:condition.go
+RESPONSE
+	Final-Url  ==  http://localhost:54123/post
+BODY
+	Txt  ~=  Post Page 
+`
+	runsingletest("Filepost", st, 0, 2, 0, 0, c)
+}
+
+//
+func (s *S) TestGlobalSubst(c *gocheck.C) {
+	st := `
+----------------------
+Global
+----------------------
+GET http://wont.use
+RESPONSE
+	Status-Code	== 200
+CONST
+	URL         :=  http://localhost:54123
+	SomeGlobal  :=  GlobalValue
+
+----------------------
+Variable Subst
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	text  := ${SomeGlobal}
+BODY
+	Txt  ~=  GlobalValue
+`
+	runsingletest("Global Subst", st, 0, 2, 0, 0, c)
+}
+
+//
+func (s *S) TestMultipleParameters(c *gocheck.C) {
+	st := `
+----------------------
+Multiple Parameters
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	text  :=  Hund Katze "Anna Berta"
+RESPONSE
+	Status-Code == 200
+
+`
+	runsingletest("Multiple parameters", st, 0, 1, 0, 0, c)
+}
+
+//
+// ######################################################################
+// Complicated stuff
+//
+
+// Cookie suite
+func (s *S) TestCookieSuite(c *gocheck.C) {
+	st := `
+----------------------
+Global
+----------------------
+GET http://wont.use
+CONST
+	URL  := http://localhost:54123
+
+----------------------
+Display Cookies
+----------------------
+GET ${URL}/cookie.html
+SEND-COOKIE
+	MyFirst     := MyFirstCookieValue
+	Sessionid   := abc123XYZ
+	JSESSIONID  := 5AE613FC082DEB79484C774677651164
+	
+TAG
+	li == Sessionid :: abc123XYZ
+	li == MyFirst :: MyFirstCookieValue
+	li == JSESSIONID :: 5AE613FC082DEB79484C774677651164
+SETTING
+	Dump := 1
+
+	
+----------------------
+Login
+----------------------
+POST ${URL}/post
+PARAM
+	# cookie parameter is added to response header by /post handler
+	cookie :=  TheSession=randomsessionid
+RESPONSE
+	Final-Url  ==  ${URL}/post
+SET-COOKIE
+	TheSession         ~=  randomsessionid
+	TheSession:::Value   ==  randomsessionid
+	TheSession::/de/    ==  randomsessionid
+	TheSession:::Secure  ==  true
+	TheSession:my.domain.org::  ==  my.domain.org
+	TheSession:::Expires  <  ${NOW + 1 year}
+	TheSession:::Expires  >  ${NOW + 1 day}
+	
+BODY
+	Txt  ~=  Post Page 
+SETTING
+	# Store recieved Cookies in Global
+	Keep-Cookies :=  1
+	Dump         :=  1
+	
+	
+---------------------
+Access
+---------------------
+GET ${URL}/cookie.html
+TAG
+	li == TheSession :: randomsessionid
+
+SETTING
+	Dump := 1
+
+
+----------------------
+Logout
+----------------------
+POST ${URL}/post
+PARAM
+	# cookie parameter is added to response header by /post handler
+	cookie  := TheSession=-DELETE-
+RESPONSE
+	Final-Url  ==  ${URL}/post
+SET-COOKIE
+	TheSession:::MaxAge   <   0
+	!TheSession         ~=  randomsessionid
+	TheSession:::Delete ==  true
+
+BODY
+	Txt  ~=  Post Page 
+SETTING
+	# Store recieved/deleted cookies in Global
+	Keep-Cookies  := 1
+	Dump          := 1
+	
+---------------------
+Failing Access
+---------------------
+GET ${URL}/cookie.html
+TAG
+	! li == *TheSession*
+
+`
+	runsingletest("Display Cookies", st, 0, 3, 0, 0, c)
+	runsingletest("Login", st, 1, 9, 0, 0, c)
+	runsingletest("Access", st, 2, 1, 0, 0, c)
+	runsingletest("Logout", st, 3, 5, 0, 0, c)
+	runsingletest("Failing Access", st, 4, 1, 0, 0, c)
+}
+
+/*
+//
+func (s *S) Test(c *gocheck.C) {
+	st := `
+	runsingletest("", st, 0, 20, 0, 0, c)
+`
+}
+*/
