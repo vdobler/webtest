@@ -291,6 +291,7 @@ TAG
 
 	for i, s := range suites {
 		// Test initial parsing
+		LogLevel = 8
 		p := NewParser(strings.NewReader(s), fmt.Sprintf("Suite %d", i))
 		suite, err := p.ReadSuite()
 		if err != nil {
@@ -306,6 +307,7 @@ TAG
 			t.Errorf("Cannot re-parse suite %d: %s", i, err.String())
 			continue
 		}
+		LogLevel = 2
 		stt := suite.Test[0].String()
 		if stt != st {
 			t.Errorf("Parsing of suite %d not idempotent.", i)

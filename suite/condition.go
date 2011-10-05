@@ -303,7 +303,7 @@ func (c *Condition) Info(txt string) string {
 		vs = vs[:MaxConditionLen-8-3] + "..." + vs[len(vs)-8:]
 	}
 
-	return fmt.Sprintf("%s (%s) '%s'", txt, c.Id, vs)
+	return fmt.Sprintf("%s (%s) '%s'", txt, c.Id, trim(vs))
 }
 
 func (c *TagCondition) Info(txt string) string {

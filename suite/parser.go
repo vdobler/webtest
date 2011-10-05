@@ -127,6 +127,9 @@ func deescape(str string) string {
 }
 
 func dequote(str string) (string, os.Error) {
+	if len(str) < 2 {
+		return str, nil
+	}
 	if hp(str, "\"") && hs(str, "\"") {
 		return strconv.Unquote(str)
 	}
@@ -152,49 +155,25 @@ func firstSpace(s string) int {
 // Read a string->string map. Stopp if unindented line is found
 func (p *Parser) readMap(m *map[string]string) {
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, _, key, _, val := p.nextStuff([]string{":="})
+		if done {
 			return
 		}
-		line = trim(line)
-		j := firstSpace(line)
-		var k, v string
-		if j == -1 {
-			k = line
-		} else {
-			k = trim(line[:j])
-			line = trim(line[j:])
-			if !hp(line, ":=") {
-				error("Missing ':=' in line %d.", no)
-				p.okay = false
-				continue
-			}
-			v = trim(line[2:])
-
-		}
-		if s, err := dequote(v); err != nil {
-			error("Malformed string '%s' in line %d.", v, no)
+		if s, err := dequote(val); err != nil {
+			error("Malformed string '%s' in line %d.", val, p.i)
 			p.okay = false
 			continue
 		} else {
-			v = s
+			val = s
 		}
-		(*m)[k] = v
-		trace("Added to map (line %d): %s: %s", no, k, v)
+		(*m)[key] = val
+		trace("Added to map (line %d): %s: %s", p.i, key, val)
 	}
 }
 
 // parse smth like  "name:domain:path:Secure ~= value", line must be trimmed
-func parseCookieLine(line, host string) (name, domain, path, field, op, value string, err os.Error) {
-	j := firstSpace(line)
-	if j == -1 {
-		err = os.NewError("Unparsable cookie definition")
-		return
-	}
-	cl, line := line[:j], trim(line[j:])
-	cls := strings.Split(cl, ":")
+func parseCookie(key, host string) (name, domain, path, field string, err os.Error) {
+	cls := strings.Split(key, ":")
 	name = cls[0]
 	switch len(cls) {
 	case 4:
@@ -210,24 +189,6 @@ func parseCookieLine(line, host string) (name, domain, path, field, op, value st
 	case 1:
 	default:
 		err = os.NewError("Too many ':' in cookie definition.")
-		return
-	}
-
-	j = firstSpace(line)
-	if j == -1 {
-		err = os.NewError("Missing operator in cookie definition")
-		return
-	}
-
-	op, value = line[:j], trim(line[j:])
-	switch op {
-	case ":=", "==", "~=", "_=", "=_", "/=", ">", ">=", "<", "<=":
-	default:
-		err = os.NewError(fmt.Sprintf("Unknown operator '%s'.", op))
-		return
-	}
-	if value == "" {
-		err = os.NewError("Missing value in cookie definition")
 		return
 	}
 
@@ -250,26 +211,17 @@ func parseCookieLine(line, host string) (name, domain, path, field, op, value st
 func (p *Parser) readCookieCond(host string) (cc []Condition) {
 	cc = make([]Condition, 0, 10)
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, neg, key, op, value := p.nextStuff([]string{"==", "~=", "_=", "=_", "/=", ">", ">=", "<", "<="})
+		if done {
 			return
 		}
-		line = trim(line)
+
 		cond := Condition{}
-		if line[0] == '!' {
-			cond.Neg = true
-			line = trim(line[1:])
-		}
-		name, domain, path, field, op, value, err := parseCookieLine(line, host)
+		cond.Neg = neg
+
+		name, domain, path, field, err := parseCookie(key, host)
 		if err != nil {
-			error("%s on line %d.", err.String(), no)
-			p.okay = false
-			continue
-		}
-		if op == ":=" {
-			error("Wrong operator '%s' on line %d.", op, no)
+			error("%s on line %d.", err.String(), p.i)
 			p.okay = false
 			continue
 		}
@@ -278,7 +230,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 			field = "value"
 		case "secure", "httponly", "maxage", "expires", "delete", "deleted", "value":
 		default:
-			error("Unknown cookie field '%s' on line %d.", field, no)
+			error("Unknown cookie field '%s' on line %d.", field, p.i)
 			p.okay = false
 			continue
 		}
@@ -286,7 +238,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 		cond.Key = fmt.Sprintf("%s:%s:%s:%s", name, domain, path, field)
 		cond.Op = op
 		cond.Val = value
-		cond.Id = fmt.Sprintf("%s (line %d)", cond.String(), no)
+		cond.Id = fmt.Sprintf("%s:d", p.name, p.i)
 		cc = append(cc, cond)
 	}
 	return
@@ -295,26 +247,18 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 // 
 func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, _, key, _, value := p.nextStuff([]string{":="})
+		if done {
 			return
 		}
-		line = trim(line)
-		name, domain, path, field, op, value, err := parseCookieLine(line, host)
+		name, domain, path, field, err := parseCookie(key, host)
 		if err != nil {
-			error("%s on line %d.", err.String(), no)
-			p.okay = false
-			continue
-		}
-		if op != ":=" {
-			error("Wrong operator '%s' on line %d.", op, no)
+			error("%s on line %d.", err.String(), p.i)
 			p.okay = false
 			continue
 		}
 		if field != "" && field != "secure" {
-			error("Wrong field '%s' (only secure allowed) on line %d.", field, no)
+			error("Wrong field '%s' (only secure allowed) on line %d.", field, p.i)
 			p.okay = false
 			continue
 		}
@@ -326,47 +270,25 @@ func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 // Read a string->int map for settings. Stopp if unindented line is found
 func (p *Parser) readSettingMap(m *map[string]int) {
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, _, key, _, val := p.nextStuff([]string{":="})
+		if done {
 			return
 		}
-		line = trim(line)
-		j := firstSpace(line)
-		var k, v string
+
+		if _, ok := DefaultSettings[key]; !ok {
+			error("Unknown settign '%s' in line %d.", key, p.i)
+			p.okay = false
+			continue
+		}
+
+		val = strings.ToLower(val)
 		var n int
-		var err os.Error
-
-		if j == -1 {
-			k = line
-			error("No value (int) on line %d.", no)
-			(*m)[k] = 0
-			p.okay = false
-			continue
-		}
-
-		k, line = trim(line[:j]), trim(line[j:])
-		if _, ok := DefaultSettings[k]; !ok {
-			error("Unknown settign '%s' in line %d.", k, no)
-			p.okay = false
-			continue
-		}
-
-		if !hp(line, ":=") {
-			error("Missing ':=' in line %d.", no)
-			p.okay = false
-			continue
-		}
-
-		v = strings.ToLower(trim(line[2:]))
-
 		// Some numbers may be given as cleartext. This allows stuff like
 		// SETTING
 		//     Dump         append
 		//     Keep-Cookies keep
 		//     Abort        false
-		switch v {
+		switch val {
 		case "false", "no", "nein", "non":
 			n = 0
 		case "true", "yes", "ja", "qui", "create", "new", "keep", "abort", "link", "links":
@@ -376,38 +298,39 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		case "both", "links+html", "html+links", "body":
 			n = 3
 		default:
-			n, err = strconv.Atoi(v)
+			var err os.Error
+			n, err = strconv.Atoi(val)
 			if err != nil {
-				error("Cannot convert %s to integer on line %d.", v, no)
+				error("Cannot convert %s to integer on line %d.", val, p.i)
 				p.okay = false
 			}
 		}
 
 		// Safeuard against stupid or wrong settings.
-		switch k {
+		switch key {
 		case "Repeat":
 			if n > 100 {
-				warn("More then 100 repetitions on line %d.", no)
+				warn("More then 100 repetitions on line %d.", p.i)
 			}
 		case "Tries":
 			if n <= 0 {
-				warn("Setting Tries to value <= 0 is unsensical line %d.", no)
+				warn("Setting Tries to value <= 0 is unsensical line %d.", p.i)
 			}
 		case "Keep-Cookies", "Abort":
 			if n != 0 && n != 1 {
-				warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", no)
+				warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", p.i)
 			}
 		case "Dump":
 			if n < 0 || n > 3 {
-				warn("Dump accepts only 0, 1 and 2 as value (was %s=%d) on line %d.", v, n, no)
+				warn("Dump accepts only 0, 1 and 2 as value (was %s=%d) on line %d.", val, n, p.i)
 			}
 		case "Validate":
 			if n < 0 || n > 3 {
-				warn("Validates accept only 0, 1, 2 and 3 as value (was %s=%d) on line %d.", v, n, no)
+				warn("Validates accept only 0, 1, 2 and 3 as value (was %s=%d) on line %d.", val, n, p.i)
 			}
 		}
-		(*m)[k] = n
-		trace("Added to settings-map (line %d): %s: %s", no, k, v)
+		(*m)[key] = n
+		trace("Added to settings-map (line %d): %s: %s", p.i, key, val)
 	}
 }
 
@@ -496,45 +419,25 @@ func endQuoteIndex(line string) int {
 // Like readMap, but treat value as list of strings
 func (p *Parser) readMultiMap(m *map[string][]string) {
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, _, key, _, val := p.nextStuff([]string{":="})
+		if done {
 			return
 		}
-		line = trim(line)
-		j := firstSpace(line)
-		var k string
 		var list []string
-		if j == -1 {
-			k = line
+		if val == "" {
 			list = []string{}
 		} else {
-			k = trim(line[:j])
-			line = trim(line[j:])
-			if !hp(line, ":=") {
-				error("Missing ':=' in line %d.", no)
-				p.okay = false
-				continue
-			}
-			line = trim(line[2:])
 			var err os.Error
-			list, err = StringList(line)
+			list, err = StringList(val)
 			if err != nil {
-				error("Cannot decode '%s': %s.", line, err.String())
+				error("Cannot decode '%s' on line %d: %s.", val, p.i, err.String())
 				p.okay = false
 			}
 		}
-		(*m)[k] = list
-		trace("Added to mulit map (line %d): >>>%s<<<: %v", no, k, list)
+		(*m)[key] = list
+		trace("Added to mulit map (line %d): key: %v", p.i, key, list)
 	}
 }
-
-const (
-	mode_other     = iota
-	mode_body      = iota
-	mode_setcookie = iota
-)
 
 // Parse strings like "[:10]" or "[50:-2]" into a Range.
 func parseRange(s string) (r Range, err os.Error) {
@@ -607,88 +510,107 @@ func (p *Parser) readShellCond() [][]string {
 	return list
 }
 
+// find, split and return next line
+func (p *Parser) nextStuff(validOps []string) (done, neg bool, key, op, val string) {
+	for p.i < len(p.line)-1 {
+		p.i++
+		line, no := p.line[p.i].line, p.line[p.i].no
+		fmt.Printf("line1=%s\n", line)
+		if !hp(line, "\t") {
+			p.i--
+			done = true
+			return
+		}
+
+		line = trim(line)
+		if len(line) == 0 {
+			continue
+		}
+
+		fmt.Printf("line2=%s\n", line)
+		if validOps[0] != ":=" {
+			if line[0] == '!' {
+				line = trim(line[1:])
+				neg = true
+			}
+		}
+
+		fmt.Printf("line3=%s\n", line)
+		j := firstSpace(line)
+		if j == -1 {
+			key = line
+			return
+		}
+
+		key, line = line[:j], trim(line[j:])
+		j = firstSpace(line)
+		if j == -1 {
+			error("Missing operator (%v) in line %d.", validOps, no)
+			p.okay = false
+			continue
+		}
+
+		op, val = line[:j], trim(line[j:])
+		found := false
+		for _, o := range validOps {
+			if op == o {
+				found = true
+				break
+			}
+		}
+		if !found {
+			error("Illegal operator '%s' in line %d.", op, no)
+			p.okay = false
+			continue
+		}
+
+		return
+	}
+	done = true
+	return
+}
+
 // Read a Header or Body Condition
 func (p *Parser) readCond(mode int) []Condition {
 	var list []Condition = make([]Condition, 0, 3)
 
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, neg, key, op, val := p.nextStuff([]string{"==", "~=", "_=", "=_", "/=", ">", ">=", "<", "<="})
+		fmt.Printf("key=%s   op=%s  val=%s\n", key, op, val)
+		if done {
 			return list
 		}
-
-		// Normal format is "[!] <field> <op> <value>", reduced format is just "[!] <field>"
-		line = trim(line)
-		if len(line) == 0 {
-			continue
-		}
-		var neg bool
-		if line[0] == '!' {
-			line = trim(line[1:])
-			neg = true
-		}
-		j := firstSpace(line)
-		var k, op, v string
 		var rng Range
 
-		if j == -1 {
-			// reduced format  "[!] <field>"
-			if mode == mode_body {
-				error("Missing value for body condition on line %d.", no)
+		if mode == mode_body {
+			if val == "" {
+				error("Missing value for body condition on line %d.", p.i)
 				p.okay = false
 				continue
 			}
-			op = "."
-			k = line
-		} else {
-			// normal format "[!] <field> <op> <value>"
-			k = trim(line[:j])
-			line = trim(line[j:])
-			if mode == mode_body {
-				if !(hp(k, "Txt") || hp(k, "Bin")) {
-					error("No such condition type '%s' for body on line %d.", k, no)
+			if !(hp(key, "Txt") || hp(key, "Bin")) {
+				error("No such condition type '%s' for body on line %d.", key, p.i)
+				p.okay = false
+				continue
+			}
+			rs := ""
+			key, rs = key[:3], key[3:]
+
+			// optional range
+			if rs != "" {
+				if rg, err := parseRange(rs); err != nil {
+					error("Unable to parse range '%s' on line %d. %s", rs, p.i, err.String())
 					p.okay = false
 					continue
-				}
-				rs := k[3:]
-				if rs != "" {
-					k = k[:3]
-					if r, err := parseRange(rs); err == nil {
-						rng = r
-					} else {
-						error("Unable to parse range '%s' on line %d. %s", rs, no, err.String())
-						p.okay = false
-						continue
-					}
+				} else {
+					rng = rg
 				}
 			}
-			j = firstSpace(line)
-			if j == -1 {
-				error("No value on line %d (in %s) or missing operator", no, trim(p.line[p.i].line))
-				p.okay = false
-				continue
-			}
-			op = trim(line[:j])
-			switch op {
-			case "==", "_=", "=_", "~=", ">", "<", ">=", "<=", "/=":
-			case "!=":
-				warn("Operator '!=' is unsafe. Use '! Key == Val' construct in %s:%d.", p.name, no)
-				neg, op = !neg, "=="
-			default:
-				error("Unknown operator '%s' in %s:%d.", op, p.name, no)
-				p.okay = false
-				continue
-			}
-			v = trim(line[j:])
-			if hp(v, "\"") && hs(v, "\"") {
-				v = v[1 : len(v)-1]
-			}
-			if k == "Bin" {
-				v := strings.ToLower(strings.Replace(v, " ", "", -1))
+
+			if key == "Bin" {
+				v := strings.ToLower(strings.Replace(val, " ", "", -1))
 				if len(v)%2 == 1 {
-					warn("Odd number of nibbles in binary value on line %d. Will discard last nibble.", no)
+					warn("Odd number of nibbles in binary value on line %d. Will discard last nibble.", p.i)
 					v = v[:len(v)-2]
 				}
 				n := len(v) / 2
@@ -696,16 +618,26 @@ func (p *Parser) readCond(mode int) []Condition {
 				for i := 0; i < n; i++ {
 					r, err := fmt.Sscanf(v[2*i:2*i+2], "%x", &c)
 					if err != nil || r != 1 {
-						error("Cannot parse hex string '%s' on line %d: %s", v, no, err.String())
+						error("Cannot parse '%s' in hex string '%s' on line %d",
+							v[2*i:2*i+2], v, p.i)
 						p.okay = false
 						break
 					}
 				}
 			}
 		}
-		cond := Condition{Key: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no), Range: rng}
+
+		if val, err := dequote(val); err != nil {
+			error("Cannot parse string '%s' on line %d: %s", val, p.i, err)
+			p.okay = false
+			continue
+		}
+
+		id := fmt.Sprintf("%s:%d", p.name, p.i)
+		cond := Condition{Key: key, Op: op, Val: val, Neg: neg, Id: id, Range: rng}
+		fmt.Println(cond)
 		list = append(list, cond)
-		trace("Added to condition (line %d): %s", no, cond.String())
+		trace("Added to condition (line %d): %s", p.i, cond.String())
 	}
 	return list
 }
@@ -902,6 +834,11 @@ func (p *Parser) readTagCond() []TagCondition {
 	return list
 }
 
+const (
+	mode_response = iota
+	mode_body
+)
+
 // Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
@@ -982,7 +919,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "SEND-COOKIE", "SEND-COOKIES", "COOKIE", "COOKIES":
 			p.readSendCookies(test.Jar, "{CURRENT}")
 		case "RESPONSE":
-			test.RespCond = p.readCond(mode_other)
+			test.RespCond = p.readCond(mode_response)
 		case "SET-COOKIE", "RECIEVED-COOKIE":
 			test.CookieCond = p.readCookieCond("{CURRENT}")
 		case "BODY":
