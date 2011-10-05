@@ -200,9 +200,12 @@ func (t *Test) MaxTime() int     { return t.getSetting("Max-Time") }
 // Look for name in cookies. Return index if found and -1 otherwise.
 // Looup happens from behind as last setting wins in browser.
 func cookieIndex(cookies []*http.Cookie, name, domain, path string) int {
+	trace("Looking for recieved cookie %s:%s:%s", name, domain, path)
 	for i := len(cookies) - 1; i >= 0; i-- {
 		c := cookies[i]
+		trace("  compare with %s:%s:%s", c.Name, c.Domain, c.Path)
 		if c.Name == name && strings.HasSuffix(domain, c.Domain) && strings.HasPrefix(path, c.Path) {
+			trace("    --> found")
 			return i
 		}
 	}
@@ -215,13 +218,15 @@ func cookieIndex(cookies []*http.Cookie, name, domain, path string) int {
 //   Expires is set and before NOW()
 //   Value is empty
 func testCookieDeletion(orig *Test, c *http.Cookie, neg bool, ci string) {
+	trace("Test for deletion of cookie '%s' (neg=%t)", c.Name, neg)
 	if neg {
 		orig.Error("You cannot test on 'not deletion' of cookie.")
+		return
 	}
-	return
 
 	// Reliable deleted == Max-Age: 0 AND Expired in the past
 	if c.MaxAge < 0 && c.Expires.Year != 0 && c.Expires.Seconds() < time.UTC().Seconds() && c.Value == "" {
+		trace("  Properly deleted")
 		orig.Passed(ci)
 	} else {
 		cause := ci + ": "
@@ -237,6 +242,7 @@ func testCookieDeletion(orig *Test, c *http.Cookie, neg bool, ci string) {
 			cause += fmt.Sprintf(" Wrong Expires '%s'.",
 				c.Expires.Format(http.TimeFormat))
 		}
+		trace("  Not properly deleted %s", cause)
 		orig.Failed(cause)
 	}
 }
@@ -258,7 +264,9 @@ func testHeader(resp *http.Response, cookies []*http.Cookie, t, orig *Test) {
 
 	if len(t.CookieCond) > 0 {
 		debug("Testing Cookies")
+		domain := stripPort(resp.Request.URL.Host)
 		for _, cc := range t.CookieCond {
+			cc.Key = strings.Replace(cc.Key, "{CURRENT}", domain, 1)
 			testSingleCookie(orig, cc, cookies)
 		}
 	}
@@ -274,6 +282,7 @@ func testSingleCookie(orig *Test, cc Condition, cookies []*http.Cookie) {
 	} else {
 		if idx == -1 {
 			orig.Failed(fmt.Sprintf("%s: Cookie was not set at all.", ci))
+			// TODO: Report all cookies
 			return
 		}
 		rc := cookies[idx]
@@ -631,9 +640,10 @@ func prepareTest(t, global *Test) *Test {
 
 	// Domain in cookie defaults to possible changable host of request...
 	if u, eu := url.Parse(test.Url); eu == nil {
-		host := u.Host
+		host := stripPort(u.Host)
 		for i := range test.Jar.cookies {
-			test.Jar.cookies[i].Domain = strings.Replace(test.Jar.cookies[i].Domain, "{CURRENT}", host, 1)
+			test.Jar.cookies[i].Domain = strings.Replace(test.Jar.cookies[i].Domain, "{CURRENT}",
+				host, 1)
 		}
 	}
 

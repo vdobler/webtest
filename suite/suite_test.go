@@ -20,6 +20,7 @@ var (
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
 var testserverStayAlive int64 = 0
 
+// Our test suite
 func TestGoCheckInit(t *testing.T) { gocheck.TestingT(t) }
 
 type S struct{}
@@ -40,6 +41,11 @@ func (s *S) SetUpSuite(c *gocheck.C) {
 		}
 	}()
 	time.Sleep(2e8)
+	c.Succeed()
+}
+func (s *S) TearDownSuite(c *gocheck.C) {
+	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
+	time.Sleep(1000000000 * testserverStayAlive)
 }
 
 //
@@ -163,28 +169,29 @@ func redirectHandler(w http.ResponseWriter, req *http.Request) {
 
 	switch lastPath(req) {
 	case "redirect", "":
-		w.Header().Set("Location", "localhost:54123/redirect/first")
+		w.Header().Set("Location", "http://localhost:54123/redirect/first")
 		w.Header().Add("Set-Cookie", "rda=rda; Path=/")
 		w.Header().Add("Set-Cookie", "clearme=eraseme; Path=/")
 		w.WriteHeader(302)
 		return
 	case "first":
-		w.Header().Set("Location", "localhost:54123/redirect/second")
+		w.Header().Set("Location", "http://localhost:54123/redirect/second")
 		w.Header().Set("Set-Cookie", "rdb=rdb; Path=/redirect")
 		w.WriteHeader(302)
 		return
 	case "second":
-		w.Header().Set("Location", "localhost:54123/redirect/third")
+		w.Header().Set("Location", "http://localhost:54123/redirect/third")
 		w.Header().Set("Set-Cookie", "rdc=rdc; Path=/otherpath")
 		w.WriteHeader(302)
 		return
 	case "third":
-		w.Header().Set("Location", "localhost:54123/redirect/fourth")
-		w.Header().Set("Set-Cookie", "clearme=; Path=/; Max-Age=0")
+		w.Header().Set("Location", "http://localhost:54123/redirect/fourth")
+		exp := time.SecondsToUTC(time.UTC().Seconds() - 10000).Format(http.TimeFormat)
+		w.Header().Set("Set-Cookie", "clearme=; Path=/; Max-Age=0; Expires="+exp)
 		w.WriteHeader(302)
 		return
 	case "fourth":
-		w.Header().Set("Location", "localhost:54123/redirect/last")
+		w.Header().Set("Location", "http://localhost:54123/redirect/last")
 		rdav, rdae := req.Cookie("rda")
 		rdbv, rdbe := req.Cookie("rdb")
 		_, rdce := req.Cookie("rdc")
@@ -364,7 +371,15 @@ func (s *S) TestStresstest(c *gocheck.C) {
 // Individual Tests
 //
 
-// Helper function to test one test
+// Helper functions to test one test
+func printresults(test *Test, prefix string) {
+	fmt.Printf("Result of Test %s:\n", test.Title)
+	for _, r := range test.Result {
+		if strings.HasPrefix(r, prefix) {
+			fmt.Println("  " + r)
+		}
+	}
+}
 func runsingletest(name, st string, no int, ep, ef, ee int, c *gocheck.C) {
 	parser := NewParser(strings.NewReader(st), name)
 	suite, err := parser.ReadSuite()
@@ -379,17 +394,24 @@ func runsingletest(name, st string, no int, ep, ef, ee int, c *gocheck.C) {
 
 	suite.RunTest(no)
 	p, f, e, _ := suite.Test[no].Stat()
-	// fmt.Printf("pass %d   fail %d   err %d   info %d\n", p, f, e, i)
+
+	// Stopp test if error mismatch
+	if e != ee {
+		printresults(&suite.Test[no], "Error")
+		c.Fatalf("Wrong no of errors: expected %d, obtained %d.", ee, e)
+	}
+
+	if p != ep || f != ef {
+		printresults(&suite.Test[no], "")
+	}
+
+	if p+f != ep+ef {
+		c.Fatalf("Wrong no of executed tests: expected %d (p:%d, f:%d), obtained %d (p:%d, f:%d).",
+			ep+ef, ep, ef, p+f, p, f)
+	}
 	c.Check(p, gocheck.Equals, ep, gocheck.Bug("Wrong number of passed tests"))
 	c.Check(f, gocheck.Equals, ef, gocheck.Bug("Wrong number of failed tests"))
-	c.Check(e, gocheck.Equals, ee, gocheck.Bug("Wrong number of errored tests"))
 
-	if p != ep || f != ef || e != ee {
-		fmt.Println(suite.Test[no].Title)
-		for _, r := range suite.Test[no].Result {
-			fmt.Println(r)
-		}
-	}
 }
 
 // A very basic test
@@ -834,6 +856,36 @@ TAG
 	runsingletest("Access", st, 2, 1, 0, 0, c)
 	runsingletest("Logout", st, 3, 5, 0, 0, c)
 	runsingletest("Failing Access", st, 4, 1, 0, 0, c)
+}
+
+// Redirect Chain with cookies
+func (s *S) TestRedirectChain(c *gocheck.C) {
+	st := `
+----------------------
+Global
+----------------------
+GET http://wont.use
+CONST
+	URL := http://localhost:54123
+
+----------------------
+Redirect Chain
+----------------------
+GET ${URL}/redirect/
+SEND-COOKIE
+	clearme  :=  somevalue
+	theOther :=  othervalue
+
+RESPONSE
+	Final-Url    ==  ${URL}/redirect/last
+	Status-Code  ==  200
+SET-COOKIE
+	rda   ==  rda
+	rdb::/redirect   ==  rdb
+	rdc::/otherpath  ==  rdc
+	clearme:::Delete == true
+`
+	runsingletest("Redirect Chain", st, 0, 6, 0, 0, c)
 }
 
 /*

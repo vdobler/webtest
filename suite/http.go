@@ -7,7 +7,6 @@ import (
 	"http"
 	"io"
 	"bytes"
-	"strconv"
 	"mime"
 	"mime/multipart"
 	"time"
@@ -53,6 +52,7 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 	}
 
 	for _, cookie := range t.Jar.Select(req.URL) {
+		trace("Will send cookie %s=%s", cookie.Name, cookie.Value)
 		req.AddCookie(cookie)
 	}
 }
@@ -128,78 +128,6 @@ func valid(cookie *http.Cookie) bool {
 	return true
 }
 
-// Take new cookies from recieved, and update/add to cookies 
-func updateCookies(cookies []*http.Cookie, recieved []*http.Cookie) []*http.Cookie {
-	trace("Updating list of %d cookies with %d fresh set cookies", len(cookies), len(recieved))
-	// TODO: find solution with less allocations
-	var update []*http.Cookie = make([]*http.Cookie, len(cookies))
-	copy(update, cookies)
-
-	for _, cookie := range recieved {
-		trace("Cookie recieved: %s", cookie.String())
-		// Prevent against bugs in http package which does not parse expires and maxage field properly
-		for _, up := range cookie.Unparsed {
-			if strings.HasPrefix(strings.ToLower(up), "expires=") && len(up) > 10 {
-				val := up[8:]
-				exptime, err := time.Parse(time.RFC1123, val)
-				if err == nil {
-					cookie.Expires = *exptime
-				}
-			}
-			if strings.HasPrefix(strings.ToLower(up), "maxage=") && len(up) > 7 {
-				ma, err := strconv.Atoi(up[7:])
-				if err == nil {
-					cookie.MaxAge = ma
-				}
-			}
-		}
-
-		isValid := valid(cookie)
-		if !isValid {
-			trace("Invalid cookie %s.", cookie.Name)
-			continue
-		}
-
-		trace("Adding cookie %v", *cookie)
-		update = append(update, cookie)
-	}
-	return update
-}
-
-// Test weather to send cookie to the given url.
-func shouldSend(cookie *http.Cookie, u *url.URL) bool {
-	if cookie.Secure && u.Scheme != "https" {
-		trace("Wont send secure cookie to " + u.Scheme)
-		return false
-	}
-	if cookie.HttpOnly && !(u.Scheme == "https" || u.Scheme == "http") {
-		trace("Wont send HttpOnly cookie to " + u.Scheme)
-		return false
-	}
-	if cookie.Expires.Year > 0 && cookie.Expires.Seconds() >= time.UTC().Seconds() {
-		trace("Wont send expired cookie.")
-		return false
-	}
-	if cookie.Path != "" && !strings.HasPrefix(u.Path, cookie.Path) {
-		trace("Wont send " + cookie.Path + " cookie to " + u.Path)
-		return false
-	}
-
-	// We do allow toplevel wildcard domains like .org :-)
-	if cookie.Domain != "" {
-		if cookie.Domain[0] == '.' {
-			if !strings.HasSuffix(u.Host, cookie.Domain) {
-				trace("Wont send wildcard " + cookie.Domain + " cookie to " + u.Host)
-				return false
-			}
-		} else if u.Host != cookie.Domain {
-			trace("Wont send " + cookie.Domain + " cookie to " + u.Host)
-			return false
-		}
-	}
-	return true
-}
-
 // A client which does not follow any redirects.
 var nonfollowingClient http.Client = http.Client{
 	Transport: nil,
@@ -253,14 +181,6 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 					break
 				}
 			}
-			for _, cookie := range cookies {
-				if !shouldSend(cookie, req.URL) {
-					trace("Skipped cookie %s.", cookie)
-				} else {
-					trace("Adding cookie to request in redirect: %s", cookie)
-					req.AddCookie(&http.Cookie{Name: cookie.Name, Value: cookie.Value})
-				}
-			}
 
 		}
 		dumpReq(req, t.Dump)
@@ -275,7 +195,14 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 		dumpRes(r, t.Dump)
 
 		finalUrl = r.Request.URL.String()
-		cookies = updateCookies(cookies, r.Cookies())
+		cd := stripPort(req.URL.Host)
+		for _, c := range r.Cookies() {
+			if c.Domain == "" {
+				c.Domain = cd
+			}
+			t.Jar.Update(*c, req.URL.Host)
+			cookies = append(cookies, c)
+		}
 
 		if shouldRedirect(r.StatusCode) {
 			r.Body.Close()
