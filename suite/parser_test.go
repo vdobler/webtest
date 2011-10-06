@@ -97,13 +97,38 @@ func TestStringList(t *testing.T) {
 }
 
 func TestSuiteParsing(t *testing.T) {
-	LogLevel = 3
 	suites := []string{
 		`# Minimal suite
 ---------------------
 Minimal Suite
 ---------------------
 GET http://localhost:54123/
+`,
+		`# Comments and empty lines
+#
+
+---------------------
+Minimal Suite
+---------------------
+
+#
+
+GET http://localhost:54123/
+
+#
+
+CONST
+# 
+	a := b
+#
+RAND
+
+#
+
+	#
+	a := b
+
+
 `,
 		`# All Sections
 ---------------------
@@ -161,6 +186,7 @@ RESPONSE
 	!B  /= 200
 	!C  ~= 200
 	!D  _= 200
+
 	!E  =_ 200
 	! A  == 200
 	! B  /= 200
@@ -186,6 +212,11 @@ BODY
 	! Txt[-12:-45]  ~=  Hallo
 	! Txt[999:]  ~=  Hallo
 	! Txt[:-45]  ~=  Hallo
+
+	Bin  _=  1234567890abcdef
+	Bin  _=  1 234   56789  0abc def
+
+
 TAG
 	a href  ==  Hallo
 	=3 a href  ==  Hallo
@@ -291,7 +322,6 @@ TAG
 
 	for i, s := range suites {
 		// Test initial parsing
-		LogLevel = 8
 		p := NewParser(strings.NewReader(s), fmt.Sprintf("Suite %d", i))
 		suite, err := p.ReadSuite()
 		if err != nil {
@@ -307,11 +337,48 @@ TAG
 			t.Errorf("Cannot re-parse suite %d: %s", i, err.String())
 			continue
 		}
-		LogLevel = 2
 		stt := suite.Test[0].String()
 		if stt != st {
 			t.Errorf("Parsing of suite %d not idempotent.", i)
 			fmt.Printf("1.Pass:\n%s\n2. Pass:\n%s\n", st, stt)
+		}
+	}
+
+}
+
+func TestParsingErrors(t *testing.T) {
+	type perr struct {
+		st, e string
+		no    int
+	}
+	v := "---------\nTitle\n---------\nGET http://a.ch\n"
+	cases := []perr{
+		/*  0 */ perr{"Bad Title 1\n------------------\n", "No test declared", 1},
+		/*  1 */ perr{"------------------\n--------------\n", "Not enough lines left", 1},
+		/*  2 */ perr{"--\nBad Title 3---\n", "Unknown stuff", 1},
+		/*  3 */ perr{v + "ABC", "Unknown section 'ABC'", 5},
+		/*  4 */ perr{v + "RESPONSE\n\tAbc =/ abc", "Illegal operator", 6},
+		/*  5 */ perr{v + "HEADER\n\tAbc _= abc", "Illegal operator", 6},
+		/*  6 */ perr{v + "HEADER\n\t! Abc := abc", "Illegal operator", 6},
+		/*  7 */ perr{v + "HEADER\n\tAbc := \" abc \\p xyz\"", "Malformed string", 6},
+		/*  8 */ perr{v + "BODY\n\tAbc == abc", "No such condition type", 6},
+		/*  9 */ perr{v + "BODY\n\tTxt[] == abc", "Unable to parse range", 6},
+		/* 10 */ perr{v + "BODY\n\tTxt[::] == abc", "Unable to parse rang", 6},
+		/* 11 */ perr{v + "BODY\n\tTxt[x:y] == abc", "Unable to parse range", 6},
+		/* 12 */ perr{"\n#\n" + v + "\nBODY\n\n#\n\tAbc == abc", "No such condition type", 11},
+	}
+
+	for i, c := range cases {
+		name := fmt.Sprintf("Suite-%03d", i)
+		p := NewParser(strings.NewReader(c.st), name)
+		_, err := p.ReadSuite()
+		if err == nil {
+			t.Errorf("Suite %d: Missing error '%s' on line %d", i, c.e, c.no)
+			continue
+		}
+		pf := fmt.Sprintf("%s:%d: %s", name, c.no, c.e)
+		if !strings.HasPrefix(p.errors[0], pf) {
+			t.Errorf("Suite %d, got '%s', expected '%s'", i, p.errors[0], pf)
 		}
 	}
 

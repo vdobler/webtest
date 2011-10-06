@@ -31,34 +31,40 @@ func (pe ParserError) String() string {
 	return pe.cause
 }
 
-type Line struct {
-	line string
-	no   int
-}
-
 type Parser struct {
 	reader *bufio.Reader
-	line   []Line
+	line   []string
 	test   *Test
 	suite  []Test
 	i      int
 	name   string
-	okay   bool
+	errors []string
 }
 
 // Set up a new Parser which reads a suite from r (named name).
 func NewParser(r io.Reader, name string) *Parser {
 	parser := new(Parser)
 	parser.reader = bufio.NewReader(r)
-	parser.line = []Line{}
+	parser.line = []string{}
 	parser.suite = []Test{}
+	parser.errors = []string{}
 	parser.name = name
-	parser.okay = true
 	return parser
 }
 
+// Log an error in the input file
+func (p *Parser) error(f string, m ...interface{}) {
+	e := fmt.Sprintf("%s:%d: %s", p.name, p.i+1, fmt.Sprintf(f, m...))
+	p.errors = append(p.errors, e)
+}
+
+// check if all okay
+func (p *Parser) okay() bool {
+	return len(p.errors) == 0
+}
+
 // Read a line from the Reader
-func (p *Parser) nextLine() (line Line, err os.Error) {
+func (p *Parser) nextLine() (line string, err os.Error) {
 	var isprefix bool
 	var by []byte
 	var str string
@@ -75,35 +81,23 @@ func (p *Parser) nextLine() (line Line, err os.Error) {
 	}
 	str += string(by)
 	p.i++
-	// trace("NextLine %d: %s", p.i, str)
-	return Line{str, p.i}, nil
+	return str, nil
 }
 
-// Return the next non-blank, non-comment line.
-func (p *Parser) nextRealLine() (line Line, err os.Error) {
-	for {
-		line, err = p.nextLine()
-		if err != nil {
-			return
-		}
-		if len(trim(line.line)) > 0 && !hp(trim(line.line), "#") {
-			break
-		}
-	}
-	// trace("NextRealLine %d: %s", line.no, line.line)
-	return
+func isComment(line string) bool {
+	line = trim(line)
+	return hp(line, "#")
 }
 
 // Fill list of lines.
 func (p *Parser) readLines() {
 	p.i = 0
 	for {
-		line, err := p.nextRealLine()
+		line, err := p.nextLine()
 		if err != nil {
 			return
 		}
 		p.line = append(p.line, line)
-		trace("%-3d: %s", line.no, line.line)
 	}
 }
 
@@ -160,8 +154,7 @@ func (p *Parser) readMap(m *map[string]string) {
 			return
 		}
 		if s, err := dequote(val); err != nil {
-			error("Malformed string '%s' in line %d.", val, p.i)
-			p.okay = false
+			p.error("Malformed string '%s'.", val)
 			continue
 		} else {
 			val = s
@@ -221,8 +214,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 
 		name, domain, path, field, err := parseCookie(key, host)
 		if err != nil {
-			error("%s on line %d.", err.String(), p.i)
-			p.okay = false
+			p.error("%s", err.String())
 			continue
 		}
 		switch field {
@@ -230,8 +222,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 			field = "value"
 		case "secure", "httponly", "maxage", "expires", "delete", "deleted", "value":
 		default:
-			error("Unknown cookie field '%s' on line %d.", field, p.i)
-			p.okay = false
+			p.error("Unknown cookie field '%s'.", field)
 			continue
 		}
 
@@ -253,13 +244,11 @@ func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 		}
 		name, domain, path, field, err := parseCookie(key, host)
 		if err != nil {
-			error("%s on line %d.", err.String(), p.i)
-			p.okay = false
+			p.error("%s.", err.String())
 			continue
 		}
 		if field != "" && field != "secure" {
-			error("Wrong field '%s' (only secure allowed) on line %d.", field, p.i)
-			p.okay = false
+			p.error("Wrong field '%s' (only secure allowed).", field)
 			continue
 		}
 		cookie := http.Cookie{Name: name, Domain: domain, Path: path, Value: value, Secure: field == "secure"}
@@ -276,8 +265,7 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		}
 
 		if _, ok := DefaultSettings[key]; !ok {
-			error("Unknown settign '%s' in line %d.", key, p.i)
-			p.okay = false
+			p.error("Unknown settign '%s'.", key)
 			continue
 		}
 
@@ -301,8 +289,7 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 			var err os.Error
 			n, err = strconv.Atoi(val)
 			if err != nil {
-				error("Cannot convert %s to integer on line %d.", val, p.i)
-				p.okay = false
+				p.error("Cannot convert %s to integer.", val)
 			}
 		}
 
@@ -430,8 +417,8 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 			var err os.Error
 			list, err = StringList(val)
 			if err != nil {
-				error("Cannot decode '%s' on line %d: %s.", val, p.i, err.String())
-				p.okay = false
+				p.error("Cannot decode '%s': %s.", val, err.String())
+				continue
 			}
 		}
 		(*m)[key] = list
@@ -492,7 +479,10 @@ func (p *Parser) readShellCond() [][]string {
 
 	for p.i < len(p.line)-1 {
 		p.i++
-		line := p.line[p.i].line
+		line := p.line[p.i]
+		if isComment(line) {
+			continue
+		}
 		if !hp(line, "\t") {
 			p.i--
 			break
@@ -501,8 +491,7 @@ func (p *Parser) readShellCond() [][]string {
 		line = trim(line)
 		args, err := StringList(line)
 		if err != nil {
-			error("Unable to parse command '%s' on line %d: %s", line, p.line[p.i].no, err.String())
-			p.okay = false
+			p.error("Unable to parse command '%s': %s", line, err.String())
 			continue
 		}
 		list = append(list, args)
@@ -514,8 +503,11 @@ func (p *Parser) readShellCond() [][]string {
 func (p *Parser) nextStuff(validOps []string) (done, neg bool, key, op, val string) {
 	for p.i < len(p.line)-1 {
 		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		fmt.Printf("line1=%s\n", line)
+		line := p.line[p.i]
+		if isComment(line) || len(trim(line)) == 0 {
+			continue
+		}
+
 		if !hp(line, "\t") {
 			p.i--
 			done = true
@@ -523,19 +515,14 @@ func (p *Parser) nextStuff(validOps []string) (done, neg bool, key, op, val stri
 		}
 
 		line = trim(line)
-		if len(line) == 0 {
-			continue
-		}
-
-		fmt.Printf("line2=%s\n", line)
 		if validOps[0] != ":=" {
 			if line[0] == '!' {
+				// TODO: maybe error here?
 				line = trim(line[1:])
 				neg = true
 			}
 		}
 
-		fmt.Printf("line3=%s\n", line)
 		j := firstSpace(line)
 		if j == -1 {
 			key = line
@@ -545,8 +532,7 @@ func (p *Parser) nextStuff(validOps []string) (done, neg bool, key, op, val stri
 		key, line = line[:j], trim(line[j:])
 		j = firstSpace(line)
 		if j == -1 {
-			error("Missing operator (%v) in line %d.", validOps, no)
-			p.okay = false
+			p.error("Missing operator (%v).", validOps)
 			continue
 		}
 
@@ -559,8 +545,7 @@ func (p *Parser) nextStuff(validOps []string) (done, neg bool, key, op, val stri
 			}
 		}
 		if !found {
-			error("Illegal operator '%s' in line %d.", op, no)
-			p.okay = false
+			p.error("Illegal operator '%s'.", op)
 			continue
 		}
 
@@ -575,8 +560,8 @@ func (p *Parser) readCond(mode int) []Condition {
 	var list []Condition = make([]Condition, 0, 3)
 
 	for p.i < len(p.line)-1 {
-		done, neg, key, op, val := p.nextStuff([]string{"==", "~=", "_=", "=_", "/=", ">", ">=", "<", "<="})
-		fmt.Printf("key=%s   op=%s  val=%s\n", key, op, val)
+		done, neg, key, op, val := p.nextStuff(
+			[]string{"==", "~=", "_=", "=_", "/=", ">", ">=", "<", "<="})
 		if done {
 			return list
 		}
@@ -584,13 +569,11 @@ func (p *Parser) readCond(mode int) []Condition {
 
 		if mode == mode_body {
 			if val == "" {
-				error("Missing value for body condition on line %d.", p.i)
-				p.okay = false
+				p.error("Missing value for body condition.")
 				continue
 			}
 			if !(hp(key, "Txt") || hp(key, "Bin")) {
-				error("No such condition type '%s' for body on line %d.", key, p.i)
-				p.okay = false
+				p.error("No such condition type '%s' for body.", key)
 				continue
 			}
 			rs := ""
@@ -599,8 +582,7 @@ func (p *Parser) readCond(mode int) []Condition {
 			// optional range
 			if rs != "" {
 				if rg, err := parseRange(rs); err != nil {
-					error("Unable to parse range '%s' on line %d. %s", rs, p.i, err.String())
-					p.okay = false
+					p.error("Unable to parse range '%s': %s", rs, err.String())
 					continue
 				} else {
 					rng = rg
@@ -618,9 +600,8 @@ func (p *Parser) readCond(mode int) []Condition {
 				for i := 0; i < n; i++ {
 					r, err := fmt.Sscanf(v[2*i:2*i+2], "%x", &c)
 					if err != nil || r != 1 {
-						error("Cannot parse '%s' in hex string '%s' on line %d",
+						p.error("Cannot parse '%s' in hex string '%s'.",
 							v[2*i:2*i+2], v, p.i)
-						p.okay = false
 						break
 					}
 				}
@@ -628,14 +609,12 @@ func (p *Parser) readCond(mode int) []Condition {
 		}
 
 		if val, err := dequote(val); err != nil {
-			error("Cannot parse string '%s' on line %d: %s", val, p.i, err)
-			p.okay = false
+			p.error("Cannot parse string '%s': %s", val, err)
 			continue
 		}
 
 		id := fmt.Sprintf("%s:%d", p.name, p.i)
 		cond := Condition{Key: key, Op: op, Val: val, Neg: neg, Id: id, Range: rng}
-		fmt.Println(cond)
 		list = append(list, cond)
 		trace("Added to condition (line %d): %s", p.i, cond.String())
 	}
@@ -647,61 +626,28 @@ func (p *Parser) readLogCond() []LogCondition {
 	var list []LogCondition = make([]LogCondition, 0, 3)
 
 	for p.i < len(p.line)-1 {
-		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
-		if !hp(line, "\t") {
-			p.i--
+		done, neg, key, op, val := p.nextStuff(
+			[]string{"~=", "_=", "=_", "/=", ">", "<"})
+		if done {
 			return list
 		}
 
-		// Normal format is "[!] <field> <op> <value>", reduced format is just "[!] <field>"
-		line = trim(line)
-		var k, op, v string
-		var neg bool
-		if hp(line, "!") {
-			neg = true
-			line = trim(line[1:])
-		}
-		j := firstSpace(line)
-
-		if j == -1 {
-			error("Cannot read log condition on line %d.", no)
-			p.okay = false
-			continue
-		}
-		k = trim(line[:j])
-		line = trim(line[j:])
-		j = firstSpace(line)
-		if j == -1 {
-			error("Cannot read log condition on line %d.", no)
-			p.okay = false
-			continue
-		}
-		op = trim(line[:j])
-		switch op {
-		case "_=", "=_", "~=", "/=":
-		default:
-			error("Unknown operator '%s' in %s:%d.", op, p.name, no)
-			p.okay = false
-			continue
-		}
-		v = trim(line[j:])
 		var err os.Error
-		if v, err = dequote(v); err != nil {
-			error("Cannot read string on line %d: %s", no, err.String())
-			p.okay = false
+		if val, err = dequote(val); err != nil {
+			error("Malformed string '%s': %s", val, err.String())
 			continue
 		}
-		cond := LogCondition{Path: k, Op: op, Val: v, Neg: neg, Id: fmt.Sprintf("%s:%d", p.name, no)}
+		id := fmt.Sprintf("%s:%d", p.name, p.i)
+		cond := LogCondition{Path: key, Op: op, Val: val, Neg: neg, Id: id}
 		list = append(list, cond)
-		trace("Added to condition (line %d): %s", no, cond.String())
+		trace("Added to condition (line %d): %s", p.i, cond.String())
 	}
 	return list
 }
 
 // Helper to extract count an spec from strings like ">= 5  a href=/index.html"
 // off is the number of charactes to strip before trying to read an int.
-func numStr(line string, off, no int) (n int, spec string, err os.Error) {
+func numStr(line string, off int) (n int, spec string, err os.Error) {
 	trace("line = %s, off = %d", line, off)
 	beg := line[:off]
 	line = trim(line[off:])
@@ -709,9 +655,7 @@ func numStr(line string, off, no int) (n int, spec string, err os.Error) {
 	if i < 0 {
 		i = strings.Index(line, "[")
 		if i < 0 {
-			cause := fmt.Sprintf("Missing space after %s in line %d", beg, no)
-			error(cause)
-			err = ParserError{cause}
+			err = os.NewError(fmt.Sprintf("Missing space after %s", beg))
 			return
 		}
 	}
@@ -730,68 +674,69 @@ func (p *Parser) readTagCond() []TagCondition {
 
 	for p.i < len(p.line)-1 {
 		p.i++
-		line, no := p.line[p.i].line, p.line[p.i].no
+		line := p.line[p.i]
+		if isComment(line) || len(trim(line)) == 0 {
+			continue
+		}
+
 		if !hp(line, "\t") {
 			p.i--
 			return list
 		}
 		line = trim(line)
-		if len(line) == 0 {
-			continue
-		}
 		for hp(line, "! ") { //  transform "!  =3 a href == xyz" to "!=3 a href == xyz"
 			line = "!" + line[2:]
 		}
 
 		cond := TagCondition{}
-		cond.Id = fmt.Sprintf("%s:%d", p.name, no)
+		cond.Id = fmt.Sprintf("%s:%d", p.name, p.i)
 		var spec string
 		var err os.Error
 
 		if false {
 		} else if hp(line, "!=") {
 			cond.Cond = CountNotEqual
-			cond.Count, spec, err = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2)
 		} else if hp(line, "!>=") {
 			cond.Cond = CountLess
-			cond.Count, spec, err = numStr(line, 3, no)
+			cond.Count, spec, err = numStr(line, 3)
 		} else if hp(line, "!>") {
 			cond.Cond = CountLessEqual
-			cond.Count, spec, err = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2)
 		} else if hp(line, "!<=") {
 			cond.Cond = CountGreater
-			cond.Count, spec, err = numStr(line, 3, no)
+			cond.Count, spec, err = numStr(line, 3)
 		} else if hp(line, "!<") {
 			cond.Cond = CountGreaterEqual
-			cond.Count, spec, err = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2)
 		} else if hp(line, "!") {
 			cond.Cond = TagForbidden
 			spec = line[1:]
 		} else if hp(line, "==") {
 			cond.Cond = CountEqual
-			cond.Count, spec, err = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2)
 		} else if hp(line, "=") {
 			cond.Cond = CountEqual
-			cond.Count, spec, err = numStr(line, 1, no)
+			cond.Count, spec, err = numStr(line, 1)
 		} else if hp(line, ">=") {
 			cond.Cond = CountGreaterEqual
-			cond.Count, spec, err = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2)
 		} else if hp(line, ">") {
 			cond.Cond = CountGreater
-			cond.Count, spec, err = numStr(line, 1, no)
+			cond.Count, spec, err = numStr(line, 1)
 		} else if hp(line, "<=") {
 			cond.Cond = CountLessEqual
-			cond.Count, spec, err = numStr(line, 2, no)
+			cond.Count, spec, err = numStr(line, 2)
 		} else if hp(line, "<") {
 			cond.Cond = CountLess
-			cond.Count, spec, err = numStr(line, 1, no)
+			cond.Count, spec, err = numStr(line, 1)
 		} else {
 			cond.Cond = TagExpected
 			spec = line
 		}
 		if err != nil {
-			p.okay = false
-			return list
+			p.error("Unable to determin count: %s", err.String())
+			continue
 		}
 
 		spec = trim(spec)
@@ -800,15 +745,14 @@ func (p *Parser) readTagCond() []TagCondition {
 			spec = ""
 			for p.i < len(p.line)-1 {
 				p.i++
-				line, no := p.line[p.i].line, p.line[p.i].no
+				line := p.line[p.i]
 				trace("Next line: %s", line)
 				if !hp(line, "\t") {
-					error("Nonindented line in multiline tag spec on line %d", no)
-					p.okay = false
+					p.error("Nonindented line in multiline tag spec.")
 					break
 				}
 				if hs(trim(line), "]") {
-					trace("End of multiline tag spec found in line %d.", no)
+					trace("End of multiline tag spec found in line %d.", p.i)
 					break
 				}
 				if spec == "" {
@@ -825,10 +769,9 @@ func (p *Parser) readTagCond() []TagCondition {
 		if ts, err := tag.ParseTagSpec(spec); err == nil {
 			cond.Spec = *ts
 			list = append(list, cond)
-			trace("Added to tag condition (line %d): %s", no, cond.String())
+			trace("Added to tag condition (line %d): %s", p.i, cond.String())
 		} else {
-			error("Problems parsing tagspec %#v on line %d: %s", spec, no, err.String())
-			p.okay = false
+			p.error("Problems parsing tagspec %#v: %s", spec, err.String())
 		}
 	}
 	return list
@@ -839,6 +782,25 @@ const (
 	mode_body
 )
 
+func (p *Parser) readGetPost(line string) (method, u string) {
+	if hp(line, "GET") {
+		method, u = "GET", trim(line[3:])
+	} else if hp(line, "POST:mp ") {
+		method, u = "POST:mp", trim(line[7:])
+	} else if hp(line, "POST ") {
+		method, u = "POST", trim(line[4:])
+	}
+
+	if i := strings.Index(u, "#"); i != -1 {
+		warn("URL may not contain fragment (#-part) in line %d.", p.i)
+		u = u[:i]
+	}
+	if _, ue := url.Parse(u); ue != nil {
+		p.error("Malformed url '%s': %s", u, ue.String())
+	}
+	return
+}
+
 // Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
@@ -848,11 +810,15 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	var first bool = true
 
 	for p.i = 0; p.i < len(p.line); p.i++ {
-		line, no := p.line[p.i].line, p.line[p.i].no
+		line := p.line[p.i]
+		if isComment(line) || len(trim(line)) == 0 {
+			continue
+		}
 
-		// sart of test
+		// start of test
 		if hp(line, "---------") {
 			if test != nil {
+				// store last test read
 				if first && test.Title == "Global" {
 					suite.Global = test
 				} else {
@@ -862,57 +828,38 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 				}
 				first = false
 			}
+			if p.i+3 >= len(p.line) {
+				p.error("Not enough lines left for valid test.")
+				break
+			}
 			p.i++
-			line, no = trim(p.line[p.i].line), p.line[p.i].no
+			line = trim(p.line[p.i])
 			if len(line) == 0 {
-				error("No Title found in line %d", no)
-				err = ParserError{"No tite found."}
-				return
+				p.error("No Title found")
+				break
 			}
 			test = NewTest(line)
 			p.i++
-			line, no = p.line[p.i].line, p.line[p.i].no
+			line = p.line[p.i]
 			if !hp(line, "---------") {
-				error("Title lower border missing in line %d", no)
-				err = ParserError{"Title lower border missing."}
-				return
+				error("Title lower border missing")
+				break
 			}
-			p.i++
-			line, no = trim(p.line[p.i].line), p.line[p.i].no
-			// TODO: check giveb url on parsability
-			if hp(line, "GET ") {
-				urll := trim(line[3:])
-				if i := strings.Index(urll, "#"); i != -1 {
-					warn("URL may not contain fragment (#-part) in line %d.", no)
-					urll = urll[:i]
-				}
-				test.Method, test.Url = "GET", urll
-				if _, ue := url.Parse(urll); ue != nil {
-					error("Malformed url '" + urll + "': " + ue.String())
-					err = ParserError{"Malformed url '" + urll + "': " + ue.String()}
-					return
-				}
-				continue
-			} else if hp(line, "POST ") {
-				test.Method, test.Url = "POST", trim(line[4:])
-				continue
-			} else if hp(line, "POST:mp ") {
-				test.Method, test.Url = "POST:mp", trim(line[7:])
-				continue
-			} else {
-				error("Method and Url missing or wrong in line %d", no)
-				err = ParserError{"Method and Url missing or wrong"}
-				return
-			}
+			continue
 		}
 
 		if hp(line, "\t") || hp(line, " ") {
-			error("Misplaced indented stuff in line %d", no)
-			err = ParserError{"Misplaced indented stuff"}
-			return
+			p.error("Misplaced indented stuff '%s'.", line)
+			continue
 		}
 
 		line = trim(line)
+
+		if hp(line, "GET") || hp(line, "POST") {
+			test.Method, test.Url = p.readGetPost(line)
+			continue
+		}
+
 		switch line {
 		case "HEADER":
 			p.readMap(&test.Header)
@@ -943,22 +890,27 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		case "AFTER":
 			test.After = p.readShellCond()
 		default:
-			error("Unknow section '%s' in line %d. Skipped.", line, no)
-			err = ParserError{"Unknown Section " + line}
-			return
+			if hp(line, "-") {
+				p.error("Unknown stuff '%s'. Maybe to short test-title border?", line)
+			} else {
+				if test == nil {
+					p.error("No test declared jet on '%s'", line)
+				} else {
+					p.error("Unknown section '%s'.", line)
+				}
+			}
+			continue
 		}
 
 	}
 
-	if test != nil {
-		if test.Method == "GET" {
-			// Check if files-uploads are present
-			for k, list := range test.Param {
-				for _, val := range list {
-					if strings.HasPrefix(val, "@file:") {
-						error("Cannot upload files with GET method in test %s, parameter %s.", test.Title, k)
-						p.okay = false
-					}
+	if test != nil && test.Method == "GET" {
+		// Check if files-uploads are present
+		for k, list := range test.Param {
+			for _, val := range list {
+				if strings.HasPrefix(val, "@file:") {
+					p.error("Cannot upload files with GET method in test %s, parameter %s.",
+						test.Title, k)
 				}
 			}
 		}
@@ -966,8 +918,8 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 		trace("Append test to suite: \n%s", test.String())
 	}
 
-	if !p.okay {
-		err = ParserError{"General problems."}
+	if !p.okay() {
+		err = ParserError{strings.Join(p.errors, "\n")}
 	}
 	return
 }

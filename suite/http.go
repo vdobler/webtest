@@ -205,7 +205,9 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 		}
 
 		if shouldRedirect(r.StatusCode) {
-			r.Body.Close()
+			if r.Body != nil {
+				r.Body.Close()
+			}
 			if urlStr = r.Header.Get("Location"); urlStr == "" {
 				err = os.NewError(fmt.Sprintf("%d response missing Location header", r.StatusCode))
 				break

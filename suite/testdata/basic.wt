@@ -7,13 +7,12 @@ Global
 -------------------------------
 GET realy.unused
 HEADER
-	User-Agent   Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
+	User-Agent :=  Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.16) Gecko/20110319 Firefox/3.6.16
 RESPONSE
 	Status-Code == 200
 CONST
-	ErzUrl	http://www.erz.be.ch/erz/de
+	ErzUrl := http://www.erz.be.ch/erz/de
 
-	
 
 --------------------------------
 google.com --> google.ch
@@ -26,21 +25,21 @@ BODY
 	Txt  ~=  ber Google
 	Txt  ~=  <a href="/intl/de/privacy.html">Datenschutz</a>
 SETTING
-	Dump  1
+	Dump  := 1
 
 ----------------------------------
 Unic.com
 ----------------------------------
 GET http://www.unic.com/ch/de.html
 PARAM
-	ck	123
+	ck := 123
 RESPONSE
 	Status-Code == 200
 TAG
 	h2 class=home == Qualität für Sie!
 SETTINGS
-	Repeat  2
-	Sleep   10000
+	Repeat  := 2
+	Sleep   := 10000
 BEFORE
 	bash -c "echo Stamp1 FALSCH > log.log; echo Stamp2 Wichtig >> log.log"
 AFTER 
@@ -55,14 +54,14 @@ KTBE: Meldungsarchiv Erz
 ----------------------------------
 GET ${ErzUrl}/index/direktion/ueber-die-direktion/aktuell.archiv.html
 RAND
-	Month	1 2 3 4 5 6 7 8 9 0
+	Month	:= 1 2 3 4 5 6 7 8 9 0
 SETTING
-	Repeat 2
+	Repeat := 2
 PARAM
-	_charset_       UTF-8
-	years		2010
-	months		${Month}
-	submit		Suchen
+	_charset_  :=     UTF-8
+	years	:=	2010
+	months	:=	${Month}
+	submit	:=	Suchen
 BODY
 	 Txt  ~= Kanton Bern
 TAG
@@ -73,14 +72,14 @@ Stellenmarkt: Freizeit
 ---------------------------------	
 GET http://www.jobs.sites.be.ch/jobs_sites/de/index/navi/stellenmarkt/stellen/verwaltung.result.html
 PARAM
-	_charset_       UTF-8
-	Organisation    all
-	Sprache         all
-	Arbeitspensum   all
-	PubliziertSeit  01
-	Textsuche       freizeit
+	_charset_ :=      UTF-8
+	Organisation :=   all
+	Sprache      :=   all
+	Arbeitspensum  := all
+	PubliziertSeit := 01
+	Textsuche     :=  freizeit
 	Referenznummer 
-	next            "Stelle finden"
+	next            := "Stelle finden"
 RESPONSE
 	Content-Type  ~=  text/html
 TAG
@@ -93,14 +92,14 @@ Faulenzen
 ---------------------------------	
 GET http://www.jobs.sites.be.ch/jobs_sites/de/index/navi/stellenmarkt/stellen/verwaltung.result.html
 PARAM
-	_charset_       UTF-8
-	Organisation    all
-	Sprache         all
-	Arbeitspensum   all
-	PubliziertSeit  01
-	Textsuche       faulenzen
+	_charset_      :=  UTF-8
+	Organisation   := all
+	Sprache        := all
+	Arbeitspensum  :=  all
+	PubliziertSeit := 01
+	Textsuche      := faulenzen
 	Referenznummer 
-	next            "Stelle finden"
+	next           :=  "Stelle finden"
 RESPONSE
 	Content-Type  ~=  text/html
 TAG
