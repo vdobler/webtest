@@ -229,7 +229,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 		cond.Key = fmt.Sprintf("%s:%s:%s:%s", name, domain, path, field)
 		cond.Op = op
 		cond.Val = value
-		cond.Id = fmt.Sprintf("%s:d", p.name, p.i)
+		cond.Id = fmt.Sprintf("%s:%d", p.name, p.i)
 		cc = append(cc, cond)
 	}
 	return
