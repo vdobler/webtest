@@ -1,6 +1,10 @@
+//
+// Webtest - A domain specific language (DSL) to test websites.
+//
+// Copyright 2011 Volker Dobler. All rights reserved.
+//
 package main
 
-// Copyright 2011 Dr. Volker Dobler. All rights reserved.
 
 import (
 	"fmt"

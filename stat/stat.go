@@ -1,3 +1,8 @@
+//
+// Stat - Little helper package to Webtest with statistical functions.
+//
+// Copyright 2011 Volker Dobler. All rights reserved.
+//
 package stat
 
 import (

@@ -1,3 +1,8 @@
+//
+// Tag - Go package to facialiate testing tags in html documents.  Used by Webtest.
+//
+// Copyright 2011 Volker Dobler. All rights reserved.
+//
 package tag
 
 /*

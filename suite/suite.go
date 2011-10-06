@@ -1,3 +1,8 @@
+//
+// Suite - Main routines for the Webtest utility.
+//
+// Copyright 2011 Volker Dobler. All rights reserved.
+//
 package suite
 
 import (
