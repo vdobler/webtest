@@ -539,7 +539,8 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	}
 	test.Dump = t.Dump
 	test.Setting = DefaultSettings
-	test.RespCond = []Condition{Condition{Key: "X-W3C-Validator-Status", Op: "==", Val: "Valid", Id: "html-validation"}}
+	test.RespCond = []Condition{Condition{Key: "X-W3C-Validator-Status", Op: "==",
+		Val: "Valid", Id: "html-validation"}}
 	_, valbody, verr := test.RunSingle(global, false)
 	if verr != nil {
 		warn("Cannot access W3C validator: %s", verr.String())
@@ -686,32 +687,6 @@ func (test *Test) init() {
 	}
 }
 
-// Sanitize t (by replacing anything uncomfortable in a filename) by _.
-// The default output path is prepended automatically.
-func titleToFilename(t string) (f string) {
-	f = OutputPath
-	if !strings.HasSuffix(f, "/") {
-		f += "/"
-	}
-
-	for _, cp := range t {
-		switch true {
-		case cp >= 'a' && cp <= 'z', cp >= 'A' && cp <= 'Z', cp >= '0' && cp <= '9',
-			cp == '-', cp == '+', cp == '.', cp == ',', cp == '_':
-			f += string(cp)
-		case cp <= 32, cp >= 127:
-			// eat
-		default:
-			f += "_"
-		}
-	}
-	for strings.Contains(f, "__") {
-		f = strings.Replace(f, "__", "_", -1)
-	}
-	f = strings.Replace(f, "--", "-", -1)
-	return
-}
-
 // Run a test. Number of repetitions (or no run at all) is taken from "Repeat"
 // field in Param. If global is non nil it will be used as "template" for the
 // test. The test.Result field is updated.
@@ -823,29 +798,6 @@ func determineExt(url_, ct string) string {
 	return "bin"
 }
 
-// Write body to a new file (name pattern is <TestTitle>.<N>.<FileExtension>).
-// N is increased up to 999 to find a "new" file.
-func dumpBody(body []byte, title, url_, ct string) {
-	name := titleToFilename(title)
-	ext := determineExt(url_, ct)
-	var fname string
-	for i := 0; i < 1000; i++ {
-		fname = fmt.Sprintf("%s.%03d.%s", name, i, ext)
-		_, err := os.Stat(fname)
-		if e, ok := err.(*os.PathError); ok && e.Error == os.ENOENT {
-			break
-		}
-	}
-
-	file, err := os.Create(fname)
-	if err != nil {
-		error("Cannot dump body to file '%s': %s.", fname, err.String())
-	} else {
-		defer file.Close()
-		file.Write(body)
-	}
-}
-
 // Execute shell command
 func executeShellCmd(cmdline []string) (e int, s string) {
 	cmd := exec.Command(cmdline[0], cmdline[1:]...)
@@ -870,23 +822,6 @@ func executeShellCmd(cmdline []string) (e int, s string) {
 	return
 }
 
-// Return filesize of file path (or -1 on error).
-func filesize(path string) int64 {
-	file, err := os.Open(path)
-	if err != nil {
-		if err == os.ENOENT {
-			return 0
-		}
-		return -1
-	}
-	defer file.Close()
-	fi, err := file.Stat()
-	if err != nil {
-		return -1
-	}
-	return fi.Size
-}
-
 func checkLog(test *Test, buf []byte, log LogCondition) {
 	txt := string(buf)
 	trace("Checking %s on: %s", log.String(), txt)
@@ -899,7 +834,7 @@ func checkLog(test *Test, buf []byte, log LogCondition) {
 				return
 			}
 		} else if log.Neg {
-			trace("FOund")
+			trace("Found")
 			test.Failed(fmt.Sprintf("Forbidden %s in log %s (%s)", log.Val, log.Path, log.Id))
 			return
 		}
@@ -926,24 +861,12 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 			if rv, msg := executeShellCmd(cmd); rv != 0 {
 				test.Error(fmt.Sprintf("Before cmd %d: %s: %s", rv, cmd, msg))
 				duration = 0
-				err = os.NewError("Failed before condition")
+				err = os.NewError("Failed BEFORE command")
 				return
 			}
 		}
 		trace("Number of logfile tests: %d", len(ti.Log))
-		if len(ti.Log) > 0 {
-			logfilesize = make(map[string]int64)
-			for _, log := range ti.Log {
-				if _, ok := logfilesize[log.Path]; ok {
-					continue
-				}
-				logfilesize[log.Path] = filesize(log.Path)
-				trace("Filesize of %s = %d", log.Path, logfilesize[log.Path])
-				if logfilesize[log.Path] == -1 {
-					test.Error(fmt.Sprintf("Cannot check logfile %s", log.Path))
-				}
-			}
-		}
+		logfilesize = determinLogfileSize(ti.Log, test)
 	}
 
 	tries := ti.Tries()

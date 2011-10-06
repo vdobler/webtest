@@ -9,7 +9,8 @@ GOFILES=\
 	parser.go\
 	prettyp.go\
 	http.go\
-	cookie.go
+	cookie.go\
+	util.go
 
 include $(GOROOT)/src/Make.pkg
 
