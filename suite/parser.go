@@ -132,18 +132,7 @@ func dequote(str string) (string, os.Error) {
 
 // Return index of first space/tab in s or -1 if none found.
 func firstSpace(s string) int {
-	si := strings.Index(s, " ") // TODO: use IndexAny?
-	ti := strings.Index(s, "\t")
-	if si == -1 && ti == -1 {
-		return -1
-	} else if si == -1 {
-		return ti
-	} else if ti == -1 {
-		return si
-	} else if si < ti {
-		return si
-	}
-	return ti
+	return strings.IndexAny(s, " \t") // TODO: use IndexAny?
 }
 
 // Read a string->string map. Stopp if unindented line is found
@@ -836,14 +825,14 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			line = trim(p.line[p.i])
 			if len(line) == 0 {
 				p.error("No Title found")
-				break
+				continue
 			}
 			test = NewTest(line)
 			p.i++
 			line = p.line[p.i]
 			if !hp(line, "---------") {
 				error("Title lower border missing")
-				break
+				continue
 			}
 			continue
 		}

@@ -29,3 +29,6 @@ doc:
 	pdflatex webtest.tex
 	pdflatex webtest.tex
 	pdflatex webtest.tex
+
+todo:
+	grep -n TODO `find . -name "*.go" | sort`

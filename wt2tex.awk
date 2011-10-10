@@ -4,7 +4,7 @@ BEGIN {
     print "\\setlength{\\textwidth}{160mm} \\setlength{\\topmargin}{-15mm}"
     print "\\setlength{\\parindent}{0in} \\setlength{\\textheight}{240mm}"
     print "\\begin{document}"
-    print "\\title{Webtest Reference}\\author{Dr. Volker Dobler}\\date{September 2011}"
+    print "\\title{Webtest Reference}\\author{Volker Dobler}\\date{September 2011}"
     print "\\maketitle"
     print "\\tableofcontents"
     print "\\newpage"
@@ -27,6 +27,30 @@ function escapelt(t) {
     return t
 }
 
+#
+# Normal Text. Empahsis by _underscore_ markup,
+# Boldfacing by *star* markup. Verbatim by |pipe| markup.
+#
+# With paragraphs
+#  - with bulltes. Not no subitems/nesting.
+#  - second bullets. No paragraphs in lists. But:
+#      verbatim code (see below allowed)
+#  o bullets and * are fine too
+#
+# Enumerations
+#  # started by a hash mark
+#  # looks strange but works
+#
+# No paragraphs inside itemize
+#   verbatim code indented by 2 spaces
+# more text
+#
+# Decriptions:
+#  o Template:: the definition goes here
+#  o Execution:: decription
+#
+
+
 function enditemize() {
     if (initemize) {
 	print "\\end{itemize}"
@@ -41,9 +65,9 @@ function enditemize() {
 /^##/ { # a new section
     t = substr($0, 3)
     # t = sub(/^ .*/, "", t)
+    enditemize()
     printf "\\section{%s}\n", escapelt(t)
     section = 1
-    enditemize()
     next 
 }
 
