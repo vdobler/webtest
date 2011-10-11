@@ -47,18 +47,18 @@ func makeHeader(filename string) string {
 \itemsep0pt\parsep0pt\parskip0pt\partopsep0pt
 \topsep0pt \partopsep0pt
 \reversemarginpar
-\newenvironment{indcmt}%%
-  {\par\vspace{3mm}\makebox[9mm]{}\begingroup\noindent\small\it{}}%%
-  {\endgroup\vspace{1mm}}
 
 \begin{document}
-\title{%s}\author{%s}\date{%s}
-\maketitle
+\textsf{\textbf{\Huge %s}}\\[1ex]
+\makebox[12mm][l]{File:} \texttt{%s}\\
+\makebox[12mm][l]{Date:} %s
+
 \tableofcontents
 \newpage
 `
-	basename := path.Base(filename)
-	date := time.LocalTime().Format("02. Jan 2006")
+	basename := quoteSpecial(path.Base(filename))
+	filename = quoteSpecial(filename)
+	date := time.LocalTime().Format("02. Jan 2006, 15:04")
 	return fmt.Sprintf(texf, basename, filename, date)
 }
 
@@ -79,9 +79,8 @@ func typewriter(s string) string {
 	return s
 }
 
-// Hack (works properly most time): Replace LaTeX special chars with command sequences.
-func quoteTex(s string) string {
-
+// quote special TeX characters
+func quoteSpecial(s string) string {
 	for _, x := range [][2]string{
 		{"\\", "§!§|§°§+§-§"},
 		{"$", "\\$"},
@@ -98,6 +97,12 @@ func quoteTex(s string) string {
 	} {
 		s = strings.Replace(s, x[0], x[1], -1)
 	}
+	return s
+}
+
+// Hack (works properly most time): Replace LaTeX special chars with command sequences.
+func quoteTex(s string) string {
+	s = quoteSpecial(s)
 
 	// handle "_emphasis_", "*boldface*" and "|typewriter|"
 	s = ree.ReplaceAllStringFunc(s, func(a string) string { return "\\emph{" + a[2:len(a)-2] + "}" })
@@ -233,9 +238,18 @@ func findDesc(s string) string {
 **********************/
 
 var (
-	begindcmt = `\verb|    |\parbox{12cm}{\vspace{2mm}`
+	begindcmt = `\verb|    |\parbox{152mm}{\vspace{2mm}\it`
 	endindcmt = "\\vspace{1mm}}\n"
 )
+
+func endIndentedComment(tex string) string {
+	if strings.HasSuffix(tex, "\n\n") {
+		tex = tex[:len(tex)-2]
+	}
+	tex += endindcmt
+	return tex
+}
+
 
 func formatComment(comments []string) (tex string) {
 	mode := "par"
@@ -244,7 +258,7 @@ func formatComment(comments []string) (tex string) {
 	real := false
 	lastverb := false
 
-	tex = "{\\it"
+
 	for len(comments) > 0 {
 		comment, comments = comments[0], comments[1:]
 
@@ -254,7 +268,7 @@ func formatComment(comments []string) (tex string) {
 				tex += endMode(mode)
 				mode = "par"
 				ind = false
-				tex += endindcmt
+				tex = endIndentedComment(tex)
 			}
 		} else { // indented
 			comment = trim(comment)[2:]
@@ -329,14 +343,10 @@ func formatComment(comments []string) (tex string) {
 	}
 	tex += endMode(mode)
 	if ind {
-		tex += endindcmt
+		tex = endIndentedComment(tex)
 	}
 
-	if tex == "{\\it\n\n" {
-		return ""
-	}
 
-	tex += "}\n"
 	if real {
 		// tex = "\n\\smallskip\n" + tex
 	}
@@ -366,6 +376,7 @@ func formatSuite(lines []string) (tex string) {
 				tex += "\\subsection{" + quoteTex(tl) + "}\n"
 			}
 			tex += "\n\\verb|------------------------------------------------|\\\\\n"
+			tex += fmt.Sprintf(`\marginpar{\hfil \scriptsize %d}`, lineno)
 			tex += verbatim(trim(line)) + "\\\\\n"
 			tex += "\\verb|------------------------------------------------|\n\n"
 			continue
@@ -422,24 +433,29 @@ func formatSuite(lines []string) (tex string) {
 	return tex
 }
 
-func formatFile(filename string) {
+func formatFile(filename string) bool {
 	if !checkSuite(filename) {
-		return
+		return false
 	}
 	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Printf("Cannot read from '%s': %s\n", filename, err.String())
-		return
+		return false
 	}
 	buf, err := ioutil.ReadAll(file)
 	if err != nil {
 		fmt.Printf("Cannot read from %s: %s", filename, err.String())
-		return
+		return false
 	}
 	file.Close()
 	sbuf := string(buf)
 	lines := strings.Split(sbuf, "\n")
-	tex := makeHeader(filename)
+	fullpath, err := os.Getwd()
+	if err != nil {
+		fullpath = "./"
+	}
+	fullpath = path.Clean(path.Join(fullpath,filename))
+	tex := makeHeader(fullpath)
 	tex += formatSuite(lines)
 	tex += "\n\\end{document}\n"
 
@@ -447,10 +463,11 @@ func formatFile(filename string) {
 	ofile, err := os.Create(filename)
 	if err != nil {
 		fmt.Printf("Cannot create file '%s': %s\n", filename, err.String())
-		return
+		return false
 	}
 	defer ofile.Close()
 	ofile.Write([]byte(tex))
+	return true
 }
 
 func main() {
@@ -461,7 +478,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	okay := true
 	for _, filename := range flag.Args() {
-		formatFile(filename)
+		okay = okay && formatFile(filename)
 	}
+	if !okay {
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
