@@ -860,7 +860,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			test.CookieCond = p.readCookieCond("{CURRENT}")
 		case "BODY":
 			test.BodyCond = p.readCond(mode_body)
-		case "PARAM", "PARAMETERS":
+		case "PARAM", "PARAMS", "PARAMETER", "PARAMETERS":
 			p.readMultiMap(&test.Param)
 		case "SETTING", "SETTINGS":
 			p.readSettingMap(&test.Setting)

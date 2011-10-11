@@ -30,7 +30,7 @@ func checkSuite(filename string) bool {
 	parser := suite.NewParser(file, basename)
 	_, serr := parser.ReadSuite()
 	if serr != nil {
-		fmt.Printf("Problems parsing '%s': %s\n", filename, err.String())
+		fmt.Printf("Problems parsing '%s': %s\n", filename, serr.String())
 		return false
 	}
 	return true
@@ -87,6 +87,7 @@ func quoteTex(s string) string {
 		{"$", "\\$"},
 		{"%", "\\%"},
 		{"_", "\\_"},
+		{"#", "\\#"},
 		{"^", "\\^"},
 		{"~", "\\~"},
 		{"{", "\\{"},
@@ -170,7 +171,6 @@ func foldVerbatim(s string) (first string, rest []string) {
 // format a "test" line: all the indented lines
 func formatTest(s string, lineno int) (tex string) {
 	n := 0
-	fmt.Printf("line=%s\n", s)
 	for i := 0; s[i] == ' ' || s[i] == '\t'; i++ {
 		if s[i] == ' ' {
 			n++
@@ -242,6 +242,7 @@ func formatComment(comments []string) (tex string) {
 	ind := false
 	comment := ""
 	real := false
+	lastverb := false
 
 	tex = "{\\it"
 	for len(comments) > 0 {
@@ -286,6 +287,7 @@ func formatComment(comments []string) (tex string) {
 			tex += "\\item " + quoteTex(comment[3:]) + "\n"
 			/* } */
 			real = true
+			lastverb = false
 			continue
 		}
 
@@ -295,6 +297,7 @@ func formatComment(comments []string) (tex string) {
 			mode = "enum"
 			tex += "\\item " + quoteTex(comment[3:]) + "\n"
 			real = true
+			lastverb = false
 			continue
 		}
 
@@ -306,8 +309,9 @@ func formatComment(comments []string) (tex string) {
 
 		// Verbatim stuff
 		if strings.HasPrefix(comment, "  ") {
-			tex += "\\\\\\verb|  " + trim(comment) + "|\\\\\n"
+			tex += "\n" + verbatim("  "+trim(comment)) + "\n"
 			real = true
+			lastverb = true
 			continue
 		}
 
@@ -315,13 +319,21 @@ func formatComment(comments []string) (tex string) {
 		tc := trim(comment)
 		if len(tc) > 0 {
 			real = true
+			if lastverb {
+				tex += "\n"
+			}
+			lastverb = false
+			tex += quoteTex(tc) + "\n"
 		}
-		tex += quoteTex(tc) + "\n"
 
 	}
 	tex += endMode(mode)
 	if ind {
 		tex += endindcmt
+	}
+
+	if tex == "{\\it\n\n" {
+		return ""
 	}
 
 	tex += "}\n"
@@ -354,7 +366,7 @@ func formatSuite(lines []string) (tex string) {
 				tex += "\\subsection{" + quoteTex(tl) + "}\n"
 			}
 			tex += "\n\\verb|------------------------------------------------|\\\\\n"
-			tex += "\\verb|" + trim(line) + "|\\\\\n"
+			tex += verbatim(trim(line)) + "\\\\\n"
 			tex += "\\verb|------------------------------------------------|\n\n"
 			continue
 		}
@@ -367,7 +379,10 @@ func formatSuite(lines []string) (tex string) {
 
 		// Section titles
 		if strings.HasPrefix(line, "###############") {
+			tex += formatComment(comments)
+			comments = comments[0:1]
 			// TODO safeguard....
+
 			line, lines = trim(lines[0][1:]), lines[1:]
 			lineno++
 			tex += "\\section{" + quoteTex(line) + "}\n"
@@ -386,6 +401,7 @@ func formatSuite(lines []string) (tex string) {
 		tex += formatComment(comments)
 		comments = comments[0:1]
 
+		// Sections and tests
 		if strings.HasPrefix(line, "\t") {
 			// Indented test stuff
 			tex += formatTest(line, lineno)
