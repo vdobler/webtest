@@ -4,31 +4,28 @@ TARG=webtest
 GOFILES=\
 	webtest.go\
 
+PACKAGES=tag suite stat format
+
 PACKAGES:
-	cd tag && $(MAKE) install
-	cd suite && $(MAKE) install
-	cd stat && $(MAKE) install
+	c=`pwd`; for d in $(PACKAGES); do cd $$c/ $$d && $(MAKE) install; done
 
 CLEAN:
-	cd tag && $(MAKE) clean 
-	cd suite && $(MAKE) clean 
-	cd stat && $(MAKE) clean
+	c=`pwd`; for d in $(PACKAGES); do cd $$c/ $$d && $(MAKE) clean; done
 	$(MAKE) clean 
 
 
 include $(GOROOT)/src/Make.cmd
 
 format: $(GOFILES)
+	c=`pwd`; for d in $(PACKAGES); do cd $$c/ $$d && $(MAKE) format; done
 	gofmt -w $^
-	cd tag && $(MAKE) format
-	cd suite && $(MAKE) format
-	cd stat && $(MAKE) format
 
-doc:
-	awk -f wt2tex.awk reference-suite.wt > webtest.tex
-	pdflatex webtest.tex
-	pdflatex webtest.tex
-	pdflatex webtest.tex
+doc: reference-suite.wt
+	cd format && $(MAKE)
+	./format/wtformat reference-suite.wt
+	pdflatex "\batchmode\input{reference-suite.wt}"
+	pdflatex "\batchmode\input{reference-suite.wt}"
+	pdflatex "\batchmode\input{reference-suite.wt}"
 
 todo:
 	grep -n TODO `find . -name "*.go" | sort`

@@ -38,9 +38,9 @@ func checkSuite(filename string) bool {
 
 // The header of the generated LaTeX File
 func makeHeader(filename string) string {
-	texf := `\documentclass[11pt,utf8]{article}
+	texf := `\documentclass[11pt]{article}
 \usepackage{url}
-\usepackage[utf8]{inputenc}
+\usepackage{enumitem}
 \setlength{\oddsidemargin}{0mm} \setlength{\evensidemargin}{0mm} \setlength{\textwidth}{160mm}
 \setlength{\topmargin}{-15mm} \setlength{\textheight}{240mm}
 \setlength{\parindent}{0in}
@@ -71,7 +71,7 @@ var (
 func typewriter(s string) string {
 	s = s[1 : len(s)-1]
 	if hp(s, "http://", "https://", "file://") {
-		fmt.Printf("\n\nXXXXXX\n\n")
+		// fmt.Printf("\n\nXXXXXX\n\n")
 		s = "\\url{" + s + "}"
 	} else {
 		s = "\\emph{\\texttt{" + s + "}}"
@@ -82,18 +82,19 @@ func typewriter(s string) string {
 // quote special TeX characters
 func quoteSpecial(s string) string {
 	for _, x := range [][2]string{
-		{"\\", "§!§|§°§+§-§"},
+		{"\\", "§!§!§°§+§-§"},
 		{"$", "\\$"},
 		{"%", "\\%"},
 		{"_", "\\_"},
 		{"#", "\\#"},
-		{"^", "\\^"},
-		{"~", "\\~"},
 		{"{", "\\{"},
 		{"}", "\\}"},
+		{"~", "\\~{}"},
+		{"^", "\\^{}"},
 		{"<", "$<$"},
 		{">", "$>$"},
-		{"§!§|§°§+§-§", "$\\backslash$"},
+		{"|", "$|$"},
+		{"§!§!§°§+§-§", "\\textbackslash{}"},
 	} {
 		s = strings.Replace(s, x[0], x[1], -1)
 	}
@@ -142,13 +143,11 @@ func verbatim(s string) (tex string) {
 	}
 
 	sp := strings.Split(s, "|")
-	fmt.Printf("Alles drin: %v\n", sp)
 	for i, p := range sp {
 		if i > 0 {
 			tex += "\\verb+|+"
 		}
 		tex += "\\verb|" + p + "|"
-		fmt.Printf("%d: %s\n", i, tex)
 	}
 	return
 }
@@ -191,35 +190,35 @@ func formatTest(s string, lineno int) (tex string) {
 	for _, r := range rest {
 		tex += r
 	}
+	tex += "\n"
 	return
 }
 
-func endMode(mode string) string {
-	switch mode {
+func endMode(lastmode string) string {
+	switch lastmode {
 	case "par":
+		return "\n"
+	case "empty":
+		return ""
+	case "verb":
 		return "\n"
 	case "item":
 		return "\\end{itemize}\n"
 	case "enum":
 		return "\\end{enumerate}\n"
-	case "desc":
-		return "\\end{description}\n"
 	}
-	panic("No such mode to end " + mode)
+	panic("No such mode to end " + lastmode)
 }
 
 func startMode(mode, current string) string {
 	if mode == current {
 		return ""
 	}
-	endMode(current)
 	switch mode {
 	case "item":
-		return "\\begin{itemize}\\itemsep0pt\\parsep0pt\\parskip0pt\\partopsep0pt\n"
+		return "\\begin{itemize}[noitemsep,nolistsep]\n"
 	case "enum":
-		return "\\begin{enumerate}\\itemsep0pt\\parsep0pt\n"
-	case "desc":
-		return "\\begin{description}\\itemsep0pt\\parsep0pt\n"
+		return "\\begin{enumerate}[noitemsep,nolistsep]\n"
 	}
 	panic("No such mode to start " + mode)
 }
@@ -238,8 +237,10 @@ func findDesc(s string) string {
 **********************/
 
 var (
-	begindcmt = `\verb|    |\parbox{152mm}{\vspace{2mm}\it`
-	endindcmt = "\\vspace{1mm}}\n"
+	// begindcmt = `\verb|    |\parbox{152mm}{\rule{0pt}{3ex}\it{}`
+	// endindcmt = "\\rule[-1ex]{0pt}{1ex}}\n"
+	begindcmt = `\verb|    |\parbox{152mm}{\vspace{10pt}\it{}`
+	endindcmt = "\\vspace{5pt}}\n"
 )
 
 func endIndentedComment(tex string) string {
@@ -250,108 +251,127 @@ func endIndentedComment(tex string) string {
 	return tex
 }
 
+func allEmpty(comments []string) bool {
+	for _, c := range comments {
+		c = trim(c)
+		if c != "#" {
+			return false
+		}
+	}
+	return true
+}
 
 func formatComment(comments []string) (tex string) {
-	mode := "par"
-	ind := false
-	comment := ""
-	real := false
-	lastverb := false
+	// fmt.Printf("\nFormating %d comment lines.\n", len(comments))
+	if allEmpty(comments) {
+		// fmt.Printf("All empty.\n") #   Verbatim
+		return "\n\n"
+	}
 
+	lastMode, lastIndent := "par", false
+	comment := ""
 
 	for len(comments) > 0 {
 		comment, comments = comments[0], comments[1:]
-
+		// fmt.Printf("Comment: >>%s<<\n", comment)
+		curIndent := false
 		if comment[0] == '#' {
+			curIndent = false
+			comment = comment[2:] // "# content" --> "content"
+		} else {
+			curIndent = true
+			comment = strings.TrimLeft(comment, " \t")[2:] // "\t # content" --> "content"
+		}
+
+		var curMode string
+		switch true {
+		case len(trim(comment)) == 0:
+			curMode = "empty"
+		case hp(comment, " - ", " o ", " * "):
+			curMode = "item"
+		case hp(comment, " # "):
+			curMode = "enum"
+		case hp(comment, "    "):
+			curMode = "verb"
+		case hp(comment, "   "):
+			curMode = "cont"
+		case hp(comment, "  "):
+			curMode = "verb"
+		default:
+			curMode = "par"
+		}
+		// fmt.Printf("Current: %s %t;  Last: %s %t\n", curMode, curIndent, lastMode, lastIndent)
+
+		// Verb is not allowed as parameter: Handle special
+		if curMode == "verb" {
+			if lastMode != "verb" {
+				tex += endMode(lastMode)
+				if lastIndent {
+					tex += endIndent()
+				}
+			}
 			comment = comment[2:]
-			if ind {
-				tex += endMode(mode)
-				mode = "par"
-				ind = false
-				tex = endIndentedComment(tex)
+			if curIndent {
+				tex += "\n" + verbatim("      "+comment) + "\n\n"
+			} else {
+				tex += "\n" + verbatim("  "+comment) + "\n\n"
 			}
-		} else { // indented
-			comment = trim(comment)[2:]
-			if !ind {
-				tex += endMode(mode)
-				mode = "par"
-				ind = true
-				tex += begindcmt
+			lastMode, lastIndent = "verb", false
+			continue
+		}
+
+		// Handle change in indent and/or mode
+		if lastIndent != curIndent {
+			fmt.Printf("Indent changed.\n")
+			tex += endMode(lastMode)
+			if curIndent {
+				tex += startIndent()
+			} else {
+				tex += endIndent()
 			}
-
 		}
 
-		// Empty line:
-		if len(trim(comment)) == 0 {
-			tex += endMode(mode)
-			mode = "par"
-			continue
-		}
-
-		// Itemize
-		if strings.HasPrefix(comment, " - ") || strings.HasPrefix(comment, " o ") ||
-			strings.HasPrefix(comment, " * ") {
-			/* if desc := findDesc(comment); desc != "" {
-				tex += startMode("desc", mode)
-				mode = "desc"
-				tex += "\\item[" +quoteTex(desc) + "] " + quoteTex(comment[3:]) + "\n"
-			} else { */
-			tex += startMode("item", mode)
-			mode = "item"
-			tex += "\\item " + quoteTex(comment[3:]) + "\n"
-			/* } */
-			real = true
-			lastverb = false
-			continue
-		}
-
-		// Enumerate
-		if strings.HasPrefix(comment, " # ") {
-			tex += startMode("enum", mode)
-			mode = "enum"
-			tex += "\\item " + quoteTex(comment[3:]) + "\n"
-			real = true
-			lastverb = false
-			continue
-		}
-
-		// Item content
-		if strings.HasPrefix(comment, "   ") {
+		if curMode == "cont" {
 			tex += quoteTex(comment[3:]) + "\n"
+			lastIndent = curIndent
 			continue
 		}
 
-		// Verbatim stuff
-		if strings.HasPrefix(comment, "  ") {
-			tex += "\n" + verbatim("  "+trim(comment)) + "\n"
-			real = true
-			lastverb = true
+		if curMode == "empty" {
+			tex += endMode(lastMode)
+			lastMode, lastIndent = curMode, curIndent
 			continue
 		}
 
-		// Any other text
-		tc := trim(comment)
-		if len(tc) > 0 {
-			real = true
-			if lastverb {
-				tex += "\n"
-			}
-			lastverb = false
-			tex += quoteTex(tc) + "\n"
+		if curMode != lastMode {
+			tex += endMode(lastMode)
 		}
 
-	}
-	tex += endMode(mode)
-	if ind {
-		tex = endIndentedComment(tex)
+		if curMode == "item" {
+			tex += startMode("item", lastMode)
+			tex += "\\item " + quoteTex(comment[3:]) + "\n"
+		} else if curMode == "enum" {
+			tex += startMode("enum", lastMode)
+			tex += "\\item " + quoteTex(comment[3:]) + "\n"
+		} else if curMode == "par" {
+			tex += quoteTex(trim(comment)) + "\n"
+		} else {
+			panic("No such mode " + curMode)
+		}
+
+		lastMode, lastIndent = curMode, curIndent
 	}
 
+	tex += endMode(lastMode)
 
-	if real {
-		// tex = "\n\\smallskip\n" + tex
+	if lastIndent {
+		tex += endIndent()
 	}
 	return
 }
+
+func endIndent() string   { return endindcmt }
+func startIndent() string { return begindcmt }
 
 // Works for valid suites only
 func formatSuite(lines []string) (tex string) {
@@ -402,8 +422,15 @@ func formatSuite(lines []string) (tex string) {
 
 		// Comments
 		if strings.HasPrefix(trim(line), "#") {
-			if len(trim(line)) == 1 {
-				line = "# "
+			// all lines are either of the form
+			//   "# <optional content>"
+			// or
+			//   "\t# <optional content>"
+			//
+			if line[0] == '#' {
+				line = line + " "
+			} else {
+				line = "\t" + trim(line) + " "
 			}
 			comments = append(comments, line)
 			continue
@@ -415,7 +442,7 @@ func formatSuite(lines []string) (tex string) {
 		// Sections and tests
 		if strings.HasPrefix(line, "\t") {
 			// Indented test stuff
-			tex += formatTest(line, lineno)
+			tex += formatTest("    "+line[1:], lineno)
 			continue
 		} else {
 			// A test section
@@ -424,12 +451,14 @@ func formatSuite(lines []string) (tex string) {
 			for _, r := range rest {
 				tex += r
 			}
+			tex += "\n"
 			continue
 		}
 
 		panic("This should not happen!")
 	}
 
+	tex += formatComment(comments)
 	return tex
 }
 
@@ -454,7 +483,7 @@ func formatFile(filename string) bool {
 	if err != nil {
 		fullpath = "./"
 	}
-	fullpath = path.Clean(path.Join(fullpath,filename))
+	fullpath = path.Clean(path.Join(fullpath, filename))
 	tex := makeHeader(fullpath)
 	tex += formatSuite(lines)
 	tex += "\n\\end{document}\n"
