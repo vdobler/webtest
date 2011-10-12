@@ -65,16 +65,16 @@ func makeHeader(filename string) string {
 var (
 	ree = regexp.MustCompile(`\\_[a-zA-ZäöüÄÖÜéèáàóòç]*\\_`)
 	reb = regexp.MustCompile(`\*[a-zA-ZäöüÄÖÜéèáàóòç]*\*`)
-	ret = regexp.MustCompile(`\|[^ ]*\|`)
+	ret = regexp.MustCompile(`\$\|\$[^ ]*\$\|\$`)
 )
 
 func typewriter(s string) string {
-	s = s[1 : len(s)-1]
+	s = s[3 : len(s)-3]
 	if hp(s, "http://", "https://", "file://") {
 		// fmt.Printf("\n\nXXXXXX\n\n")
 		s = "\\url{" + s + "}"
 	} else {
-		s = "\\emph{\\texttt{" + s + "}}"
+		s = "\\mbox{\\texttt{" + s + "}}"
 	}
 	return s
 }

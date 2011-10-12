@@ -13,7 +13,8 @@
 #   The Name of the Test Case
 #   ------------------------------------
 # See below: Global is such a testcase. Unfortunately Global is as 
-# very special testcase. So please skip to the "Ping" test case.
+# very special testcase. So please skip to the "General Structure of Test 
+# Cases" test case.
 #
 # Notes on test names: Test names should be uniq in one suite and they
 # should not contain commas (",") in the name.  Rational: This allows
@@ -24,6 +25,22 @@
 -------------------------------  
 Global
 -------------------------------
+#
+# Note: You should not try to understand the "Global" section before
+# familiarizing yourself with general testcases as Global is _not_
+# a testcase by itself.
+#
+# If the very first test in a test suite is named "Global" than this test
+# will not be run but serve as a template for all subsequent tests:
+# Settings, Variables, Header fields and Response checks are inherited
+# from global to each test.  The test may overwrite them.  Body and Tag
+# checks cannot be overwritten (as the do not contain some uniq id to
+# identify them):  Body and Tag conditions/checks from global are just
+# added to each test.
+#
+# Global is also used to keep cookies, e.g. login cookies which should
+# be present in subsequent tests. So Global acts like a cookie jar.
+#
 GET http://unused.for/global
 RESPONSE
 	# Normly we expect to get 200. Overwrite in test if you need to 
@@ -50,7 +67,7 @@ General Structure of Test Cases
 #
 # The first section is special: It names the request method and URL and 
 # must be the first section, cannot be omitted an has no sub-elements.
-# All other section are optional and may occur in any order. The Ping
+# All other section are optional and may occur in any order. The current
 # test below contains just the RESPONSE section.
 #
 # Method may be "GET" or "POST". The URL must be a valid, full qualified 
@@ -63,7 +80,6 @@ RESPONSE
 	# Check that the server answered with 200 status code.
 	Status-Code	 ==  200
 
-# Thats all for the ping test case
 
 
 -------------------------------
@@ -93,12 +109,12 @@ BODY
 
 #
 # A request is constructed from the following parts in a test:
-#  o The url form |GET| or |POST| section
-#  o Parameters which are sent
+#  o The URL is taken form |GET| or |POST| section
+#  o Parameters which are sent from the |PARAM| section
 #  o Manually set header fields from the |HEADER| section
 #  o Cookies from the |SEND-COOKIE| section
 # Cookies are so special and complicated that the have their own
-# section.  See below
+# section.  See below under "Sending Cookies".
 #
 
 ---------------------------------
@@ -113,7 +129,7 @@ GET http://host.to.ping/path.html
 
 # The header section: add special request header fields here.
 HEADER
-	# add the Accept-Language fields with given value. Note: No colon (:)
+	# add the Accept-Language fields with given value.
 	Accept-Language  := de,fr,en
 	# Quotes could be used around the value to include leading or trailing
 	# spaces, but request header fields normaly do not contain spaces at 
@@ -131,8 +147,8 @@ GET http://host.to.ping/path.html
 HEADER
 	# This is a pure convenience feature.
 	# username and password are in cleartext and will be properly
-	# base64 encoded. No "Basic-Authorization" header will be sent,
-	# instead a correct Authorization header will be sent:
+	# base64 encoded. No |Basic-Authorization|" header will be sent,
+	# instead a correct |Authorization| header will be sent:
 	# Authorization: Basic=<base64 encoded user credentials>
 	Basic-Authorization  :=  username:password
 	
@@ -141,15 +157,15 @@ HEADER
 Sending Parameters and Files
 ---------------------------------
 #
-# Arbitary parameters can be specified in the PARAM section. 
-# For GET requests they are appended to the given URL. POST requests 
-# are sent as "multipart/form-data" iff a file is uploaded and 
-# "application/x-www-form-urlencoded" if not. 
+# Arbitary parameters can be specified in the |PARAM| section. 
+# For |GET| requests they are appended to the given URL. |POST| requests 
+# are sent as |multipart/form-data| iff a file is uploaded and 
+# |application/x-www-form-urlencoded| if not. 
 # See below for forcing multipart posts.
 #
 POST http://my.blog/comment.html
 PARAM
-	# Parameter name and value are given like this. Note: no '='
+	# Parameter name and value are given like this.
 	date  :=  2010-03-04
 	
 	# As a parameter may have seveal values you need to quote values
@@ -158,7 +174,7 @@ PARAM
 	text  :=  "A Proof of the Poincare Conjecture"
 	
 	# Sending multiple values of a parameter (e.g. checkbox)
-	categorie  :=  genius nerd
+	status  :=  genius nerd
 	
 	# If one of the multiple values contains a space: Surround _this_
 	# one with quotes
@@ -175,7 +191,7 @@ PARAM
 Forcing multipart/form-data
 ---------------------------------
 #
-# To force the post to use "multipart/form-data" even if no file
+# To force the post to use "multipart/form-data" even if *no* file
 # is uploaded:  Use POST:mp as method.
 #
 POST:mp http://my.blog/comment.html
@@ -192,12 +208,14 @@ PARAM
 
 #
 # There are several ways to test the response recieved:
-#  o Header fields in the response
-#  o Textual or binary search in the body
-#  o Checking for tags in a html/xml body
-#  o Checking cookies recieved in a Set-Cookie header
-#  o Validating (X)HTML and links
-# As cookies are complicated the have their own section (see below).
+#  o Header fields in the response are checked in the |RESPONSE| section
+#  o Textual or binary search in the body in the |BODY| section
+#  o Checking for tags in a html/xml body in the |TAG| section
+#  o Checking cookies recieved in a Set-Cookie header in the |SET-COOKIE| 
+#    section
+#  o Validating (X)HTML and links (via Setting)
+# As cookies are complicated the have their own section (see below in 
+# CHecking recieved Cookies).
 # Validation is triggered by a special setting (see below).
 #
 
@@ -205,11 +223,10 @@ PARAM
 Checking Response Header Fields
 ---------------------------------
 #
-# More on response fields checking: Recieved header fields can be accessed
-# by their name (no trailing colon), e.g. "Content-Type". 
+# Recieved header fields can be accessed by their name, e.g. |Content-Type|. 
 # There are two special fields which can be checked allways, even if the
-# server didn't include them in the response header: "Status-Code" and
-# "Final-Url". Status-Code is the numerical status code and Final-Url is
+# server didn't include them in the response header: |Status-Code| and
+# |Final-Url|. Status-Code is the numerical status code and Final-Url is
 # the URL reached after doing all the redirects requested by the server.
 #
 # There are several ways to test the recieved value.
@@ -217,49 +234,49 @@ Checking Response Header Fields
 GET http://host.to.ping/path.html
 
 RESPONSE
-	 # Operator == is for real equality
-	 Status-Code   ==  200
+	# Operator == is for real equality
+	Status-Code   ==  200
 	
-	 # Operator ~= tests strings for "contains"
-	 Content-Type  ~=  text/html
-	 
-	 # Operator /= tests for a regular expression matching the field value
-	 # and is considered for expert use.
-	 Strange-Field  /= (cat?|^dog?).+$
+	# Operator ~= tests strings for "contains"
+	Content-Type  ~=  text/html
+	
+	# Operator /= tests for a regular expression matching the field value
+	# and is considered for expert use.
+	Strange-Field  /= (cat?|^dog?).+$
 
-	 # Operator _= tests for the field value starting with the given prefix
-	 Other-Header  _= StartPrefix
+	# Operator _= tests for the field value starting with the given prefix
+	Other-Header  _= StartPrefix
 
- 	 # Operator =_ tests for the field value ending with the given suffix
-	 Something     =_ EndSuffix
-	 
-	 # For field which are numeric you may use <, <=, ==, >= or > with the
-	 # usual meaning.  If the field falue is not a numeric value the outcome
-	 # is undefined.
-	 Content-Length  > 500
-	 
-	 # For fields whose value is a RFC1123 date you may use also use
-	 # <, <=, > and >=. (Only RFC1123 dates work, but others should not
-	 # be used anyway...)
-	 Expires  >=  Fri, 20 May 2011 12:59:19 GMT
+ 	# Operator =_ tests for the field value ending with the given suffix
+	Something     =_ EndSuffix
+	
+	# For field which are numeric you may use <, <=, ==, >= or > with the
+	# usual meaning.  If the field falue is not a numeric value the outcome
+	# is undefined.
+	Content-Length  > 500
+	
+	# For fields whose value is a RFC1123 date you may use also use
+	# <, <=, > and >=. (Only RFC1123 dates work, but others should not
+	# be used anyway...)
+	Expires  >=  Fri, 20 May 2011 12:59:19 GMT
 
-	 
-	 # To negate a condition: Prefix the _whole_ condition with a '!' 
-	 # character.
-	 # Note: There is _no_  !=  operator.  Use  !field == val  instead
+	
+	# To negate a condition: Prefix the _whole_ condition with a '!' 
+	# character.
+	# Note: There is _no_  !=  operator.  Use  !field == val  instead
 	!App-Field ~= Illegal
 	
-	 # To disalow the mere existence of a header field:
+	# To disalow the mere existence of a header field:
 	!Illegal-Header
 	
-	 # Generally there is no need to quote field names or values to test
-	 # against: field names do not contain whitespace or special characters
-	 # and values are just the rest after the operator with leading and
-	 # trailung whitespace trimmed.
-	 # If you do need these leading or trailing whitespaces: Enclose the
-	 # value with " marks:
-	 Field-Name == "  spaces at begin and end are important for the test  "
-	 
+	# Generally there is no need to quote field names or values to test
+	# against: field names do not contain whitespace or special characters
+	# and values are just the rest after the operator with leading and
+	# trailung whitespace trimmed.
+	# If you do need these leading or trailing whitespaces: Enclose the
+	# value with " marks:
+	Field-Name == "  spaces at begin and end are important for the test  "
+	
 	
 ---------------------------------
 Testing the Response Body
@@ -271,37 +288,37 @@ Testing the Response Body
 #
 GET http://host.to.ping/path.html
 BODY
-	 # Txt is the whole text of the body
-	 Txt  ==  Whole text of body
-	 # Attention: Only UTF-8 encoded bodys work well.
-	 
-	 # Bin is the whole text of the body as hexadecimal string
-	 Bin  == 0daf23bcad873f94
-	 # Note: Syntax may change in the future
-	 
-	 # The same operators (without the numerical ones) like in the response
-	 # section can be used with with Txt and Bin: ~=, _=, =_ and /=
-	 # Test if boby contains "Hello World!"
-	 Txt  ~=  Hello World
-	 
-	 # Use something like this to check if a binary file starts with the
-	 # appropriate magic key (png magic key below)
-	 Bin  _=  89504e470d0a1a0a
+	# Txt is the whole text of the body
+	Txt  ==  Whole text of body
+	# Attention: Only UTF-8 encoded bodys work well.
+	
+	# Bin is the whole text of the body as hexadecimal string
+	Bin  == 0daf23bcad873f94
+	# Note: Syntax may change in the future
+	
+	# The same operators (without the numerical ones) like in the response
+	# section can be used with with Txt and Bin: ~=, _=, =_ and /=
+	# Test if boby contains "Hello World!"
+	Txt  ~=  Hello World
+	
+	# Use something like this to check if a binary file starts with the
+	# appropriate magic key (png magic key below)
+	Bin  _=  89504e470d0a1a0a
 
-	 # You can limit the range where the test applies by specifying
-	 # start and end positions in the body: For Txt the positions are
-	 # line numbers (starting from 0), for Bin the positions are
-	 # byte numbers (again strting at 0).  Negativ positions count
-	 # backward, ommited positions mean start/end. (Like in python).
+	# You can limit the range where the test applies by specifying
+	# start and end positions in the body: For Txt the positions are
+	# line numbers (starting from 0), for Bin the positions are
+	# byte numbers (again strting at 0).  Negativ positions count
+	# backward, ommited positions mean start/end. (Like in python).
 
-	 # Line 4,5,6 or 7 contains text "Status: Fine"
-	 Txt[3:7]  ~=  Status: Fine
+	# Line 4,5,6 or 7 contains text "Status: Fine"
+	Txt[3:7]  ~=  Status: Fine
 
-	 # Last line in body is "Success"
-	 Txt[-1:]  ==  "Success"
+	# Last line in body is "Success"
+	Txt[-1:]  ==  "Success"
 
-	 # Somewhere between byte 300 and 800 there is coffe
-	 Bin[300:800] ~= caffebabe
+	# Somewhere between byte 300 and 800 there is coffe
+	Bin[300:800] ~= caffebabe
 
 
 ---------------------------------
@@ -324,7 +341,6 @@ Checking HTML Tags
 #   pattern   :=  "a text pattern with * and ? as the usual wildcards"
 #   tagStruct :=  '[' '\n' moreIndnt { simpleTag | tagStructure } '\n' ']'
 #   moreIndnt :=  "more indentation by tabs/spc than previous/parent tagSpec."
-# ABC XYZ 1234567890 xyz abc.
 #
 GET http://host.to.ping/path.html
 TAG
@@ -341,10 +357,11 @@ TAG
 	#   <p>  Hello   John Doe!
 	#     Greetings!
 	#   </p>
-	# is considered to be "Hello John Doe! Greetings!" and would be
+	# is considered to be |Hello John Doe! Greetings!| and would be
 	# matched by
-	p == Hello John Doe! Greetings!
-	# but not by p == Hello    John Doe! Greetings!
+	#   p == Hello John Doe! Greetings!
+	# but *not* by 
+	#   p == Hello    John Doe! Greetings!
 	
 	# Count occurences of this div tag with CSS class teaser: 
 	# Must be exactly 3
@@ -375,16 +392,16 @@ TAG
 				span == Test
 	   ]
 
-	 # Note: The following structure would match any teaser (the div) which
-	 # contains as direct childs a h3- and a p-tag, regardless if there are
-	 # other tags present: So
-	 #   <div class="teaser>
-	 #     <h1>Super</h1>
-	 #     <h3>Freibier</h3>
-	 #     <span>Heute!</span>
-	 #     <p>Die ganze Woche Freibier für alle</p>
-	 #   </div>
-	 # Would match the following structure.
+	# Note: The following structure would match any teaser (the div) which
+	# contains as direct childs a h3- and a p-tag, regardless if there are
+	# other tags present: So
+	#   <div class="teaser>
+	#     <h1>Super</h1>
+	#     <h3>Freibier</h3>
+	#     <span>Heute!</span>
+	#     <p>Die ganze Woche Freibier für alle</p>
+	#   </div>
+	# Would match the following structure.
 	[
 		div class=teaser
 			h3 == Freibier
@@ -523,8 +540,8 @@ SETTING
 # Tests may be repeated and there are two types of variables which take
 # different values on each repetition.
 # 
-# There are two different ways to "repeat" a test: Setting the the setting
-# "Repeat" or "Tries" to a number greater 0.
+# There are two different ways to "repeat" a test: Setting "Repeat" or 
+# "Tries" to a number greater 0.
 #  - "Repeating" a test n times means executing the the test n times and
 #    reporting a success only if all n individual tests succeed. This is 
 #    usefull for iterating over sequence or random variables.  See above
@@ -617,7 +634,7 @@ TAG
 	# All other elements do not allow variables.
 	h2 == Hello ${Name}!
 CONST
-	# Set value of BaseUrl to http://my.blog/entries. Note: No = sign!
+	# Set value of BaseUrl to http://my.blog/entries.
 	BaseUrl  :=  http://my.blog/entries
 SEQ
 	# Month will be 1 on first run of test, 2 on second, and so on.
@@ -632,10 +649,10 @@ RAND
 	# to create special characters e.g. a FEMAL SIGN.
 	Name  :=  Anna "Emil Tom" "Gender: \u2640" "Berta \"The Fat\" Bomb"
 	# Name would be one of:
-	#   Anna
-	#   Emil Tom
-	#   Gender: ♀
-	#   Berta "The Fat" Bomb
+	#    Anna
+	#    Emil Tom
+	#    Gender: ♀
+	#    Berta "The Fat" Bomb
 
 SETTING
 	# Repeat the test 7 times.
@@ -681,10 +698,10 @@ Pre- and Post-Tasks
 # You may execute (and test their outcome) arbitary commands before and
 # after running the test.  These commands are executed really before
 # and after which means only once befor repeating or trying tests.
-# The commands are search in the PATH but you may give full paths.
+# The commands are search in PATH but you may give full paths.
 # Use double quotes " to group words into one argument.  If the command
 # cannot be run, it aborts abnormaly or returns anything but 0 it is
-# considerued an error.  The test itself is not performed after a 
+# considered an error.  The test itself is not performed after a 
 # failed BEFORE condition.
 #
 GET http://some.url
@@ -730,7 +747,7 @@ Logfile Checking
 # The rest of the operators known from the RESPONSE section are undefined.
 # Please note: No spaces in the path to the logfile.
 # Before running any tests the length of the logfile is recorded.  After
-# Running all the tests (that is after all repetitions and tries) the log
+# running all the tests (that is after all repetitions and tries) the log
 # file is openend and the new lines are matched against the conditions.
 #
 GET http://some.url
@@ -745,8 +762,9 @@ LOG
 	/var/mail/testuser _= Subject: Weekly Traffic Summary
 
 	# Make sure this request does not fill the disk if repeated:
-	# Logfile must not grow less than 120 bytes.  Unimplemented
-	# server/log/error.log < 120
+	# Logfile must not grow less than 250 bytes.
+	# (Currently unimplemented)
+	server/log/error.log < 250
 
 
 
@@ -820,21 +838,3 @@ SETTING
 	# 3 will just dump the recieved response body (and create a new file 
 	# each time)
 	Dump  :=  1
-
-
-#
-# Global
-# ------
-#
-# If the very first test in a test suite is named "Global" than this test
-# will not be run but serve as a template for all subsequent tests:
-# Settings, Variables, Header fields and Response checks are inherited
-# from global to each test.  The test may overwrite them.  Body and Tag
-# checks cannot be overwritten (as the do not contain some uniq id to
-# identify them):  Body and Tag conditions/checks from global are just
-# added to each test.
-#
-# Global is also used to keep cookies, e.g. login cookies which should
-# be present in subsequent tests.
-#
-# See Global-"Test" above for an example
