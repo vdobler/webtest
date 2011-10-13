@@ -106,3 +106,7 @@ TAG
 	 p == Aktuell passt leider kein Inserat mit Ihren Suchkriterien überein*
 	!table summary=Suchresultate
 	
+----------------------------------
+Unknow host
+----------------------------------
+GET http://unknow.host.nil/nowhere

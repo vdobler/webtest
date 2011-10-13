@@ -5,7 +5,6 @@
 //
 package main
 
-
 import (
 	"fmt"
 	"flag"
@@ -39,6 +38,7 @@ var showLinks bool = false
 var testsToRun string = "*"
 var randomSeed int64 = -1
 var dumpTalk string = ""
+var junitFile = ""
 
 // Benchmark
 var numRuns int = 15
@@ -158,6 +158,7 @@ func help() {
 	fmt.Fprintf(os.Stderr, "\t                  If unused respect individual setting of each test.\n")
 	fmt.Fprintf(os.Stderr, "\t-validate <n>     Allow checking links (1), validating html (2),\n")
 	fmt.Fprintf(os.Stderr, "\t                  both (3).\n")
+	fmt.Fprintf(os.Stderr, "\t-junit <file>     Write results as junit xml to <file>.\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "Benchmark Options:\n")
 	fmt.Fprintf(os.Stderr, "\t-runs <n>         Number of repetitions of each test.\n")
@@ -211,6 +212,7 @@ func globalInitialization() {
 	flag.BoolVar(&testmode, "test", true, "Perform normal testing")
 	flag.BoolVar(&stresstestMode, "stress", false, "Use background-suite as stress suite for tests.")
 	flag.IntVar(&validateMask, "validate", 0, "Bit mask which is ANDed to individual test setting.")
+	flag.StringVar(&junitFile, "junit", "", "Write results as junit xml to file.")
 	flag.IntVar(&LogLevel, "log", 3, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&tagLogLevel, "log.tag", -1, "Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&suiteLogLevel, "log.suite", -1, "Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
@@ -473,6 +475,9 @@ func test(suites []*suite.Suite) {
 	var passed bool = true
 	var hasFailures, hasErrors bool // global over all suites
 
+
+	var junit = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
+	junit += "<testsuites>\n"
 	for sn, s := range suites {
 		var headline string
 		var failed, erred bool // this suite
@@ -487,6 +492,9 @@ func test(suites []*suite.Suite) {
 				info("Skipped test %d.", i+1)
 				continue
 			}
+			// junit stuff
+			var milliseconds int64 = time.UTC().Nanoseconds() / 1e6
+			testcases := ""
 			abbrTitle := abbrevTitle(i+1, t.Title)
 
 			origDump, _ := s.Test[i].Setting["Dump"]
@@ -501,36 +509,70 @@ func test(suites []*suite.Suite) {
 			s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask // clear unwanted validation
 			s.RunTest(i)
 			result += fmt.Sprintf("%s: %s\n", abbrTitle, s.Test[i].Status())
-			if _, numf, nume, _ := s.Test[i].Stat(); numf+nume > 0 {
+			nump, numf, nume, _ := s.Test[i].Stat()
+			if numf+nume > 0 {
 				passed = false
-				for _, res := range s.Test[i].Result {
-					if strings.HasPrefix(res, "Failed") {
-						if !failed {
-							fails += headline
-						}
-						hasFailures, failed = true, true
-						fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
-					} else if strings.HasPrefix(res, "Error") {
-						if !erred {
-							errors += headline
-						}
-						hasErrors, erred = true, true
-						errors += fmt.Sprintf("%s: %s\n", abbrTitle, res)
-					} else if !passed && strings.HasPrefix(res, "   ") {
-						fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
+			}
+			for _, res := range s.Test[i].Result {
+				if strings.HasPrefix(res, "Failed") {
+					if !failed {
+						fails += headline
 					}
+					hasFailures, failed = true, true
+					fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
+				} else if strings.HasPrefix(res, "Error") {
+					if !erred {
+						errors += headline
+					}
+					hasErrors, erred = true, true
+					errors += fmt.Sprintf("%s: %s\n", abbrTitle, res)
+				} else if !passed && strings.HasPrefix(res, "   ") {
+					fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
 				}
-				if s.Test[i].Abort() == 1 {
-					fmt.Printf("Aborting suite.\n")
-					errors += fmt.Sprintf("%s: Aborted whole suite.\n", abbrTitle)
-					break
+
+				// Junit stuff
+				cause := res[7:]
+				testcases += fmt.Sprintf("     <testcase classname =\"%s\" name=\"%s\">",
+					t.Title, "CeckID")
+				if strings.HasPrefix(res, "Passed") {
+					// Noop
+				} else if strings.HasPrefix(res, "Failed") {
+					testcases += fmt.Sprintf("\n       <failure type=\"%s\">\n",
+						"FailType")
+					testcases += fmt.Sprintf("         %s\n", cause)
+					testcases += fmt.Sprintf("       </failure>\n    ")
+				} else if strings.HasPrefix(res, "Error") {
+					testcases += fmt.Sprintf("\n       <error type=\"%s\">\n",
+						"ErrMsg")
+					testcases += fmt.Sprintf("         %s\n", cause)
+					testcases += fmt.Sprintf("       </error>\n    ")
 				}
+				testcases += fmt.Sprintf("</testcase>\n")
+
+			}
+			if s.Test[i].Abort() == 1 {
+				fmt.Printf("Aborting suite.\n")
+				errors += fmt.Sprintf("%s: Aborted whole suite.\n", abbrTitle)
+				break
 			}
 			s.Test[i].Setting["Dump"] = origDump
 
+			// Junit stuff
+			seconds := float64(time.UTC().Nanoseconds()/1e6-milliseconds) / 1000
+			suitename := t.Title
+			if len(suites) > 1 {
+				suitename = s.Name + " :: " + suitename
+			}
+			junit += fmt.Sprintf("  <testsuite name=\"%s\" tests=\"%d\" failures\"%d\" errors\"%d\" time\"%.2f\" >\n", s.Name, nump+numf+nume, numf, nume, seconds)
+			junit += testcases
+			junit += "  </testsuite>\n"
+
 		}
 		result += "\n"
+
 	}
+
+	junit += "<testsuites>\n"
 
 	filename := outputPath + "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
 	file, err := os.Create(filename)
@@ -558,6 +600,11 @@ func test(suites []*suite.Suite) {
 		}
 	}
 	file.Sync()
+
+	if junitFile != "" {
+		fmt.Println()
+		fmt.Println(junit)
+	}
 
 	if passed {
 		fmt.Printf("\nPASS\n")
