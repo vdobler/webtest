@@ -9,20 +9,19 @@ import (
 )
 
 // Return filesize of file path, -1 on error and 0 for nonexisting files.
-func filesize(path string) int64 {
+func filesize(path string) (s int64, err os.Error) {
 	file, err := os.Open(path)
 	if err != nil {
-		if err == os.ENOENT {
-			return 0
-		}
-		return -1
+		s = -1
+		return
 	}
 	defer file.Close()
 	fi, err := file.Stat()
 	if err != nil {
-		return -1
+		s = -1
+		return 
 	}
-	return fi.Size
+	return fi.Size, nil
 }
 
 func determinLogfileSize(logs []LogCondition, test *Test) map[string]int64 {
@@ -34,11 +33,12 @@ func determinLogfileSize(logs []LogCondition, test *Test) map[string]int64 {
 		if _, ok := logfilesize[log.Path]; ok {
 			continue
 		}
-		logfilesize[log.Path] = filesize(log.Path)
+		s, err := filesize(log.Path)
 		trace("Filesize of %s = %d", log.Path, logfilesize[log.Path])
-		if logfilesize[log.Path] == -1 {
-			test.Error(fmt.Sprintf("Cannot check logfile %s", log.Path))
+		if err != nil {
+			test.Error(log.Id, "Cannot read "+log.Path, err.String())
 		}
+		logfilesize[log.Path] = s
 	}
 	return logfilesize
 }

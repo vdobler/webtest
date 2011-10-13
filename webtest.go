@@ -514,37 +514,33 @@ func test(suites []*suite.Suite) {
 				passed = false
 			}
 			for _, res := range s.Test[i].Result {
-				if strings.HasPrefix(res, "Failed") {
+				if res.Status == suite.TestFailed {
 					if !failed {
 						fails += headline
 					}
 					hasFailures, failed = true, true
-					fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
-				} else if strings.HasPrefix(res, "Error") {
+					fails += fmt.Sprintf("%s: %s\n\t", abbrTitle, res.Cause, res.Message)
+				} else if res.Status==suite.TestErrored {
 					if !erred {
 						errors += headline
 					}
 					hasErrors, erred = true, true
 					errors += fmt.Sprintf("%s: %s\n", abbrTitle, res)
-				} else if !passed && strings.HasPrefix(res, "   ") {
-					fails += fmt.Sprintf("%s: %s\n", abbrTitle, res)
 				}
-
 				// Junit stuff
-				cause := res[7:]
 				testcases += fmt.Sprintf("     <testcase classname =\"%s\" name=\"%s\">",
-					t.Title, "CeckID")
-				if strings.HasPrefix(res, "Passed") {
+						t.Title, res.Id)
+				if res.Status == suite.TestPassed {
 					// Noop
-				} else if strings.HasPrefix(res, "Failed") {
+				} else if res.Status == suite.TestFailed {
 					testcases += fmt.Sprintf("\n       <failure type=\"%s\">\n",
-						"FailType")
-					testcases += fmt.Sprintf("         %s\n", cause)
+						res.Cause)
+					testcases += fmt.Sprintf("         %s\n", res.Message)
 					testcases += fmt.Sprintf("       </failure>\n    ")
-				} else if strings.HasPrefix(res, "Error") {
+				} else if res.Status == suite.TestErrored {
 					testcases += fmt.Sprintf("\n       <error type=\"%s\">\n",
-						"ErrMsg")
-					testcases += fmt.Sprintf("         %s\n", cause)
+						res.Cause)
+						testcases += fmt.Sprintf("         %s\n", res.Message)
 					testcases += fmt.Sprintf("       </error>\n    ")
 				}
 				testcases += fmt.Sprintf("</testcase>\n")
