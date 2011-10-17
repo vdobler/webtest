@@ -2,6 +2,7 @@ package suite
 
 import (
 	"http"
+	"fmt"
 	"testing"
 )
 
@@ -35,28 +36,43 @@ func TestNowValue(t *testing.T) {
 	//           1         2
 	// 01234567890123456789012345678
 	testNowValues := []struct {
-		d string
-		i int
-	}{{"", 0},
-		{"+1hour", 19},
-		{"+10 hours", 18},
-		{"+2 days", 11},
-		{"+40days", 11},
-		{"+10days - 2hours + 10 seconds", 24},
-		{"+ 1 month", 11},
-		{"+ 12 month", 16},
-		{"+ 13 month", 16},
-		{"- 4 months", 16},
-		{"- 13 month", 16},
-		{"+ 1 year", 16},
-		{"+ 12 year", 16},
-		{"- 11 years", 16},
+		d, c string
+	}{{"", "fffffffffffffffffffffffffffff"},
+		{"+1hour", "cccffccfcccfccccfcCffffffffff"},
+		{"+10 hours", "cccffccfcccfccccfCcffffffffff"},
+		{"+2 days", "CCCffcCfcccfccccfffffffffffff"},
+		{"+40days", "CCCffCCfCCCfccccfffffffffffff"},
+		{"+10days - 2hours + 10 seconds", "CCC, Cc ccc cccc cC:cc:Cf fff"},
+		{"+ 1 month", "ccc, ff CCC cccc ff:ff:ff fff"},
+		{"+ 12 month", "ccc, ff fff cccC ff:ff:ff fff"},
+		{"+ 13 month", "ccc, ff CCC cccC ff:ff:ff fff"},
+		{"- 4 months", "ccc, ff CCC cccc ff:ff:ff fff"},
+		{"- 13 month", "ccc, ff CCC cccC ff:ff:ff fff"},
+		{"+ 1 year", "ccc, ff fff cccC ff:ff:ff fff"},
+		{"+ 12 year", "ccc, ff fff ccCC ff:ff:ff fff"},
+		{"- 11 years", "ccc, ff fff ccCC ff:ff:ff fff"},
 	}
 	for _, x := range testNowValues {
 		now := nowValue("", http.TimeFormat, true)
 		then := nowValue(x.d, http.TimeFormat, true)
-		if !(now[x.i:] == then[x.i:]) {
-			t.Error(now + " " + x.d + " unexpected " + then)
+		for i, m := range x.c {
+			switch m {
+			case 'f':
+				if now[i] != then[i] {
+					t.Errorf("'%s' %s: Pos %d: got '%c' expected '%c'.", 
+						now, x.d, i, now[i], then[i])
+				}
+			case 'C':
+				if now[i] == then[i] {
+					t.Errorf("'%s' '%s': Pos %d: unchanged '%c'.", 
+						now, x.d, i, now[i])
+				}
+			default:
+				// might change
+			}
+		}
+		if t.Failed() {
+			fmt.Printf("'%s' %s --> '%s'\n", now, x.d, then)
 		}
 	}
 }

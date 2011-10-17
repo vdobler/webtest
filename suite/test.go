@@ -91,7 +91,14 @@ type Result struct {
 }
 
 func (result Result) String() string {
-	return result.Id + ": " + result.Status.String() + " " + result.Cause + " " + result.Message
+	return fmt.Sprintf("%-6s %s: %s", result.Status.String(), result.Id, result.Cause)
+}
+func (result Result) AsText() string {
+	s := result.String()
+	for _, t := range strings.Split(result.Message, "\n") {
+		s += "\n\t" + t
+	}
+	return s
 }
 
 // Make a deep copy of src. dest will not share "any" data structures with src.
@@ -993,11 +1000,13 @@ func checkLogContent(test *Test, buf []byte, log LogCondition) {
 
 	if !found && !log.Neg {
 		trace("Not found")
-		test.Failed(log.Id, "Missing", fmt.Sprintf("Missing %s in\n%s", log.Val, txt))
+		test.Failed(log.Id, "Missing "+log.Val, fmt.Sprintf("Missing '%s' [%s] in:\n%s",
+			log.Val, log.Op, txt))
 		return
 	} else if found && log.Neg {
 		trace("Found")
-		test.Failed(log.Id, "Forbidden", fmt.Sprintf("Forbidden %s in\n%s", log.Val, txt))
+		test.Failed(log.Id, "Forbidden "+log.Val, fmt.Sprintf("Forbidden '%s' [%s] in:\n%s",
+			log.Val, log.Op, txt))
 		return
 	} else {
 		test.Passed("Log okay: " + log.String())
