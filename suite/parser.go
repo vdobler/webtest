@@ -893,18 +893,21 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 
 	}
 
-	if test != nil && test.Method == "GET" {
-		// Check if files-uploads are present
-		for k, list := range test.Param {
-			for _, val := range list {
-				if strings.HasPrefix(val, "@file:") {
-					p.error("Cannot upload files with GET method in test %s, parameter %s.",
-						test.Title, k)
+	if test != nil {
+		if test.Method == "GET" {
+			// Check if files-uploads are present
+			for k, list := range test.Param {
+				for _, val := range list {
+					if strings.HasPrefix(val, "@file:") {
+						p.error("Cannot upload files with GET method in test %s, parameter %s.",
+							test.Title, k)
+					}
 				}
 			}
 		}
 		suite.Test = append(suite.Test, *test)
 		trace("Append test to suite: \n%s", test.String())
+
 	}
 
 	if !p.okay() {

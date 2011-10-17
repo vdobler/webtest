@@ -172,7 +172,7 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 			duration, _, _ := tc.RunSingle(s.Global, false)
 
 			rt := int64(duration)
-			passed, failed, errored, _ := tc.Stat()
+			passed, failed, errored := tc.Stat()
 			total := passed + failed
 
 			result.N++

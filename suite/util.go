@@ -19,7 +19,7 @@ func filesize(path string) (s int64, err os.Error) {
 	fi, err := file.Stat()
 	if err != nil {
 		s = -1
-		return 
+		return
 	}
 	return fi.Size, nil
 }

@@ -94,7 +94,7 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 	t2 := ""
 	if x == "foo" || x == "bar" || x == "baz" {
 		xCounter[x] = xCounter[x] + 1
-		if xCounter[x] < 3 { // Third run succeeds....
+		if xCounter[x] < 4 { // Fifth run succeeds....
 			t2 += "\n<h2>Still Running...</h2>"
 		} else {
 			t2 += "\n<h2 class=\"okay\">Finished.</h2>"
@@ -372,11 +372,11 @@ func (s *S) TestStresstest(c *gocheck.C) {
 //
 
 // Helper functions to test one test
-func printresults(test *Test, prefix string) {
+func printresults(test *Test, status TestStatus) {
 	fmt.Printf("Result of Test %s:\n", test.Title)
 	for _, r := range test.Result {
-		if strings.HasPrefix(r, prefix) {
-			fmt.Println("  " + r)
+		if r.Status == status {
+			fmt.Println("  " + r.String())
 		}
 	}
 }
@@ -388,24 +388,30 @@ func runsingletest(name, st string, no int, ep, ef, ee int, c *gocheck.C) {
 		return
 	}
 	if len(suite.Test) <= no {
-		c.Fatalf("Suite %s has only %d tests. %d required to run.", name, len(suite.Test), no)
+		titles := ""
+		for i := range suite.Test {
+			titles += ": " + suite.Test[i].Title + " : "
+		}
+		c.Fatalf("Suite %s has only %d tests [%s]. %d required to run.", name, len(suite.Test), titles, no)
 		return
 	}
 
 	suite.RunTest(no)
-	p, f, e, _ := suite.Test[no].Stat()
+	p, f, e := suite.Test[no].Stat()
 
 	// Stopp test if error mismatch
 	if e != ee {
-		printresults(&suite.Test[no], "Error")
+		printresults(&suite.Test[no], TestErrored)
 		c.Fatalf("Wrong no of errors: expected %d, obtained %d.", ee, e)
 	}
 
 	if p != ep || f != ef {
-		printresults(&suite.Test[no], "")
+		printresults(&suite.Test[no], TestErrored)
+		printresults(&suite.Test[no], TestFailed)
 	}
 
 	if p+f != ep+ef {
+		fmt.Printf("\nResult: %#v\n\n", suite.Test[no].Result)
 		c.Fatalf("Wrong no of executed tests: expected %d (p:%d, f:%d), obtained %d (p:%d, f:%d).",
 			ep+ef, ep, ef, p+f, p, f)
 	}
@@ -656,7 +662,7 @@ TAG
 	h2 class=okay == Finished.
 SETTING
 	Dump   := 1
-	Tries  := 2
+	Tries  := 3
 `
 	runsingletest("Passing Gate", st, 0, 1, 0, 0, c)
 	runsingletest("Failing Gate", st, 1, 0, 1, 0, c)
