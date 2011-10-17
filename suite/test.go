@@ -962,54 +962,46 @@ func checkLogSize(test *Test, log LogCondition, delta, expected int64) {
 func checkLogContent(test *Test, buf []byte, log LogCondition) {
 	txt := string(buf)
 	trace("Checking %s on: %s", log.String(), txt)
+	found := false
 	switch log.Op {
-	case "~=", "/=":
-		found := false
-		if log.Op == "~=" {
-			found = strings.Index(txt, log.Val) != -1
+	case "~=":
+		found = strings.Index(txt, log.Val) != -1
+	case "/=":
+		re, err := regexp.Compile(log.Val)
+		if err != nil {
+			test.Error(log.Id, "Bad Test", "Unparsable regexp: "+err.String())
+			return
+		}
+		found = re.Find(buf) != nil
+	case "_=", "=_":
+		txt = strings.Replace(txt, "\r\n", "\n", -1)
+		var cf func(string) bool
+		if log.Op == "_=" {
+			cf = func(s string) bool { return hp(s, log.Val) }
 		} else {
-			re, err := regexp.Compile(log.Val)
-			if err != nil {
-				test.Error(log.Id, "Bad Test", "Unparsable regexp: "+err.String())
-				return
-			}
-			found = re.Find(buf) != nil
+			cf = func(s string) bool { return hs(s, log.Val) }
 		}
-		if !found && !log.Neg {
-			trace("Not found")
-			test.Failed(log.Id, "Missing",
-				fmt.Sprintf("Missing %s in log %s", log.Val, log.Path))
-			return
-		} else if found && log.Neg {
-			trace("Found")
-			test.Failed(log.Id, "Forbidden",
-				fmt.Sprintf("Forbidden %s in log %s", log.Val, log.Path))
-			return
-		}
-	case "_=":
-		if !hp(txt, log.Val) {
-			n := len(log.Val)
-			if n > len(txt) {
-				n = len(txt)
+		for _, s := range strings.Split(txt, "\n") {
+			if cf(s) {
+				found = true
+				break
 			}
-			test.Failed(log.Id, "Prefix Mismatch",
-				fmt.Sprintf("Got '%s', expected '%s'", txt[0:n], log.Val))
-			return
-		}
-	case "=_":
-		if !hs(txt, log.Val) {
-			n := len(log.Val)
-			if n > len(txt) {
-				n = len(txt)
-			}
-			test.Failed(log.Id, "Suffix Mismatch",
-				fmt.Sprintf("Got '%s', expected '%s'", txt[len(txt)-n:], log.Val))
-			return
 		}
 	default:
 		panic("No such operator '" + log.Op + "' for logfiles")
 	}
-	test.Passed("Log okay: " + log.String())
+
+	if !found && !log.Neg {
+		trace("Not found")
+		test.Failed(log.Id, "Missing", fmt.Sprintf("Missing %s in\n%s", log.Val, txt))
+		return
+	} else if found && log.Neg {
+		trace("Found")
+		test.Failed(log.Id, "Forbidden", fmt.Sprintf("Forbidden %s in\n%s", log.Val, txt))
+		return
+	} else {
+		test.Passed("Log okay: " + log.String())
+	}
 }
 
 // Perform a single run of the test.  Return duration for server response in ms,

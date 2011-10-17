@@ -790,6 +790,23 @@ func (p *Parser) readGetPost(line string) (method, u string) {
 	return
 }
 
+// Check if file uploads are present with GET request.
+func noGetWithFile(test *Test, p *Parser) {
+	if test.Method != "GET" {
+		return
+	}
+
+	// Check if files-uploads are present
+	for k, list := range test.Param {
+		for _, val := range list {
+			if strings.HasPrefix(val, "@file:") {
+				p.error("Cannot upload files with GET method in test %s, parameter %s.",
+					test.Title, k)
+			}
+		}
+	}
+}
+
 // Parse the suite.
 func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	p.readLines()
@@ -811,6 +828,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 				if first && test.Title == "Global" {
 					suite.Global = test
 				} else {
+					noGetWithFile(test, p)
 					suite.Test = append(suite.Test, *test)
 					trace("Append test to suite: \n%s", test.String())
 					test = nil
@@ -894,17 +912,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	}
 
 	if test != nil {
-		if test.Method == "GET" {
-			// Check if files-uploads are present
-			for k, list := range test.Param {
-				for _, val := range list {
-					if strings.HasPrefix(val, "@file:") {
-						p.error("Cannot upload files with GET method in test %s, parameter %s.",
-							test.Title, k)
-					}
-				}
-			}
-		}
+		noGetWithFile(test, p)
 		suite.Test = append(suite.Test, *test)
 		trace("Append test to suite: \n%s", test.String())
 
