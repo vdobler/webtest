@@ -1,0 +1,36 @@
+--------------------------------
+Google
+--------------------------------
+# Test redirect from google.com to swiss version under google.ch
+GET http://www.google.com
+RESPONSE
+	Final-Url  == http://www.google.de
+BODY
+	Txt  ~=  Braunschweig
+SETTING
+	Dump  := 1
+
+----------------------------------
+Unic Log
+----------------------------------
+GET http://www.unic.com/ch/de.html
+LOG 
+	logfile.log _= Rumpelstielzchen
+
+
+----------------------------------
+Unic Tag
+----------------------------------
+GET http://www.unic.com/ch/de.html
+RESPONSE
+	Status-Code >= 202
+TAG
+	h7 == Bla bla blub
+
+
+----------------------------------
+Unbekannt
+----------------------------------
+GET http://unbekannt.nowhere.nil
+BODY
+	 Txt  ~= e

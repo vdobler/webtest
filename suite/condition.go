@@ -35,9 +35,9 @@ type TagCondition struct {
 func (tc *TagCondition) String() (s string) {
 	switch tc.Cond {
 	case TagExpected:
-		s = "  "
+		// s = "  "
 	case TagForbidden:
-		s = "! "
+		s = "!" // "! "
 	case CountEqual:
 		s = fmt.Sprintf("=%d  ", tc.Count)
 	case CountNotEqual:
@@ -114,8 +114,6 @@ type LogCondition struct {
 func (c *LogCondition) String() (s string) {
 	if c.Neg {
 		s = "!"
-	} else {
-		s = " "
 	}
 	s += c.Path + "  " + c.Op + "  " + c.Val
 	return
@@ -155,10 +153,25 @@ func toNumber(a, b, line string) (n, m int64) {
 	return
 }
 
-// Check whether v fullfills the condition cond.
-func (cond *Condition) Fullfilled(v string) bool {
-	ans := false
+// Retunr first n (if n>0) or last n (if n<0) of s.
+func snippet(s string, n int) (snip string) {
+	if n > 0 {
+		if n > len(s) {
+			n = len(s)
+		}
+		snip = s[:n]
+	} else {
+		n = -n
+		if n > len(s) {
+			n = len(s)
+		}
+		snip = s[len(s)-n:]
+	}
+	return
+}
 
+// Check whether v fullfills the condition cond.
+func (cond *Condition) Fullfilled(v string) (ans bool, was string) {
 	if cond.Range.Low || cond.Range.High {
 		vv := strings.Split(v, "\n")
 		low, high := 0, len(vv)
@@ -178,39 +191,49 @@ func (cond *Condition) Fullfilled(v string) bool {
 	switch cond.Op {
 	case ".": // Empty operator: tests existance only.
 		ans = (v != "")
+		was = snippet(v, 20)
 	case "==":
 		ans = (cond.Val == v)
+		was = v
 	case "_=":
 		ans = strings.HasPrefix(v, cond.Val)
+		was = snippet(v, len(cond.Val))
 	case "=_":
 		ans = strings.HasSuffix(v, cond.Val)
+		was = snippet(v, -len(cond.Val))
 	case "~=":
 		ans = strings.Contains(v, cond.Val)
+		was = snippet(v, 10) + "[...]" + snippet(v, -10)
 	case ">":
 		rv, lv := toNumber(v, cond.Val, cond.Id)
 		ans = rv > lv
+		was = snippet(v, 10)
 	case ">=":
 		rv, lv := toNumber(v, cond.Val, cond.Id)
 		ans = rv >= lv
+		was = snippet(v, 10)
 	case "<":
 		rv, lv := toNumber(v, cond.Val, cond.Id)
 		ans = rv < lv
+		was = snippet(v, 10)
 	case "<=":
 		rv, lv := toNumber(v, cond.Val, cond.Id)
 		ans = rv <= lv
+		was = snippet(v, 10)
 	case "/=":
 		if rexp, err := regexp.Compile(cond.Val); err == nil {
 			ans = (rexp.FindStringIndex(v) != nil)
 		} else {
 			error("Invalid regexp in condition '%s': %s", cond.String(), err.String())
 		}
+		was = snippet(v, 10) + "[...]" + snippet(v, -10)
 	default:
-		error("Condition operator '%s' (%s) not implemented.", cond.Op, cond.Id)
+		panic(fmt.Sprintf("Condition operator '%s' (%s) not implemented.", cond.Op, cond.Id))
 	}
 	if cond.Neg {
 		ans = !ans
 	}
-	return ans
+	return
 }
 
 // Convert hex string (e.g. "a0 34 df 71 bc") into byte slice.
@@ -282,8 +305,6 @@ func (cond *Condition) BinFullfilled(v []byte) bool {
 func (c *Condition) String() (s string) {
 	if c.Neg {
 		s = "!"
-	} else {
-		s = " "
 	}
 	s += c.Key
 	s += c.Range.String()

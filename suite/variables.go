@@ -113,10 +113,7 @@ func varValue(v string, test, orig *Test) (value string) {
 func nowValue(rel, tf string, utc bool) string {
 	rel = strings.Replace(rel, " ", "", -1)
 
-	rx, err := regexp.Compile("([+\\-])([0-9]+)(second|minute|hour|day|week|month|year)s?")
-	if err != nil {
-		error("Ooooops: " + err.String())
-	}
+	rx := regexp.MustCompile("([+\\-])([0-9]+)(second|minute|hour|day|week|month|year)s?")
 	all := rx.FindAllStringSubmatch(rel, -1)
 
 	var ds, dm, dy int64 // total delta for seconds, month and years
@@ -141,7 +138,7 @@ func nowValue(rel, tf string, utc bool) string {
 		case "year":
 			dy += n
 		default:
-			error("Oooops: Unknown NOW midifier '%s'. Ignored.", delta[3])
+			error("Oooops: Unknown NOW modifier '%s'. Ignored.", delta[3])
 		}
 	}
 	var t *time.Time

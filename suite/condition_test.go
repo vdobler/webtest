@@ -76,7 +76,7 @@ for internal use.`
 		Condition{Op: "=_", Val: "xxx", Neg: true, Range: pr("[7:6]")},
 		Condition{Op: "=_", Val: "xxx", Neg: true, Range: pr("[-7:30]")},
 	} {
-		if !(&c).Fullfilled(s) {
+		if ok, _ := (&c).Fullfilled(s); !ok {
 			t.Errorf("Condition %s did not match", c.String())
 		}
 	}

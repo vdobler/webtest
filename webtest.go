@@ -467,6 +467,22 @@ func benchmark(suites []*suite.Suite) {
 	}
 }
 
+// Junit output uses the following mapping
+//   file my-suite.wt   <-->  testsuite
+//   test ----Name----  <-->  testcase
+//   check/condition    <-->  assertion
+// 
+func xmlEnc(s string) string {
+	s = strings.Replace(s, "&", "&amp;", -1)
+	s = strings.Replace(s, "<", "&lt;", -1)
+	return strings.Replace(s, ">", "&gt;", -1)
+}
+
+func xmlAttr(name, value string) string {
+	value = strings.Replace(xmlEnc(value), "\"", "&quot;", -1)
+	return fmt.Sprintf(`%s="%s"`, name, value)
+}
+
 // Testting
 func test(suites []*suite.Suite) {
 	var result string = "\n======== Results ===============================================================\n"
@@ -487,14 +503,18 @@ func test(suites []*suite.Suite) {
 			result += headline
 		}
 
+		// Junit stuff
+		var milliseconds int64 = time.UTC().Nanoseconds() / 1e6
+		tnump, tnumf, tnume, tnums := 0, 0, 0, 0 // total number of pass, fail, err, skipped
+		timestamp := time.LocalTime().Format("2006-01-02T15:04:05")
+		hostname, _ := os.Hostname()
+		testcases := ""
+
 		for i, t := range s.Test {
 			if !shouldRun(s, sn+1, i+1) {
 				info("Skipped test %d.", i+1)
 				continue
 			}
-			// junit stuff
-			var milliseconds int64 = time.UTC().Nanoseconds() / 1e6
-			testcases := ""
 			abbrTitle := abbrevTitle(i+1, t.Title)
 
 			origDump, _ := s.Test[i].Setting["Dump"]
@@ -506,10 +526,18 @@ func test(suites []*suite.Suite) {
 			case "body":
 				s.Test[i].Setting["Dump"] = 3
 			}
-			s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask // clear unwanted validation
+
+			// clear unwanted validation
+			s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask
+
 			s.RunTest(i)
+
 			result += fmt.Sprintf("%s: %s\n", abbrTitle, s.Test[i].Status())
-			nump, numf, nume, _ := s.Test[i].Stat()
+			nump, numf, nume := s.Test[i].Stat()
+			tnump += nump
+			tnumf += numf
+			tnume += nume
+
 			if numf+nume > 0 {
 				passed = false
 			}
@@ -519,28 +547,35 @@ func test(suites []*suite.Suite) {
 						fails += headline
 					}
 					hasFailures, failed = true, true
-					fails += fmt.Sprintf("%s: %s\n\t", abbrTitle, res.Cause, res.Message)
-				} else if res.Status==suite.TestErrored {
+					fails += fmt.Sprintf("%s: %s\n", abbrTitle, res.Cause)
+					if len(res.Message) > 0 {
+						for _, x := range strings.Split(res.Message, "\n") {
+							fails += "                                    "
+							fails += x + "\n"
+						}
+					}
+				} else if res.Status == suite.TestErrored {
 					if !erred {
 						errors += headline
 					}
 					hasErrors, erred = true, true
 					errors += fmt.Sprintf("%s: %s\n", abbrTitle, res)
 				}
+
 				// Junit stuff
-				testcases += fmt.Sprintf("     <testcase classname =\"%s\" name=\"%s\">",
-						t.Title, res.Id)
+				testcases += fmt.Sprintf("     <testcase %s %s>",
+					xmlAttr("classname", t.Title), xmlAttr("name", t.Title+":"+res.Id))
 				if res.Status == suite.TestPassed {
 					// Noop
 				} else if res.Status == suite.TestFailed {
-					testcases += fmt.Sprintf("\n       <failure type=\"%s\">\n",
-						res.Cause)
-					testcases += fmt.Sprintf("         %s\n", res.Message)
-					testcases += fmt.Sprintf("       </failure>\n    ")
+					testcases += fmt.Sprintf("\n       <failure %s>\n",
+						xmlAttr("type", res.Cause))
+					testcases += fmt.Sprintf("         %s\n", xmlEnc(res.Message))
+					testcases += fmt.Sprintf("       </failure>\n     ")
 				} else if res.Status == suite.TestErrored {
 					testcases += fmt.Sprintf("\n       <error type=\"%s\">\n",
 						res.Cause)
-						testcases += fmt.Sprintf("         %s\n", res.Message)
+					testcases += fmt.Sprintf("         %s\n", res.Message)
 					testcases += fmt.Sprintf("       </error>\n    ")
 				}
 				testcases += fmt.Sprintf("</testcase>\n")
@@ -553,18 +588,18 @@ func test(suites []*suite.Suite) {
 			}
 			s.Test[i].Setting["Dump"] = origDump
 
-			// Junit stuff
-			seconds := float64(time.UTC().Nanoseconds()/1e6-milliseconds) / 1000
-			suitename := t.Title
-			if len(suites) > 1 {
-				suitename = s.Name + " :: " + suitename
-			}
-			junit += fmt.Sprintf("  <testsuite name=\"%s\" tests=\"%d\" failures\"%d\" errors\"%d\" time\"%.2f\" >\n", s.Name, nump+numf+nume, numf, nume, seconds)
-			junit += testcases
-			junit += "  </testsuite>\n"
-
 		}
 		result += "\n"
+
+		// Junit stuff
+		seconds := float64(time.UTC().Nanoseconds()/1e6-milliseconds) / 1000
+		junit += fmt.Sprintf("  <testsuite %s %s %s", xmlAttr("name", s.Name),
+			xmlAttr("hostname", hostname), xmlAttr("timestamp", timestamp))
+		junit += fmt.Sprintf(" tests=\"%d\" failures=\"%d\" errors=\"%d\"",
+			tnump+tnumf+tnume, tnumf, tnume)
+		junit += fmt.Sprintf(" disabled=\"%d\" time=\"%.2f\" >\n", tnums, seconds)
+		junit += testcases
+		junit += "  </testsuite>\n"
 
 	}
 

@@ -276,24 +276,25 @@ func cookieIndex(cookies []*http.Cookie, name, domain, path string) int {
 //   Max-Age: 0
 //   Expires is set and before NOW()
 //   Value is empty
-func testCookieDeletion(orig *Test, c *http.Cookie, neg bool, ci string) {
-	trace("Test for deletion of cookie '%s' (neg=%t)", c.Name, neg)
-	if neg {
-		orig.Error(ci, "bad test", "You cannot test on 'not deletion' of cookie.")
+func testCookieDeletion(orig *Test, c *http.Cookie, cond Condition) {
+	trace("Test for deletion of cookie '%s' (neg=%t)", c.Name, cond.Neg)
+	if cond.Neg {
+		orig.Error(cond.Id, "Bad test",
+			"You cannot test on 'not deletion' of cookie in\n"+cond.String())
 		return
 	}
 
 	// Reliable deleted == Max-Age: 0 AND Expired in the past
 	if c.MaxAge < 0 && c.Expires.Year != 0 && c.Expires.Seconds() < time.UTC().Seconds() && c.Value == "" {
 		trace("  Properly deleted")
-		orig.Passed(ci)
+		orig.Passed(cond.Id + " " + cond.String())
 	} else {
 		cause := ""
 		if c.MaxAge >= 0 {
 			cause += "Missing 'Max-Age: 0'."
 		}
 		if c.Value != "" {
-			cause += "Value '" + c.Value + "' given."
+			cause += " Value '" + c.Value + "' given."
 		}
 		if c.Expires.Year == 0 {
 			cause += " Expires not set."
@@ -302,7 +303,7 @@ func testCookieDeletion(orig *Test, c *http.Cookie, neg bool, ci string) {
 				c.Expires.Format(http.TimeFormat))
 		}
 		trace("  Not properly deleted %s", cause)
-		orig.Failed(ci, "not deleted", cause)
+		orig.Failed(cond.Id, "Cookie not deleted", cause+"\nin\n"+cond.String())
 	}
 }
 
@@ -313,8 +314,9 @@ func testHeader(resp *http.Response, cookies []*http.Cookie, t, orig *Test) {
 		for _, c := range t.RespCond {
 			cs := c.Info("resp")
 			v := resp.Header.Get(c.Key)
-			if !c.Fullfilled(v) {
-				orig.Failed(c.Id, "", fmt.Sprintf("%s: Got '%s'", cs, v))
+			if ok, _ := c.Fullfilled(v); !ok {
+				orig.Failed(c.Id, "Bad Header",
+					fmt.Sprintf("%s\nTesting for: %s\nBut got: %s", c.Id, c.String(), v))
 			} else {
 				orig.Passed(cs)
 			}
@@ -340,8 +342,12 @@ func testSingleCookie(orig *Test, cc Condition, cookies []*http.Cookie) {
 		panic("'Mere cookie existence' not implemented jet....")
 	} else {
 		if idx == -1 {
-			orig.Failed(cc.Id, "missing", fmt.Sprintf("%s: Cookie was not set at all.", ci))
-			// TODO: Report all cookies
+			msg := cc.Id + "\nCookie was not set at all\n" + cc.String()
+			msg += "\nRecieved cookies:"
+			for _, cp := range cookies {
+				msg += fmt.Sprintf("\n%s=%s  %s  %s", cp.Name, cp.Value, cp.Domain, cp.Path)
+			}
+			orig.Failed(cc.Id, "Missing cookie", msg)
 			return
 		}
 		rc := cookies[idx]
@@ -362,14 +368,15 @@ func testSingleCookie(orig *Test, cc Condition, cookies []*http.Cookie) {
 		case "maxage":
 			v = fmt.Sprintf("%d", rc.MaxAge)
 		case "delete":
-			testCookieDeletion(orig, rc, cc.Neg, ci)
+			testCookieDeletion(orig, rc, cc)
 			return
 		default:
-			orig.Error(cc.Id, "bad test", ": Oooops: Unknown cookie field "+field)
+			orig.Error(cc.Id, "Bad test", ": Oooops: Unknown cookie field "+field)
 			return
 		}
-		if !cc.Fullfilled(v) {
-			orig.Failed(cc.Id, "wrong", fmt.Sprintf("%s: Got '%s'", ci, v))
+		if ok, _ := cc.Fullfilled(v); !ok {
+			orig.Failed(cc.Id, "Wrong cookie "+field,
+				fmt.Sprintf("%s\nTesting for %s\nBut got: %s", cc.Id, cc.String(), v))
 		} else {
 			orig.Passed(ci)
 		}
@@ -389,8 +396,9 @@ func testBody(body []byte, t, orig *Test) {
 		switch c.Key {
 		case "Txt":
 			trace("Text Matching '%s'", c.String())
-			if !c.Fullfilled(string(body)) {
-				orig.Failed(c.Id, "Txt Failed", cs)
+			if ok, was := c.Fullfilled(string(body)); !ok {
+				orig.Failed(c.Id, "Txt Failed",
+					fmt.Sprintf("%s\nTesting for %s\nBut got: %s", c.Id, c.String(), was))
 			} else {
 				orig.Passed(cs)
 			}
@@ -401,7 +409,7 @@ func testBody(body []byte, t, orig *Test) {
 				orig.Passed(cs)
 			}
 		default:
-			error("Unkown type of test '%s' (%s). Ignored.", c.Key, c.Id)
+			panic(fmt.Sprintf("Unkown type of test '%s' (%s). Ignored.", c.Key, c.Id))
 		}
 	}
 	return
@@ -429,13 +437,15 @@ func testTags(t, orig *Test, doc *tag.Node) {
 				if n != nil {
 					orig.Passed(cs)
 				} else {
-					orig.Failed(tc.Id, "Missing", fmt.Sprintf("%s: Missing", cs))
+					orig.Failed(tc.Id, "Missing tag",
+						fmt.Sprintf("%s\nMissing\n%s", tc.Id, tc.String()))
 				}
 			} else {
 				if n == nil {
 					orig.Passed(cs)
 				} else {
-					orig.Failed(tc.Id, "Forbidden", fmt.Sprintf("%s: Forbidden", cs))
+					orig.Failed(tc.Id, "Forbidden Tag",
+						fmt.Sprintf("%s\nForbidden\n%s", tc.Id, tc.String()))
 				}
 			}
 		case CountEqual, CountNotEqual, CountLess, CountLessEqual, CountGreater, CountGreaterEqual:
@@ -443,37 +453,38 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			switch tc.Cond {
 			case CountEqual:
 				if got != exp {
-					orig.Failed(tc.Id, "Wrong count",
-						fmt.Sprintf("%s: Found %d expected %d", cs, got, exp))
+					orig.Failed(tc.Id, "Wrong tag count",
+						fmt.Sprintf("%s\nFound %d expected %d\n%s",
+							tc.Id, got, exp, tc.String()))
 					continue
 				}
 			case CountNotEqual:
 				if got == exp {
-					orig.Failed(tc.Id, "Wrong count",
+					orig.Failed(tc.Id, "Wrong tag count",
 						fmt.Sprintf("%s: Found %d expected != %d", cs, got, exp))
 					continue
 				}
 			case CountLess:
 				if got >= exp {
-					orig.Failed(tc.Id, "Wrong count",
+					orig.Failed(tc.Id, "Wrong tag count",
 						fmt.Sprintf("%s: Found %d expected < %d", cs, got, exp))
 					continue
 				}
 			case CountLessEqual:
 				if got > exp {
-					orig.Failed(tc.Id, "Wrong count",
+					orig.Failed(tc.Id, "Wrong tag count",
 						fmt.Sprintf("%s: Found %d expected <= %d", cs, got, exp))
 					continue
 				}
 			case CountGreater:
 				if got <= exp {
-					orig.Failed(tc.Id, "Wrong count",
+					orig.Failed(tc.Id, "Wrong tag count",
 						fmt.Sprintf("%s: Found %d expected > %d", cs, got, exp))
 					continue
 				}
 			case CountGreaterEqual:
 				if got < exp {
-					orig.Failed(tc.Id, "Wrong count",
+					orig.Failed(tc.Id, "Wrong tag count",
 						fmt.Sprintf("%s: Found %d expected >= %d", cs, got, exp))
 					continue
 				}
@@ -625,7 +636,6 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	}
 	if _, failed, _ := test.Stat(); failed > 0 {
 		failures := "Invalid HTML:"
-		orig.Failed(checkId, "Invalid HTML", "")
 		doc, err := tag.ParseHtml(string(valbody))
 		if err != nil {
 			warn("Cannot parse response from W3C validator: " + err.String())
@@ -1000,13 +1010,13 @@ func checkLogContent(test *Test, buf []byte, log LogCondition) {
 
 	if !found && !log.Neg {
 		trace("Not found")
-		test.Failed(log.Id, "Missing "+log.Val, fmt.Sprintf("Missing '%s' [%s] in:\n%s",
-			log.Val, log.Op, txt))
+		test.Failed(log.Id, "Missing in log", fmt.Sprintf("%s\nMissing '%s' [%s] in:\n%s",
+			log.Id, log.Val, log.Op, txt))
 		return
 	} else if found && log.Neg {
 		trace("Found")
-		test.Failed(log.Id, "Forbidden "+log.Val, fmt.Sprintf("Forbidden '%s' [%s] in:\n%s",
-			log.Val, log.Op, txt))
+		test.Failed(log.Id, "Forbidden in log", fmt.Sprintf("%s\nForbidden '%s' [%s] in:\n%s",
+			log.Id, log.Val, log.Op, txt))
 		return
 	} else {
 		test.Passed("Log okay: " + log.String())
