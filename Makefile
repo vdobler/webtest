@@ -20,12 +20,14 @@ format: $(GOFILES)
 	c=`pwd`; for d in $(SUBPACKAGES); do cd $$c/$$d && $(MAKE) format; done
 	gofmt -w $^
 
-doc: reference-suite.wt
+doc: reference-suite.pdf webtest.pdf
+
+%.pdf: %.wt
 	cd format && $(MAKE)
-	./format/wtformat reference-suite.wt
-	pdflatex "\batchmode\input{reference-suite.wt}"
-	pdflatex "\batchmode\input{reference-suite.wt}"
-	pdflatex "\batchmode\input{reference-suite.wt}"
+	./format/wtformat $<
+	pdflatex "\batchmode\input{$<.tex}"
+	pdflatex "\batchmode\input{$<.tex}"
+	pdflatex "\batchmode\input{$<.tex}"
 
 todo:
 	grep -n TODO `find . -name "*.go" | sort`
