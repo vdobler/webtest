@@ -1,85 +1,84 @@
-//
-// Tag - Go package to facialiate testing tags in html documents.  Used by Webtest.
-//
 // Copyright 2011 Volker Dobler. All rights reserved.
-//
-package tag
+// See the file LICENSE in the webtest directory for license information
 
 /*
-	This package helps testing for occurenc of tags in html/xml documents.
+Tag - Go package to facialiate testing tags in html documents.  Used by Webtest.
 
-	Tags are described by a plaintext strings. The following examples show
-	most of the possibilities
+This package helps testing for occurenc of tags in html/xml documents.
 
-	  tagspec:
-		tagname [ attr... ] [ contentOp content ]
+Tags are described by a plaintext strings. The following examples show
+most of the possibilities
 
-	  attr:
-	    [ class | attribute ]
+  tagspec:
+	tagname [ attr... ] [ contentOp content ]
 
-	  class:
-	  	[ '!' ] 'class' [ '=' fixed ]
+  attr:
+    [ class | attribute ]
 
-	  attribute:
-	  	[ '!' ] name [ '=' content ]
+  class:
+  	[ '!' ] 'class' [ '=' fixed ]
 
-	  contentOp:
-		[ '==' | '=D=' ]              '==' is normal matching of text content
-		                               'wheras '=D=' is deep matching of nested
-									   text content.
+  attribute:
+  	[ '!' ] name [ '=' content ]
 
-	  content:
-		[ pattern | '/' regexp '/' ]   pattern may contain '*' and '?' and works
-		                               like shell globing. regexp is what it is.
+  contentOp:
+	[ '==' | '=D=' ]              '==' is normal matching of text content
+	                              'wheras '=D=' is deep matching of nested
+				      text content.
 
-	Only specified classes, attributes and content is considered when finding
-	tags in a html/xml document. E.g.:
-	  "p lang=en"
-	will match any p-tag with lang="en" regardless of any other classes, 
-	attributes and content of the p-tag.
+  content:
+	[ pattern | '/' regexp '/' ]   pattern may contain '*' and '?' and works
+	                               like shell globing. regexp is what it is.
 
-	Values for attributes may be ommitted: Such test just check wether the
-	tag has the attribute (value does not matter).
+Only specified classes, attributes and content is considered when finding
+tags in a html/xml document. E.g.:
+    "p lang=en"
+will match any p-tag with lang="en" regardless of any other classes, 
+attributes and content of the p-tag.
 
-	The difference between class and "normal" attribute testing is: Attributes
-	may be specified only once and their value is optional wheras classes can
-	be specified multiple times and must contain a value. Think of a tag like
-	  <p class="important news wide">Some Text</p>
-	As beeing something like
-	  <p class="important" class="news" class="wide">Some Text</p>
-	For finding tags.
+Values for attributes may be ommitted: Such test just check wether the
+tag has the attribute (value does not matter).
 
-	The texttual content of a tag is normalized: Any whitespace is collapsed
-	(even &nbsp; and that like) and trimmed. E.g. the text content of
-	  <p> This is &nbsp;	some text.   </p>
-	is simply "This is some text.".
-	If nested tags are present, their content is part of the normalized
-	text content too. E.g. the deep text content of the p
-	  <p>Some<big>important<span>and</span>useless</big>info</p>
-	is "Some big important and useless info". Note that spaces are added
-	around inner tags while the direct text content is just "Some info"
+The difference between class and "normal" attribute testing is: Attributes
+may be specified only once and their value is optional wheras classes can
+be specified multiple times and must contain a value. Think of a tag like
+    <p class="important news wide">Some Text</p>
+As beeing something like
+    <p class="important" class="news" class="wide">Some Text</p>
+For finding tags.
 
-	To mach tag content use either "==" or "=D=".
-	"==" matches direct content while "=D=" matches deep content.
+The texttual content of a tag is normalized: Any whitespace is collapsed
+(even &nbsp; and that like) and trimmed. E.g. the text content of
+    <p> This is &nbsp;some text.   </p>
+is simply "This is some text.".
+If nested tags are present, their content is part of the normalized
+text content too. E.g. the deep text content of the p
+    <p>Some<big>important<span>and</span>useless</big>info</p>
+is "Some big important and useless info". Note that spaces are added
+around inner tags while the direct text content is just "Some info"
 
-	Some example
+To mach tag content use either "==" or "=D=".
+"==" matches direct content while "=D=" matches deep content.
 
-	  h3				match any h3 tag
-	  h3 class			match if any class is present
-	  h3 lang			match if any lang attribute is present
-	  h3 lang=de		match if lang attribute is "de"
-	  h3 lang=d?        would macth de, dx, d0, ...
-	  h3 lang=d*e       would match de, de, dXe, d123e...
-	  h3 class=a        match if tag has class a, e.g. class="x a b"
-	  h3 !class			match if no class attribute is present
-	  h3 !id			match if no id attribute is set
-	  h3 title=			match if title is presnet but empty: title=""
-	  h3 !lang=de		match if no lang is present or value is not de
-	  h3 == Hello		match <h3>Hello</h3> as well as <h3>   Hello </h3>
-	  h3 == H?llo*      would match stuff like "Hallo du da..."
-	  h3 == /(cat|dog)/	regexp either cat or dog
+Some example
+
+   h3			match any h3 tag
+   h3 class		match if any class is present
+   h3 lang		match if any lang attribute is present
+   h3 lang=de		match if lang attribute is "de"
+   h3 lang=d?        	would macth de, dx, d0, ...
+   h3 lang=d*e       	would match de, de, dXe, d123e...
+   h3 class=a        	match if tag has class a, e.g. class="x a b"
+   h3 !class		match if no class attribute is present
+   h3 !id		match if no id attribute is set
+   h3 title=		match if title is presnet but empty: title=""
+   h3 !lang=de		match if no lang is present or value is not de
+   h3 == Hello		match <h3>Hello</h3> as well as <h3>   Hello </h3>
+   h3 == H?llo*      	would match stuff like "Hallo du da..."
+   h3 == /(cat|dog)/	regexp either cat or dog
 
 */
+package tag
 
 import (
 	"fmt"

@@ -1,7 +1,38 @@
+// Copyright 2011 Volker Dobler. All rights reserved.
+// See the LICENSE file for license information.
+
 //
 // Webtest - A domain specific language (DSL) to test websites.
 //
-// Copyright 2011 Volker Dobler. All rights reserved.
+// Webtest implements a DLS to generate http and https requests
+// and performe a variaty of tests on the recieved response.
+// Request and checks are grouped into a test, several tests make
+// up a test suite which is a simple text file.
+//
+// Example for a simple test
+//     -------------------------------
+//     A simple example
+//     -------------------------------
+//     # Let's make a POST-request, send some parameters and check the result.
+//     POST http://www.domain.org/path/feedback
+//     PARAM
+//     	   # send three parameters (automatically encoded) in request
+//     	   name    :=  John Doe
+//     	   city    :=  London
+//     	   comment :=  Cool stuff :-)
+//     RESPONSE
+//     	   # Check that the server answered with 200 status code.
+//     	   Status-Code  ==  200
+//     BODY
+//     	   # Check that the body contains some text
+//     	   Txt  ~=  "Thank you for your feedback John Doe"
+//
+// See the reference-suite.wt (reference-suite.wt.pdf) for a full description 
+// of the syntax of a test and how it will be executed.
+//
+// The documentation to the webtest command itself can be found in the
+// file webtest.wt (webtest.wt.pdf):  Additionaly to just executing tests
+// it can perform load/stress tests and benchmark response times.
 //
 package main
 

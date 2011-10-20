@@ -1,7 +1,8 @@
+// Copyright 2011 Volker Dobler. All rights reserved.
+// See LICENSE file in the webtest directory.
+
 //
 // Suite - Main routines for the Webtest utility.
-//
-// Copyright 2011 Volker Dobler. All rights reserved.
 //
 package suite
 
@@ -228,7 +229,7 @@ func (cs ConstantStep) Next(current int) int {
 	return current + cs.Step
 }
 
-// Implements Stepper and increases at a constant factor (exponential).
+// FactorStep implements Stepper and increases at a constant factor (exponential).
 type FactorStep struct {
 	Start  int
 	Factor float32
