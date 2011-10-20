@@ -132,7 +132,7 @@ func dequote(str string) (string, os.Error) {
 
 // Return index of first space/tab in s or -1 if none found.
 func firstSpace(s string) int {
-	return strings.IndexAny(s, " \t") // TODO: use IndexAny?
+	return strings.IndexAny(s, " \t")
 }
 
 // Read a string->string map. Stopp if unindented line is found
@@ -217,6 +217,12 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 
 		cond.Key = fmt.Sprintf("%s:%s:%s:%s", name, domain, path, field)
 		cond.Op = op
+		dval, err := dequote(value)
+		if err != nil {
+			p.error("Cannot parse string '%s': %s", value, err.String())
+		} else {
+			value = dval
+		}
 		cond.Val = value
 		cond.Id = fmt.Sprintf("%s:%d", p.name, p.i)
 		cc = append(cc, cond)
@@ -240,6 +246,13 @@ func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 			p.error("Wrong field '%s' (only secure allowed).", field)
 			continue
 		}
+		dval, err := dequote(value)
+		if err != nil {
+			p.error("Cannot parse string '%s': %s", value, err.String())
+		} else {
+			value = dval
+		}
+
 		cookie := http.Cookie{Name: name, Domain: domain, Path: path, Value: value, Secure: field == "secure"}
 		jar.Update(cookie, "")
 	}
@@ -350,9 +363,7 @@ func StringList(line string) (list []string, err os.Error) {
 			}
 		}
 		list = append(list, p)
-		for len(line) > 0 && line[0] == ' ' {
-			line = line[1:]
-		} // TODO: inneficient
+		line = strings.TrimLeft(line, " ")
 	}
 	return
 }
@@ -506,7 +517,6 @@ func (p *Parser) nextStuff(validOps []string) (done, neg bool, key, op, val stri
 		line = trim(line)
 		if validOps[0] != ":=" {
 			if line[0] == '!' {
-				// TODO: maybe error here?
 				line = trim(line[1:])
 				neg = true
 			}
@@ -597,13 +607,17 @@ func (p *Parser) readCond(mode int) []Condition {
 			}
 		}
 
-		if val, err := dequote(val); err != nil {
+		var dval string
+		var err os.Error
+		if dval, err = dequote(val); err != nil {
 			p.error("Cannot parse string '%s': %s", val, err)
 			continue
 		}
+		//fmt.Printf("\nvvvvvvvvvvvvvvvvvvvvvvvvvvv\nOrig=%s\nValu=%s\nDeqt=%s\n^^^^^^^^^^^^^^^^^^^^^^\n", 
+		//	p.line[p.i], val, dval)
 
 		id := fmt.Sprintf("%s:%d", p.name, p.i)
-		cond := Condition{Key: key, Op: op, Val: val, Neg: neg, Id: id, Range: rng}
+		cond := Condition{Key: key, Op: op, Val: dval, Neg: neg, Id: id, Range: rng}
 		list = append(list, cond)
 		trace("Added to condition (line %d): %s", p.i, cond.String())
 	}

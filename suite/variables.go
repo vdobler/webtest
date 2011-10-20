@@ -208,7 +208,8 @@ func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {
 
 // Replace all variables in test with their appropriate values.
 func substituteVariables(test, global, orig *Test) {
-	test.Url = substitute(test.Url, test, global, orig)
+	// test.Url = substitute(test.Url, test, global, orig) done in prepare test
+
 	for k, v := range test.Header {
 		test.Header[k] = substitute(v, test, global, orig)
 	}

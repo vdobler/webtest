@@ -709,11 +709,19 @@ func prepareTest(t, global *Test) *Test {
 		t.Vars[k] = "", false
 	}
 
-	// deep copy, add stuff from global
+	// deep copy
 	test := t.Copy()
+
+	// prepare url and fail if unparsable
+	test.Url = substitute(test.Url, test, global, t)
+	u, ue := url.Parse(test.Url)
+	if ue != nil {
+		test.Failed(test.Title, "Malformed URL", "Malformed URL:\n"+ue.String())
+		return test
+	}
+
 	if global != nil {
 		addMissingHeader(&test.Header, &global.Header)
-		u, _ := url.Parse(test.Url) // TODO: make sure during pasring that url is parsabel :)
 		addMissingCookies(test.Jar, global.Jar, u)
 		test.RespCond = addMissingCond(test.RespCond, global.RespCond)
 		test.BodyCond = addAllCond(test.BodyCond, global.BodyCond)
@@ -727,15 +735,14 @@ func prepareTest(t, global *Test) *Test {
 		enc.Encode(encoded, []byte(uc))
 		test.Header["Authorization"] = "Basic " + string(encoded)
 		test.Header["Basic-Authorization"] = "", false
+		// delete(test.Header, "Basic-Authorization")
 	}
 
 	// Domain in cookie defaults to possible changable host of request...
-	if u, eu := url.Parse(test.Url); eu == nil {
-		host := stripPort(u.Host)
-		for i := range test.Jar.cookies {
-			test.Jar.cookies[i].Domain = strings.Replace(test.Jar.cookies[i].Domain, "{CURRENT}",
-				host, 1)
-		}
+	host := stripPort(u.Host)
+	for i := range test.Jar.cookies {
+		test.Jar.cookies[i].Domain = strings.Replace(test.Jar.cookies[i].Domain, "{CURRENT}",
+			host, 1)
 	}
 
 	test.Dump = t.Dump

@@ -9,18 +9,26 @@ func needQuotes(s string, containedSpacesNeedQuotes bool) bool {
 	if containedSpacesNeedQuotes && strings.Contains(s, " ") {
 		return true
 	}
-	return strings.Contains(s, "\"") || strings.HasPrefix(s, " ") || strings.HasSuffix(s, " ") || strings.Contains(s, "\n") || strings.Contains(s, "\t")
+	if strings.HasPrefix(s, " ") || strings.HasPrefix(s, " ") {
+		return true
+	}
+
+	for _, c := range s {
+		if c == '"' {
+			return true
+		}
+		if c < ' ' || c > '~' {
+			return true
+		}
+	}
+	return false
 }
 
 func quote(s string, containedSpacesNeedQuotes bool) string {
 	if !needQuotes(s, containedSpacesNeedQuotes) {
 		return s
 	}
-	s = strings.Replace(s, "\"", "\\\"", -1)
-	s = strings.Replace(s, "\n", "\\n", -1)
-	s = strings.Replace(s, "\t", "\\t", -1)
-
-	return "\"" + s + "\""
+	return fmt.Sprintf("%#v", s)
 }
 
 // Prety print a map m with title. 
@@ -226,7 +234,7 @@ func formatSendCookies(jar *CookieJar) (s string) {
 			s += ":Secure"
 		}
 		s += "  :=  "
-		s += cookie.Value + "\n" // TODO: encode/quote
+		s += quote(cookie.Value, false) + "\n"
 	}
 	return
 }

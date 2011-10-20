@@ -195,6 +195,9 @@ RESPONSE
 	! E  =_ 200
 BODY
 	Txt  ~=  Hallo
+	Txt  ~=  " Hallo "
+	Txt  ~=  "Hallo\nWelt"
+	Txt  ~=  " Hallo \n Welt "
 	Txt[1:2]  ~=  Hallo
 	Txt[999:888]  ~=  Hallo
 	Txt[-12:-45]  ~=  Hallo
@@ -341,6 +344,17 @@ TAG
 		if stt != st {
 			t.Errorf("Parsing of suite %d not idempotent.", i)
 			fmt.Printf("1.Pass:\n%s\n2. Pass:\n%s\n", st, stt)
+			p1, p2 := strings.Split(st, "\n"), strings.Split(stt, "\n")
+			L := len(p1)
+			if len(p2) < L {
+				L = len(p2)
+			}
+			for j := 0; j < L; j++ {
+				if p1[j] != p2[j] {
+					fmt.Printf("Mismatch:------------\n%s\n%s\n----------------\n",
+						p1[j], p2[j])
+				}
+			}
 		}
 	}
 

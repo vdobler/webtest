@@ -214,10 +214,10 @@ func globalInitialization() {
 	flag.IntVar(&validateMask, "validate", 0, "Bit mask which is ANDed to individual test setting.")
 	flag.StringVar(&junitFile, "junit", "", "Write results as junit xml to file.")
 	flag.IntVar(&LogLevel, "log", 3, "General log level: 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
-	flag.IntVar(&tagLogLevel, "log.tag", -1, 
-			"Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
-	flag.IntVar(&suiteLogLevel, "log.suite", -1, 
-			"Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&tagLogLevel, "log.tag", -1,
+		"Log level for tag: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
+	flag.IntVar(&suiteLogLevel, "log.suite", -1,
+		"Log level for suite: -1: std level, 0: none, 1:err, 2:warn, 3:info, 4:debug, 5:trace")
 	flag.IntVar(&numRuns, "runs", 15, "Number of runs for each test in benchmark.")
 	flag.StringVar(&testsToRun, "tests", "*", "Run just some tests (numbers or name)")
 	flag.StringVar(&dumpTalk, "dump", "", "Dump wire talk.")

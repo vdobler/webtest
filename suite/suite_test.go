@@ -239,7 +239,11 @@ func binHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func code(s string) string {
-	return "<code>" + s + "</code>" // TODO: escape html
+	s = strings.Replace(s, "&", "&amp;", -1)
+	s = strings.Replace(s, "<", "&lt;", -1)
+	s = strings.Replace(s, ">", "&gt;", -1)
+	s = strings.Replace(s, "\"", "&quot;", -1)
+	return "<code>" + s + "</code>"
 }
 
 func cookieHandler(w http.ResponseWriter, req *http.Request) {

@@ -41,7 +41,7 @@ func TestNowValue(t *testing.T) {
 		{"+1hour", "cccffccfcccfccccfcCffffffffff"},
 		{"+10 hours", "cccffccfcccfccccfCcffffffffff"},
 		{"+2 days", "cccffcCfcccfccccfffffffffffff"},
-		{"+40days", "cccffCCfCCCfccccfffffffffffff"},
+		{"+40days", "cccffcCfCCCfccccfffffffffffff"},
 		{"+10days - 2hours + 10 seconds", "CCC, Cc ccc cccc cC:cc:Cf fff"},
 		{"+ 1 month", "ccc, ff CCC cccc ff:ff:ff fff"},
 		{"+ 12 month", "ccc, ff fff cccC ff:ff:ff fff"},
