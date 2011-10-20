@@ -92,13 +92,14 @@ func (jar *CookieJar) Update(cookie http.Cookie, domain string) {
 		cookie.Name, cookie.Domain, cookie.Path, cookie.Value, domain)
 
 	// make sure Domain is set (and starts with '.' and Path is set
-	// TODO: prevent stuff like .net or .co.uk ....
 	if cookie.Domain == "" {
 		if domain == "" {
-			panic("Not both empty")
+			panic("Both empty")
 		}
 		cookie.Domain = domain
 	}
+	// TODO: prevent stuff like .net or .co.uk ....
+
 	if cookie.Domain[0] != '.' {
 		cookie.Domain = "." + cookie.Domain
 	}

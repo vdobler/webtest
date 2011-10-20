@@ -411,9 +411,10 @@ func formatSuite(lines []string) (tex string) {
 		// Section titles
 		if strings.HasPrefix(line, "###############") {
 			tex += formatComment(comments)
-			comments = comments[0:1]
-			// TODO safeguard....
-
+			if len(lines) == 0 {
+				continue
+			}
+			comments = comments[0:0]
 			line, lines = trim(lines[0][1:]), lines[1:]
 			lineno++
 			tex += "\\section{" + quoteTex(line) + "}\n"

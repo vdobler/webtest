@@ -58,14 +58,15 @@ func supertrace(f string, m ...interface{}) {
 	}
 }
 
-// TODO: Results?
+// Suite is a collection of test.
 type Suite struct {
-	Global *Test
-	Test   []Test
-	Name   string
-	bgload int
+	Global *Test  // the gloabl test-template and cookie jar
+	Test   []Test // list of all tests
+	Name   string // the name of this suite
+	bgload int    // the background load
 }
 
+// NewSuite sets up an empty Suite.
 func NewSuite() (suite *Suite) {
 	suite = new(Suite)
 	suite.Test = make([]Test, 0, 5)
@@ -74,6 +75,8 @@ func NewSuite() (suite *Suite) {
 	return
 }
 
+// RunTest will execute test number n in the list of tests.
+// The results if the checks performed are reported in the test.
 func (s *Suite) RunTest(n int) {
 	if n < 0 || n >= len(s.Test) {
 		error("No such test.")
@@ -83,16 +86,20 @@ func (s *Suite) RunTest(n int) {
 	s.Test[n].Run(s.Global)
 }
 
+// BenchTest will run test number n for count many times.
+// Returned are the list durations (in ms)
 func (s *Suite) BenchTest(n, count int) (dur []int, f int, err os.Error) {
 	if n < 0 || n >= len(s.Test) {
 		error("No such test")
+		err = os.NewError("No such test")
+		return
 	}
 
 	dur, f, err = s.Test[n].Bench(s.Global, count)
 	return
 }
 
-// Run the request (while skipping tests) of test and reply on done when finished.
+// Run the request in test (do not perform checks) and reply on channel done when finished.
 func bgRun(test, global *Test, done chan bool) {
 	trace("Started background test %s", test.Title)
 	test.RunWithoutTest(global)
@@ -100,7 +107,7 @@ func bgRun(test, global *Test, done chan bool) {
 	trace("Finished background test %s.", test.Title)
 }
 
-// Make n request of bg suite in parallel until shut down via signal on kill.
+// Make n request of bg suite in parallel until shut down via signal on channel kill.
 func bgnoise(n int, bg *Suite, kill chan bool) {
 	m := len(bg.Test)
 	var done chan bool
@@ -213,6 +220,7 @@ type ConstantStep struct {
 	Step  int
 }
 
+// Next yields current + step.
 func (cs ConstantStep) Next(current int) int {
 	if current == 0 {
 		return cs.Start
@@ -226,6 +234,7 @@ type FactorStep struct {
 	Factor float32
 }
 
+// Next yields current * factor.
 func (fs FactorStep) Next(current int) int {
 	if current == 0 {
 		return fs.Start
