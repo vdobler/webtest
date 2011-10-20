@@ -427,6 +427,10 @@ Validating HTML and Links
 # to the W3C Validator. If link checking is enableded, then all references
 # in the html (link, a, and img tags) are requested and checked for a 
 # response code of 200 (maybe after redirecting).
+#
+# *Please* *Note*: The links to check are requested with a copy of the
+# original test request. I.e. it will contain the same header fields
+# and the same cookies (modulo domain and path settings in the cookie).
 # 
 GET http://www.domain.org/some/page.html
 SETTING

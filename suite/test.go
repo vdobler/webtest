@@ -568,7 +568,10 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 		}
 		test := tmpl.Copy()
 		test.Url = url_
-		_, _, err := test.RunSingle(global, false) // TODO: No global! Or?
+		u, _ := url.Parse(url_)
+		addMissingHeader(&test.Header, &t.Header)
+		addMissingCookies(test.Jar, t.Jar, u)
+		_, _, err := test.RunSingle(nil, false) // no Global needed stuff has been added from t
 		if err != nil {
 			pass = false
 			failures += "\n" + fmt.Sprintf("Cannot access `%s': %s", test.Url, err.String())
@@ -629,7 +632,7 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	test.Setting = DefaultSettings
 	test.RespCond = []Condition{Condition{Key: "X-W3C-Validator-Status", Op: "==",
 		Val: "Valid", Id: "html-validation"}}
-	_, valbody, verr := test.RunSingle(global, false) // TODO: global?
+	_, valbody, verr := test.RunSingle(nil, false) // no global, plain request
 	if verr != nil {
 		orig.Error(checkId, "Cannot access W3C validator", verr.String())
 		return
