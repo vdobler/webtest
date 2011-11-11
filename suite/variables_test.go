@@ -64,8 +64,8 @@ func TestNowValue(t *testing.T) {
 				}
 			case 'C':
 				if now[i] == then[i] {
-					t.Errorf("'%s' '%s': Pos %d: unchanged '%c'.", 
-						now, x.d, i, now[i])
+					t.Errorf("'%s' '%s': Pos %d: unchanged '%c': %s", 
+						now, x.d, i, now[i], then)
 				}
 			default:
 				// might change

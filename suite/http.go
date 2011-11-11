@@ -9,10 +9,23 @@ import (
 	"bytes"
 	"mime"
 	"mime/multipart"
+	"net/textproto"
 	"time"
 	"path"
 	"url"
 )
+
+func init() {
+	mime.AddExtensionType(".html", "text/html")
+	// TODO: others...
+}
+
+func escapeQuotes(s string) string {
+	s = strings.Replace(s, "\\", "\\\\", -1)
+	s = strings.Replace(s, "\"", "\\\"", -1)
+	return s
+
+}
 
 func readBody(r io.ReadCloser) []byte {
 	var bb bytes.Buffer
@@ -306,7 +319,16 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 		}
 
 		basename := path.Base(filename)
-		fw, err := mpwriter.CreateFormFile(n, basename)
+
+		// Fix until CreateFormFile honours variable contentTypes
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition",
+			fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
+				escapeQuotes(n), escapeQuotes(basename)))
+		h.Set("Content-Type", ct)
+		fw, err := mpwriter.CreatePart(h)
+		// fw, err := mpwriter.CreateFormFile(n, basename)
+
 		if err != nil {
 			warn("Cannot write file multipart: ", err.String())
 			continue

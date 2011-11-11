@@ -2,6 +2,7 @@ package suite
 
 import (
 	"fmt"
+	"flag"
 	"html"
 	"http"
 	"os"
@@ -18,7 +19,7 @@ var (
 )
 
 // keep server a life for n seconds after last testcase to allow manual testt the test server...
-var testserverStayAlive int64 = 0
+var testserverStayAlive = flag.Int64("keepalive", 0, "Keep server running for n seconds")
 
 // Our test suite
 func TestGoCheckInit(t *testing.T) { gocheck.TestingT(t) }
@@ -45,7 +46,7 @@ func (s *S) SetUpSuite(c *gocheck.C) {
 }
 func (s *S) TearDownSuite(c *gocheck.C) {
 	fmt.Printf("Will stay alive for %d seconds.\n", testserverStayAlive)
-	time.Sleep(1000000000 * testserverStayAlive)
+	time.Sleep(1e9 * (*testserverStayAlive))
 }
 
 //
@@ -55,8 +56,12 @@ func (s *S) TearDownSuite(c *gocheck.C) {
 //
 
 var htmlPat = `<!DOCTYPE html>
-<html><head><title>Dummy HTML 1</title></head>
-<body>
+<html>
+  <head>
+    <title>Dummy HTML 1</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  </head>
+  <body>
 	<h1>Dummy Document for html based testst</h1>
 	<p class="a">Some fancy text Braunschweig Weiler</p>
 	%s
@@ -70,7 +75,6 @@ var htmlPat = `<!DOCTYPE html>
 	%s
 	<p class="b">Stupid stuff here.</p>
 	<span>UTF-8 Umlaute äöüÄÖÜ Euro €</span>
-</body>
 `
 
 var xCounter = map[string]int{"foo": 0, "bar": 0, "baz": 0} // used for tries
@@ -111,6 +115,11 @@ func htmlHandler(w http.ResponseWriter, req *http.Request) {
 		t2 += "\n<a href=\"/bin.bin\" title=\"TheCookieValue\">" + req.Cookies()[0].Name + " = " + req.Cookies()[0].Value + "</a>"
 	}
 	body := fmt.Sprintf(htmlPat, html.EscapeString(t), t2)
+	if req.FormValue("badhtml") == "bad" {
+		body += "</h3></html>"
+	} else {
+		body += "</body></html>"
+	}
 	w.Write([]byte(body))
 }
 
@@ -770,6 +779,33 @@ RESPONSE
 
 `
 	runsingletest("Multiple parameters", st, 0, 1, 0, 0, c)
+}
+
+//
+func (s *S) TestHTMLValidation(c *gocheck.C) {
+	st := `
+----------------------
+HTML Validation Pass
+----------------------
+GET http://localhost:54123/html.html
+VALIDATE
+	html
+SETTING
+	Dump := 1
+
+----------------------
+HTML Validation Fail
+----------------------
+GET http://localhost:54123/html.html
+PARAM
+	badhtml := bad
+VALIDATE
+	html
+SETTING
+	Dump := 1
+`
+	runsingletest("HTML Validation", st, 0, 1, 0, 0, c)
+	runsingletest("HTML Validation", st, 1, 0, 1, 0, c)
 }
 
 //

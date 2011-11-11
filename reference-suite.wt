@@ -418,24 +418,43 @@ TAG
 	h2 =D= Hello nice World
 
 
----------------------------
+
+------------------------------
 Validating HTML and Links
----------------------------
+------------------------------
 #
 # If the response is a HTML or XHTML page you may validate the html
 # and/or the links in the html. (X)HTML validation is done by connecting
-# to the W3C Validator. If link checking is enableded, then all references
-# in the html (link, a, and img tags) are requested and checked for a 
-# response code of 200 (maybe after redirecting).
+# to the W3C Validator. 
 #
-# *Please* *Note*: The links to check are requested with a copy of the
+# Links inside the html content can be check for availability (i.e.
+# a response code of 200, maybe after redirects.  To check images use
+# img-src. All other tags (a, link, frame, iframe, script) work like
+# expected: <tagname>-<attribute-with-URL>. 
+#
+# *Please* *Note*: The 'links' to check are requested with a copy of the
 # original test request. I.e. it will contain the same header fields
 # and the same cookies (modulo domain and path settings in the cookie).
 # 
 GET http://www.domain.org/some/page.html
-SETTING
-	# Possible values are |links|, |html| and |links+html|.
-	Validate := links+html
+VALIDATE
+	# Validate (X)HTML 
+	html
+
+	# Check relative hrefs
+	a href=/*
+
+	# Also check all non-relative http (no https) links
+	a href=http://*
+
+	# Check only images in a certain folder
+	img src=*/path/to/folder/*
+
+	# Check all link tags in the header
+	link
+
+	# Check only javascript scripts
+	script type=text/javascript
 
 
 

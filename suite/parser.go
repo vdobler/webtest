@@ -20,7 +20,6 @@ var DefaultSettings = map[string]int{"Repeat": 1,
 	"Keep-Cookies": 0,
 	"Abort":        0,
 	"Dump":         0,
-	"Validate":     0,
 }
 
 type ParserError struct {
@@ -281,11 +280,11 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		switch val {
 		case "false", "no", "nein", "non":
 			n = 0
-		case "true", "yes", "ja", "qui", "create", "new", "keep", "abort", "link", "links":
+		case "true", "yes", "ja", "qui", "create", "new", "keep", "abort":
 			n = 1
-		case "append", "html", "xhtml":
+		case "append":
 			n = 2
-		case "both", "links+html", "html+links", "body":
+		case "both", "body":
 			n = 3
 		default:
 			var err os.Error
@@ -312,10 +311,6 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		case "Dump":
 			if n < 0 || n > 3 {
 				warn("Dump accepts only 0, 1 and 2 as value (was %s=%d) on line %d.", val, n, p.i)
-			}
-		case "Validate":
-			if n < 0 || n > 3 {
-				warn("Validates accept only 0, 1, 2 and 3 as value (was %s=%d) on line %d.", val, n, p.i)
 			}
 		}
 		(*m)[key] = n
@@ -624,6 +619,42 @@ func (p *Parser) readCond(mode int) []Condition {
 	return list
 }
 
+// List of valid tag-name --> attrib-name combinations on html where the
+// attrib points to some external URL.
+var knownLinkAttr = map[string]string{
+	"link":   "href",
+	"a":      "href",
+	"frame":  "src",
+	"iframe": "src",
+	"img":    "src",
+	"script": "src",
+}
+
+// Read a Validation conditions
+func (p *Parser) readValidation() []string {
+	var list []string = make([]string, 0, 3)
+
+	for p.i < len(p.line)-1 {
+		p.i++
+		line := p.line[p.i]
+		if isComment(line) || len(trim(line)) == 0 {
+			continue
+		}
+
+		if !hp(line, "\t") {
+			p.i--
+			return list
+		}
+		line = trim(line)
+		// TODO: lowercase
+
+		// id := fmt.Sprintf("%s:%d", p.name, p.i)
+		list = append(list, line)
+		trace("Added to validation (line %d): %s", p.i, line)
+	}
+	return list
+}
+
 // Read a Header or Body Condition
 func (p *Parser) readLogCond() []LogCondition {
 	var list []LogCondition = make([]LogCondition, 0, 3)
@@ -898,9 +929,9 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.readSettingMap(&test.Setting)
 		case "CONST":
 			p.readMap(&test.Const)
-		case "RAND":
+		case "RAND", "RANDOM":
 			p.readMultiMap(&test.Rand)
-		case "SEQ":
+		case "SEQ", "SEQUENCE":
 			p.readMultiMap(&test.Seq)
 		case "TAG", "TAGS":
 			test.Tag = p.readTagCond()
@@ -910,6 +941,8 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			test.Before = p.readShellCond()
 		case "AFTER":
 			test.After = p.readShellCond()
+		case "VALIDATION", "VALIDATE":
+			test.Validation = p.readValidation()
 		default:
 			if hp(line, "-") {
 				p.error("Unknown stuff '%s'. Maybe to short test-title border?", line)

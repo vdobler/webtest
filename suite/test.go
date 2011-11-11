@@ -41,6 +41,7 @@ type Test struct {
 	BodyCond   []Condition         // conditions for the body (text or binary)
 	Tag        []TagCondition      // list of tags to look for in the body
 	Log        []LogCondition      // list of conditions to test on "log" files
+	Validation []string            // list of validations to perform
 	Pre        []string            // currently unused: list of test which are prerequisites to this test
 	Param      map[string][]string // request parameter
 	Setting    map[string]int      // setting like repetition, sleep time, etc. for this test
@@ -116,6 +117,8 @@ func (src *Test) Copy() (dest *Test) {
 	copy(dest.CookieCond, src.CookieCond)
 	dest.BodyCond = make([]Condition, len(src.BodyCond))
 	copy(dest.BodyCond, src.BodyCond)
+	dest.Validation = make([]string, len(src.Validation))
+	copy(dest.Validation, src.Validation)
 	dest.Tag = make([]TagCondition, len(src.Tag))
 	copy(dest.Tag, src.Tag)
 	for i, tc := range dest.Tag {
@@ -252,7 +255,6 @@ func (t *Test) Sleep() int       { return t.getSetting("Sleep") }
 func (t *Test) Tries() int       { return t.getSetting("Tries") }
 func (t *Test) KeepCookies() int { return t.getSetting("Keep-Cookies") }
 func (t *Test) Abort() int       { return t.getSetting("Abort") }
-func (t *Test) Validate() int    { return t.getSetting("Validate") }
 func (t *Test) DoDump() int      { return t.getSetting("Dump") }
 func (t *Test) MaxTime() int     { return t.getSetting("Max-Time") }
 
@@ -528,9 +530,13 @@ func shallCheckUrl(url_ string, base *url.URL) *url.URL {
 }
 
 // Check if html in body is valid. If doc not nil check links too.
-func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Response, base string) {
+func testLinkValidation(t, orig *Test, cond []string, doc *tag.Node, resp *http.Response, base string) {
+	if len(cond) == 0 {
+		return
+	}
+	checkId := "Link Validation"
 	if doc == nil {
-		warn("Cannot check links on nil document.")
+		orig.Error(checkId, "nil document", "maybe html unparsable or wrong content type")
 		return
 	}
 	trace("Validating links")
@@ -538,11 +544,19 @@ func testLinkValidation(t, orig, global *Test, doc *tag.Node, resp *http.Respons
 	baseUrl, _ := url.Parse(base)     // Should not fail!
 	urls := make(map[string]bool, 50) // keys are urls to prevent doubles
 
-	for _, pat := range []string{"a href", "link href", "img src"} {
+	for _, pat := range cond {
+		pats := strings.Split(pat, " ")
+		tagname := pats[0]
+		attribname, ok := knownLinkAttr[tagname]
+		if !ok {
+			orig.Error(checkId, "Unknown tag",
+				fmt.Sprintf("No such tag %s for checking links", tagname))
+			continue
+		}
 		ts := tag.MustParseTagSpec(pat)
 		for _, tg := range tag.FindAllTags(ts, doc) {
 			for _, a := range tg.Attr {
-				if (a.Key == "href" || a.Key == "src") && a.Val != "" {
+				if a.Key == attribname && a.Val != "" {
 					if url_ := shallCheckUrl(a.Val, baseUrl); url_ != nil {
 						urls[url_.String()] = true
 					}
@@ -615,7 +629,8 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	f, err = os.Create(name)
 	f.Write([]byte(body))
 	f.Close()
-	defer func() { os.Remove(name) }()
+	fmt.Printf("temp html saved to %s\n", name)
+	// defer func() { os.Remove(name) }()
 
 	test := NewTest("W3C validator")
 	test.Method = "POST"
@@ -623,6 +638,9 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	test.Tag = nil
 	test.BodyCond = nil
 	test.CookieCond = nil
+	test.Header = map[string]string{
+		"User-Agent": "Mozilla/5.0 (X11; U; Linux i686; de; rv:1.9.1.16) Gecko/20110929 Iceweasel/3.5.16 (like Firefox/3.5.16)",
+	}
 	test.Param = map[string][]string{"charset": []string{"(detect automatically)"},
 		"doctype":       []string{"Inline"},
 		"group":         []string{"0"},
@@ -631,13 +649,14 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	test.Dump = t.Dump
 	test.Setting = DefaultSettings
 	test.RespCond = []Condition{Condition{Key: "X-W3C-Validator-Status", Op: "==",
-		Val: "Valid", Id: "html-validation"}}
+		Val: "Valid", Id: "X-W3C-Validator-Status"}}
 	_, valbody, verr := test.RunSingle(nil, false) // no global, plain request
 	if verr != nil {
 		orig.Error(checkId, "Cannot access W3C validator", verr.String())
 		return
 	}
 	if _, failed, _ := test.Stat(); failed > 0 {
+		fmt.Printf("W3C result:\n%#v\n", test.Result)
 		failures := "Invalid HTML:"
 		doc, err := tag.ParseHtml(string(valbody))
 		if err != nil {
@@ -653,6 +672,25 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 	} else {
 		orig.Passed("html is valid")
 	}
+}
+
+// perform html (css) and link validations
+func testValidation(ti, test, global *Test, doc *tag.Node, response *http.Response, base, body string) {
+	var linkCond = make([]string, 0)
+	htmlDone := false
+
+	// Collect links and perform html
+	for _, cond := range ti.Validation {
+		if cond == "html" && !htmlDone {
+			testHtmlValidation(ti, test, global, body)
+			htmlDone = true
+		} else {
+			linkCond = append(linkCond, cond)
+		}
+	}
+
+	// Links
+	testLinkValidation(ti, test, linkCond, doc, response, base)
 }
 
 // Add header conditions from global to test.
@@ -843,8 +881,8 @@ func (test *Test) RunWithoutTest(global *Test) {
 // Benchmark test.
 func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
 	test.init()
-	test.Dump = nil              // prevent dumping during benchmarking
-	test.Setting["Validate"] = 0 // no use in benchmarking
+	test.Dump = nil // prevent dumping during benchmarking
+	test.Validation = nil
 
 	if count < 5 {
 		warn("Cannot benchmark with less than 5 rounds. Will use 5.")
@@ -1128,6 +1166,16 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 	return
 }
 
+// check if one of the conditions is a html validation
+func hasLinkValidation(cond []string) bool {
+	for _, c := range cond {
+		if c != "html" /* && c != "css" */ {
+			return true
+		}
+	}
+	return false
+}
+
 // Main function to perform test on the response: cookies, header, body, tags, and timing. 
 func performChecks(test, ti, global *Test, response *http.Response, cookies []*http.Cookie,
 url_ string, duration int, skipTests bool) (body []byte) {
@@ -1162,31 +1210,36 @@ url_ string, duration int, skipTests bool) (body []byte) {
 	}
 	testBody(body, ti, test)
 
-	// Tag:
-	if len(ti.Tag) > 0 || ti.Validate()&1 != 0 {
-		var doc *tag.Node
+	// Parse html to doc
+	var doc *tag.Node
+	if len(ti.Tag) > 0 || hasLinkValidation(ti.Validation) {
 		if parsableBody(response) {
 			var e os.Error
 			doc, e = tag.ParseHtml(string(body))
 			if e != nil {
-				test.Error("Tag/Validation",
-					"HTML unparsable", e.String())
+				test.Error("Tag/Validation", "HTML unparsable", e.String())
 				error("Problems parsing html: " + e.String())
 			}
 		} else {
 			error("Unparsable body ")
-			test.Error("Tag/Validation",
-				"Body considered unparsable.", "")
+			test.Error("Tag/Validation", "Body considered unparsable.", "")
 		}
+	}
 
-		testTags(ti, test, doc)
+	// Tag:
+	testTags(ti, test, doc)
+
+	// Validations:
+	testValidation(ti, test, global, doc, response, url_, string(body))
+
+	/*
 		if ti.Validate()&1 != 0 {
 			testLinkValidation(ti, test, global, doc, response, url_)
 		}
 		if ti.Validate()&2 != 0 {
 			testHtmlValidation(ti, test, global, string(body))
 		}
-	}
+	*/
 
 	// Timing:
 	if max := ti.MaxTime(); max > 0 {
