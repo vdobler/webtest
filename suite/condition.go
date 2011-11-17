@@ -194,7 +194,7 @@ func (cond *Condition) Fullfilled(v string) (ans bool, was string) {
 		was = snippet(v, 20)
 	case "==":
 		ans = (cond.Val == v)
-		was = v
+		was = snippet(v, len(cond.Val)+5)
 	case "_=":
 		ans = strings.HasPrefix(v, cond.Val)
 		was = snippet(v, len(cond.Val))
@@ -264,9 +264,34 @@ func bound(b, n int) int {
 	return 0
 }
 
+
+// Retunr first n (if n>0) or last n (if n<0) of s.
+func binsnippet(s []byte, n int) string {
+	var snip []byte
+	if n > 0 {
+		if n > len(s) {
+			n = len(s)
+		}
+		snip = s[:n]
+	} else {
+		n = -n
+		if n > len(s) {
+			n = len(s)
+		}
+		snip = s[len(s)-n:]
+	}
+	
+	t := ""
+	for _, b := range snip {
+		t = fmt.Sprintf("%s %02x", t, b)
+	}
+	t = t[:len(t)-1]
+	return t
+}
+
 // Check whether v fullfills the binary condition cond.
-func (cond *Condition) BinFullfilled(v []byte) bool {
-	ans := false
+func (cond *Condition) BinFullfilled(v []byte) (ans bool, was string) {
+	ans = false
 	val := hexToBytes(cond.Val)
 
 	low, high := 0, len(v)
@@ -284,21 +309,26 @@ func (cond *Condition) BinFullfilled(v []byte) bool {
 	switch cond.Op {
 	case ".": // Empty operator: tests existance only.
 		ans = (len(v) > 0)
+		was = binsnippet(v, 16)
 	case "==":
 		ans = (bytes.Compare(v, val) == 0)
+		was = binsnippet(v, len(val)+8)
 	case "_=":
 		ans = bytes.HasPrefix(v, val)
+		was = binsnippet(v, len(val))
 	case "=_":
 		ans = bytes.HasSuffix(v, val)
+		was = binsnippet(v, -len(val))
 	case "~=":
 		ans = (bytes.Index(v, val) != -1)
+		was = binsnippet(v, 8) + " ... " + binsnippet(v, -8)
 	default:
 		error("Condition operator '%s' (%s) not implemented.", cond.Op, cond.Id)
 	}
 	if cond.Neg {
 		ans = !ans
 	}
-	return ans
+	return 
 }
 
 // String represnetation of condition c.

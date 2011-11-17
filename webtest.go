@@ -45,11 +45,15 @@ import (
 	"path"
 	"rand"
 	"runtime"
+	"image"
 	"time"
 
 	"github.com/vdobler/webtest/suite"
 	"github.com/vdobler/webtest/tag"
 	"github.com/vdobler/webtest/stat"
+	"github.com/vdobler/chart"
+	"github.com/ajstarks/svgo"
+	"github.com/vdobler/chart/svgg"
 )
 
 // General operation modes and overall settings
@@ -453,6 +457,26 @@ func benchmark(suites []*suite.Suite) {
 	var result string = "\n======== Results ===============================================================\n"
 	var charts string = "\n======== Charts ================================================================\n"
 
+	// A box chart
+	var boxChart chart.BoxChart
+	boxChart.Title = "Distribution of Response Times"
+	boxChart.Key.Hide = true
+	boxChart.YRange.Label = "Response Time [ms]"
+	boxChart.YRange.MinMode.Fixed = true
+	boxChart.YRange.MinMode.Value = 0
+	boxChart.XRange.Category = []string{}
+	boxChart.NextDataSet("Response Times", chart.AutoStyle(0, false))
+
+	// A histogram
+	var histogram chart.HistChart
+	histogram.Title = "Distribution of Response Times" 
+	histogram.XRange.Label = "Response Time [ms]"
+	histogram.XRange.MinMode.Fixed = true
+	histogram.XRange.MinMode.Value = 0
+	histogram.Kernel = chart.BisquareKernel
+
+	cnt := 0
+
 	for sn, s := range suites {
 		var headline string
 
@@ -474,6 +498,15 @@ func benchmark(suites []*suite.Suite) {
 			if err != nil {
 				result += fmt.Sprintf("%s: Unable to bench: %s\n", abbrTitle, err.String())
 			} else {
+				fdur := make([]float64, len(dur))
+				for k, d := range dur {
+					fdur[k] = float64(d)
+				}
+				boxChart.AddSet(float64(cnt), fdur, true)
+				boxChart.XRange.Category = append(boxChart.XRange.Category, t.Title)
+				cnt++
+				histogram.AddData(t.Title, fdur, chart.Style{})
+
 				min, lq, med, avg, uq, max := stat.SixvalInt(dur, 25)
 				result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
 					abbrTitle, min, lq, med, avg, uq, max, len(dur), f)
@@ -485,19 +518,41 @@ func benchmark(suites []*suite.Suite) {
 
 	}
 
-	filename := outputPath + "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
-	file, err := os.Create(filename)
-	defer file.Close()
-	if err != nil {
-		error("Cannot write to " + filename)
-	}
-
 	fmt.Print(result)
 	fmt.Print(charts)
-	if file != nil {
+
+	filename := outputPath + "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05")
+	file, err := os.Create(filename + ".txt")
+	if err != nil {
+		error("Cannot write to " + filename + ".txt")
+		return
+	} else {
 		file.Write([]byte(result))
 		file.Write([]byte(charts))
+		file.Close()
 	}
+
+	file, err = os.Create(filename + ".svg")
+	if err != nil {
+		error("Cannot write to " + filename + ".svg")
+		return
+	} else {
+		boxChart.XRange.Fixed(-1,float64(cnt),1)
+		thesvg := svg.New(file)
+		thesvg.Start(800, 800)
+		thesvg.Title("Response Times")
+		thesvg.Rect(0, 0, 800, 800, "fill: #ffffff")
+		svggraphics := svgg.New(thesvg, 800, 400, "Arial", 12, image.RGBAColor{255, 255, 255, 255})
+		boxChart.Plot(svggraphics)
+
+		thesvg.Gtransform("translate(0 400)")
+		histogram.Plot(svggraphics)
+		thesvg.Gend()
+
+		thesvg.End()
+		file.Close()
+	}
+
 }
 
 // Junit output uses the following mapping
@@ -514,6 +569,10 @@ func xmlEnc(s string) string {
 func xmlAttr(name, value string) string {
 	value = strings.Replace(xmlEnc(value), "\"", "&quot;", -1)
 	return fmt.Sprintf(`%s="%s"`, name, value)
+}
+
+func clearUnwantedValidations(test *suite.Test) {
+	// TODO use validationMask
 }
 
 // Testting
@@ -561,7 +620,7 @@ func test(suites []*suite.Suite) {
 			}
 
 			// clear unwanted validation
-			s.Test[i].Setting["Validate"] = s.Test[i].Validate() & validateMask
+			clearUnwantedValidations(&s.Test[i])
 
 			s.RunTest(i)
 

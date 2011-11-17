@@ -599,6 +599,7 @@ func (p *Parser) readCond(mode int) []Condition {
 						break
 					}
 				}
+				val = v
 			}
 		}
 

@@ -405,8 +405,9 @@ func testBody(body []byte, t, orig *Test) {
 				orig.Passed(cs)
 			}
 		case "Bin":
-			if !c.BinFullfilled(body) {
-				orig.Failed(c.Id, "Bin Failed", cs)
+			if ok, was := c.BinFullfilled(body); !ok {
+				orig.Failed(c.Id, "Bin Failed", 
+					fmt.Sprintf("%s\nTesting for %s\nBut got: %s",c.Id, c.String(), was))
 			} else {
 				orig.Passed(cs)
 			}
@@ -1111,7 +1112,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 			response, url_, cookies, reqerr = Post(ti)
 		}
 		endtime := time.Nanoseconds()
-		duration = int((endtime - starttime) / 1000000) // in milliseconds (ms)
+		duration = int((endtime - starttime) / 1e6) // in milliseconds (ms)
 
 		if reqerr != nil {
 			test.Error("Request", "Failed Request", reqerr.String())
