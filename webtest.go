@@ -474,6 +474,7 @@ func benchmark(suites []*suite.Suite) {
 	histogram.XRange.MinMode.Fixed = true
 	histogram.XRange.MinMode.Value = 0
 	histogram.Kernel = chart.BisquareKernel
+	histogram.BinWidth = 100
 
 	cnt := 0
 
@@ -831,7 +832,7 @@ func stresstest(bgfilename, testfilename string) {
 
 	// Disable test which should not run by setting their Repeat to 0
 	for i := 0; i < len(testsuite.Test); i++ {
-		if !shouldRun(testsuite, 0, i+1) {
+		if !shouldRun(testsuite, 1, i+1) {
 			warn("Disabeling test %s", testsuite.Test[i].Title)
 			testsuite.Test[i].Setting["Repeat"] = 0
 		}

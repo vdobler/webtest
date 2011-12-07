@@ -197,8 +197,9 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 			result.Err += errored
 		}
 	}
-	result.AvgRT /= int64(result.N)
-
+	if result.N != 0 {
+		result.AvgRT /= int64(result.N)
+	}
 	debug("Load %d: Response Time %d / %d (avg/max). Status %d / %d / %d (err/pass/fail). %d / %d (tests/checks).",
 		load, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
 

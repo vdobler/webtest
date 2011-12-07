@@ -570,6 +570,7 @@ func testLinkValidation(t, orig *Test, cond []string, doc *tag.Node, resp *http.
 	tmpl.Tag = nil
 	tmpl.BodyCond = nil
 	tmpl.CookieCond = nil
+	tmpl.Validation = nil
 	tmpl.Param = nil
 	// tmpl.Dump = nil
 	tmpl.Setting = DefaultSettings
