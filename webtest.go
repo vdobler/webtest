@@ -27,7 +27,7 @@
 //     	   # Check that the body contains some text
 //     	   Txt  ~=  "Thank you for your feedback John Doe"
 //
-// See the reference-suite.wt (reference-suite.wt.pdf) for a full description 
+// See the reference-suite.wt (reference-suite.wt.pdf) for a full description
 // of the syntax of a test and how it will be executed.
 //
 // The documentation to the webtest command itself can be found in the
@@ -37,23 +37,24 @@
 package main
 
 import (
-	"fmt"
 	"flag"
-	"os"
-	"strings"
+	"fmt"
+	"image/color"
+	"io"
 	"log"
+	"math/rand"
+	"os"
 	"path"
-	"rand"
 	"runtime"
-	"image"
+	"strings"
 	"time"
 
+	"github.com/ajstarks/svgo"
+	"github.com/vdobler/chart"
+	"github.com/vdobler/chart/svgg"
+	"github.com/vdobler/webtest/stat"
 	"github.com/vdobler/webtest/suite"
 	"github.com/vdobler/webtest/tag"
-	"github.com/vdobler/webtest/stat"
-	"github.com/vdobler/chart"
-	"github.com/ajstarks/svgo"
-	"github.com/vdobler/chart/svgg"
 )
 
 // General operation modes and overall settings
@@ -88,34 +89,34 @@ var rampRep int = 1        // Number of repetitions of tests in one ramp level.
 var stopFF float64 = 0.1       // 10% Failures --> stop
 var stopART int64 = 120 * 1000 // two minutes Average Response Time
 var stopMRT int64 = 240 * 1000 // four minutes Maximum Response Time
-var stopRTJ int = 5            // five fold increase in avg resp time in _one_ ramp step   
-var stopRTI int = 50           // fifty fold increase in avg resp time from value without background load 
+var stopRTJ int = 5            // five fold increase in avg resp time in _one_ ramp step
+var stopRTI int = 50           // fifty fold increase in avg resp time from value without background load
 var stopMPR = 250              // maximum number of parallel background requests
 
 // Some logging stuff
 var logger *log.Logger
 
-func error(f string, m ...interface{}) {
+func errorf(f string, m ...interface{}) {
 	if LogLevel >= 1 {
 		logger.Print("*ERROR* " + fmt.Sprintf(f, m...))
 	}
 }
-func warn(f string, m ...interface{}) {
+func warnf(f string, m ...interface{}) {
 	if LogLevel >= 2 {
 		logger.Print("*WARN * " + fmt.Sprintf(f, m...))
 	}
 }
-func info(f string, m ...interface{}) {
+func infof(f string, m ...interface{}) {
 	if LogLevel >= 3 {
 		logger.Print("*INFO * " + fmt.Sprintf(f, m...))
 	}
 }
-func debug(f string, m ...interface{}) {
+func debugf(f string, m ...interface{}) {
 	if LogLevel >= 4 {
 		logger.Print("*DEBUG* " + fmt.Sprintf(f, m...))
 	}
 }
-func trace(f string, m ...interface{}) {
+func tracef(f string, m ...interface{}) {
 	if LogLevel >= 5 {
 		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
 	}
@@ -142,7 +143,7 @@ func shouldRun(s *suite.Suite, sn, no int) bool {
 		}
 		matches, err := tag.Match(x, title)
 		if err != nil {
-			error("Malformed pattern '%s' in -tests.", x)
+			errorf("Malformed pattern '%s' in -tests.", x)
 			continue
 		}
 		if matches {
@@ -224,14 +225,13 @@ func help() {
 type cmdlVar struct{ m map[string]string }
 
 func (c cmdlVar) String() (s string) { return "" }
-func (c cmdlVar) Set(s string) bool {
+func (c cmdlVar) Set(s string) error {
 	part := strings.SplitN(s, "=", 2)
 	if len(part) != 2 {
-		warn("Bad argument '%s' to -D commandline parameter", s)
-		return false
+		return fmt.Errorf("Bad argument '%s' to -D commandline parameter", s)
 	}
 	c.m[part[0]] = part[1]
-	return true
+	return nil
 }
 
 // Set up internal state from command line.
@@ -329,7 +329,7 @@ func main() {
 
 	if tagspec != "" {
 		if flag.NArg() != 1 {
-			error("TagSpec debugging requires one file")
+			errorf("TagSpec debugging requires one file")
 			os.Exit(2)
 		}
 		tagDebug(tagspec, flag.Args()[0])
@@ -337,14 +337,14 @@ func main() {
 
 	if stresstestMode {
 		if flag.NArg() != 2 {
-			error("Stresstest requires excatly two suites.")
+			errorf("Stresstest requires excatly two suites.")
 			os.Exit(2)
 		}
 		stresstest(flag.Args()[0], flag.Args()[1])
 		os.Exit(0)
 	} else {
 		if flag.NArg() == 0 {
-			error("No webtest file given. (Run 'webtest -help' for usage.)\n")
+			errorf("No webtest file given. (Run 'webtest -help' for usage.)\n")
 			os.Exit(2)
 		}
 		testOrBenchmark(flag.Args())
@@ -355,7 +355,7 @@ func main() {
 func tagDebug(tagspec, filename string) {
 	f, err := os.Open(filename)
 	if err != nil {
-		error("Cannot read from %s: %s", filename, err.String())
+		errorf("Cannot read from %s: %s", filename, err.Error())
 		os.Exit(2)
 	}
 
@@ -365,10 +365,10 @@ func tagDebug(tagspec, filename string) {
 		n, err := f.Read(buf[0:])
 		result = append(result, buf[0:n]...)
 		if err != nil {
-			if err == os.EOF {
+			if err == io.EOF {
 				break
 			}
-			error("Problems: %s", err.String())
+			errorf("Problems: %s", err.Error())
 			os.Exit(2)
 		}
 	}
@@ -378,13 +378,13 @@ func tagDebug(tagspec, filename string) {
 	fts := strings.Replace(tagspec, "||", "\n", -1)
 	ts, err := tag.ParseTagSpec(fts)
 	if err != nil {
-		error("Invalid ts: %s", err.String())
+		errorf("Invalid ts: %s", err.Error())
 		os.Exit(2)
 	}
 
 	doc, err := tag.ParseHtml(html)
 	if err != nil {
-		error("Cannot parse html: %s", err.String())
+		errorf("Cannot parse html: %s", err.Error())
 		os.Exit(2)
 	}
 
@@ -469,7 +469,7 @@ func benchmark(suites []*suite.Suite) {
 
 	// A histogram
 	var histogram chart.HistChart
-	histogram.Title = "Distribution of Response Times" 
+	histogram.Title = "Distribution of Response Times"
 	histogram.XRange.Label = "Response Time [ms]"
 	histogram.XRange.MinMode.Fixed = true
 	histogram.XRange.MinMode.Value = 0
@@ -489,7 +489,7 @@ func benchmark(suites []*suite.Suite) {
 
 		for i, t := range s.Test {
 			if !shouldRun(s, sn+1, i+1) {
-				info("Skipped test %d.", i+1)
+				infof("Skipped test %d.", i+1)
 				continue
 			}
 			abbrTitle := abbrevTitle(i+1, t.Title)
@@ -497,7 +497,7 @@ func benchmark(suites []*suite.Suite) {
 			// Benchmarking
 			dur, f, err := s.BenchTest(i, numRuns)
 			if err != nil {
-				result += fmt.Sprintf("%s: Unable to bench: %s\n", abbrTitle, err.String())
+				result += fmt.Sprintf("%s: Unable to bench: %s\n", abbrTitle, err.Error())
 			} else {
 				fdur := make([]float64, len(dur))
 				for k, d := range dur {
@@ -522,10 +522,10 @@ func benchmark(suites []*suite.Suite) {
 	fmt.Print(result)
 	fmt.Print(charts)
 
-	filename := outputPath + "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05")
+	filename := outputPath + "wtresults_" + time.Now().Format("2006-01-02_15-04-05")
 	file, err := os.Create(filename + ".txt")
 	if err != nil {
-		error("Cannot write to " + filename + ".txt")
+		errorf("Cannot write to " + filename + ".txt")
 		return
 	} else {
 		file.Write([]byte(result))
@@ -535,15 +535,15 @@ func benchmark(suites []*suite.Suite) {
 
 	file, err = os.Create(filename + ".svg")
 	if err != nil {
-		error("Cannot write to " + filename + ".svg")
+		errorf("Cannot write to " + filename + ".svg")
 		return
 	} else {
-		boxChart.XRange.Fixed(-1,float64(cnt),1)
+		boxChart.XRange.Fixed(-1, float64(cnt), 1)
 		thesvg := svg.New(file)
 		thesvg.Start(800, 800)
 		thesvg.Title("Response Times")
 		thesvg.Rect(0, 0, 800, 800, "fill: #ffffff")
-		svggraphics := svgg.New(thesvg, 800, 400, "Arial", 12, image.RGBAColor{255, 255, 255, 255})
+		svggraphics := svgg.New(thesvg, 800, 400, "Arial", 12, color.RGBA{255, 255, 255, 255})
 		boxChart.Plot(svggraphics)
 
 		thesvg.Gtransform("translate(0 400)")
@@ -560,7 +560,7 @@ func benchmark(suites []*suite.Suite) {
 //   file my-suite.wt   <-->  testsuite
 //   test ----Name----  <-->  testcase
 //   check/condition    <-->  assertion
-// 
+//
 func xmlEnc(s string) string {
 	s = strings.Replace(s, "&", "&amp;", -1)
 	s = strings.Replace(s, "<", "&lt;", -1)
@@ -584,7 +584,6 @@ func test(suites []*suite.Suite) {
 	var passed bool = true
 	var hasFailures, hasErrors bool // global over all suites
 
-
 	var junit = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
 	junit += "<testsuites>\n"
 	for sn, s := range suites {
@@ -597,15 +596,15 @@ func test(suites []*suite.Suite) {
 		}
 
 		// Junit stuff
-		var milliseconds int64 = time.UTC().Nanoseconds() / 1e6
+		var milliseconds int64 = time.Now().UnixNano() / 1e6
 		tnump, tnumf, tnume, tnums := 0, 0, 0, 0 // total number of pass, fail, err, skipped
-		timestamp := time.LocalTime().Format("2006-01-02T15:04:05")
+		timestamp := time.Now().Format("2006-01-02T15:04:05")
 		hostname, _ := os.Hostname()
 		testcases := ""
 
 		for i, t := range s.Test {
 			if !shouldRun(s, sn+1, i+1) {
-				info("Skipped test %d.", i+1)
+				infof("Skipped test %d.", i+1)
 				continue
 			}
 			abbrTitle := abbrevTitle(i+1, t.Title)
@@ -685,7 +684,7 @@ func test(suites []*suite.Suite) {
 		result += "\n"
 
 		// Junit stuff
-		seconds := float64(time.UTC().Nanoseconds()/1e6-milliseconds) / 1000
+		seconds := float64(time.Now().UnixNano()/1e6-milliseconds) / 1000
 		junit += fmt.Sprintf("  <testsuite %s %s %s", xmlAttr("name", s.Name),
 			xmlAttr("hostname", hostname), xmlAttr("timestamp", timestamp))
 		junit += fmt.Sprintf(" tests=\"%d\" failures=\"%d\" errors=\"%d\"",
@@ -698,11 +697,11 @@ func test(suites []*suite.Suite) {
 
 	junit += "<testsuites>\n"
 
-	filename := outputPath + "wtresults_" + time.LocalTime().Format("2006-01-02_15-04-05") + ".txt"
+	filename := outputPath + "wtresults_" + time.Now().Format("2006-01-02_15-04-05") + ".txt"
 	file, err := os.Create(filename)
 	defer file.Close()
 	if err != nil {
-		error("Cannot write to " + filename)
+		errorf("Cannot write to " + filename)
 	}
 
 	// Summary
@@ -740,20 +739,20 @@ func test(suites []*suite.Suite) {
 }
 
 // Read a webtest suite from file.
-func readSuite(filename string) (s *suite.Suite, basename string, err os.Error) {
+func readSuite(filename string) (s *suite.Suite, basename string, err error) {
 	var file *os.File
 	file, err = os.Open(filename)
 	defer file.Close()
 
 	if err != nil {
-		error("Cannot read from '%s': %s\n", filename, err.String())
+		errorf("Cannot read from '%s': %s\n", filename, err.Error())
 		return
 	}
 	basename = path.Base(filename)
 	parser := suite.NewParser(file, basename)
 	s, err = parser.ReadSuite()
 	if err != nil {
-		error("Problems parsing '%s': %s\n", filename, err.String())
+		errorf("Problems parsing '%s': %s\n", filename, err.Error())
 	}
 	s.Name = basename
 	return
@@ -768,7 +767,7 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	var data []suite.StressResult = make([]suite.StressResult, 0, 5)
 
 	for {
-		info("Stresstesting with background load of %d || requests.", load)
+		infof("Stresstesting with background load of %d || requests.", load)
 		runtime.GC()
 		result := s.Stresstest(bg, load, rampRep, rampSleep)
 		data = append(data, result)
@@ -781,27 +780,27 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 		fmt.Printf(stressChartUrl(data))
 		fmt.Printf(text)
 		if result.Err > 0 {
-			info("Test Error: Aborting Stresstest.")
+			infof("Test Error: Aborting Stresstest.")
 			break
 		}
 		if lastRespTime != -1 && result.AvgRT > int64(stopRTJ)*lastRespTime {
-			info("Dramatic Single Average Response Time Increase: Aborting Stresstest.")
+			infof("Dramatic Single Average Response Time Increase: Aborting Stresstest.")
 			break
 		}
 		if result.AvgRT > int64(stopRTI)*plainRespTime {
-			info("Average Response Time Increased Too Much: Aborting Stresstest.")
+			infof("Average Response Time Increased Too Much: Aborting Stresstest.")
 			break
 		}
 		if result.AvgRT > stopART {
-			info("Average Response Time Long: Aborting Stresstest.")
+			infof("Average Response Time Long: Aborting Stresstest.")
 			break
 		}
 		if result.MaxRT > stopMRT {
-			info("Maximum Response Time Long: Aborting Stresstest.")
+			infof("Maximum Response Time Long: Aborting Stresstest.")
 			break
 		}
 		if result.Fail > int(stopFF*float64(result.Total)) {
-			info("To Many Failures: Aborting Stresstest.")
+			infof("To Many Failures: Aborting Stresstest.")
 			break
 		}
 
@@ -809,11 +808,11 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 		load = stepper.Next(load)
 
 		if load > stopMPR {
-			info("To Many Background Request: Aborting Stresstest.")
+			infof("To Many Background Request: Aborting Stresstest.")
 			break
 		}
 
-		time.Sleep(rampSleep * 1000000)
+		time.Sleep(time.Duration(rampSleep) * time.Millisecond)
 	}
 
 	fmt.Printf(stressChartUrl(data))
@@ -826,14 +825,14 @@ func stresstest(bgfilename, testfilename string) {
 	background, _, berr := readSuite(bgfilename)
 	testsuite, _, serr := readSuite(testfilename)
 	if berr != nil || serr != nil {
-		error("Cannot parse given suites.")
+		errorf("Cannot parse given suites.")
 		return
 	}
 
 	// Disable test which should not run by setting their Repeat to 0
 	for i := 0; i < len(testsuite.Test); i++ {
 		if !shouldRun(testsuite, 1, i+1) {
-			warn("Disabeling test %s", testsuite.Test[i].Title)
+			warnf("Disabeling test %s", testsuite.Test[i].Title)
 			testsuite.Test[i].Setting["Repeat"] = 0
 		}
 	}

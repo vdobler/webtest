@@ -5,8 +5,8 @@ package suite
 //
 
 import (
-	"http"
-	"url"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +19,7 @@ const (
 )
 
 // All cookies in the jar have a efective domain of the form ".www.domain.org"
-// 
+//
 type CookieJar struct {
 	cookies []*http.Cookie // all our cookies accessible by domain
 	mutex   sync.Mutex
@@ -53,11 +53,11 @@ func expiredOrDeleted(c *http.Cookie) bool {
 		return true
 	}
 
-	if c.Expires.Year == 0 {
+	if c.Expires.Year() == 0 {
 		return false
 	}
 
-	return c.Expires.Seconds() >= time.UTC().Seconds()
+	return time.Now().After(c.Expires)
 }
 
 // Find looks up the index of cookie in our cookie jar.
@@ -83,12 +83,12 @@ func (jar *CookieJar) All() []*http.Cookie {
 	return jar.cookies
 }
 
-// Update will update (add new, update existing or remove deleted) the jar 
+// Update will update (add new, update existing or remove deleted) the jar
 // with the given cookie as recieved from domain.
 // It's a method on CookieJar to apply the jars policy in the future.
 func (jar *CookieJar) Update(cookie http.Cookie, domain string) {
 	domain = stripPort(domain)
-	trace("Update cookie %s:%s:%s=%s for domain %s",
+	tracef("Update cookie %s:%s:%s=%s for domain %s",
 		cookie.Name, cookie.Domain, cookie.Path, cookie.Value, domain)
 
 	// make sure Domain is set (and starts with '.' and Path is set
@@ -109,19 +109,19 @@ func (jar *CookieJar) Update(cookie http.Cookie, domain string) {
 
 	// Set Expires from MaxAge if set
 	if cookie.MaxAge > 0 {
-		cookie.Expires = *time.SecondsToLocalTime(time.LocalTime().Seconds() + int64(cookie.MaxAge))
+		cookie.Expires = time.Now().Add(time.Duration(cookie.MaxAge))
 	}
 
-	trace("Prepared cookie for update %v", cookie)
+	tracef("Prepared cookie for update %v", cookie)
 
 	jar.mutex.Lock()
 	defer jar.mutex.Unlock()
 
 	idx, _ := jar.find(cookie.Domain, cookie.Path, cookie.Name)
-	trace("Cookie allready in jar: %t", idx != -1)
+	tracef("Cookie allready in jar: %t", idx != -1)
 
 	if expiredOrDeleted(&cookie) {
-		trace("Cookie is expired/deleted")
+		tracef("Cookie is expired/deleted")
 		if idx != -1 {
 			jar.cookies = append(jar.cookies[:idx], jar.cookies[idx+1:]...)
 		}
@@ -164,39 +164,39 @@ func stripPort(host string) string {
 func (jar *CookieJar) Select(u *url.URL) (cookies []*http.Cookie) {
 	host := stripPort(u.Host)
 	path := u.Path
-	trace("Select cookie for %s%s", host, path)
+	tracef("Select cookie for %s%s", host, path)
 
 	// list of possible cookies
 	list := make([]*http.Cookie, 0, 5)
 	tbd := make([]int, 0, 2) // Expired Cookies
 	for i, c := range jar.cookies {
-		trace("  try cookie %v", c)
+		tracef("  try cookie %v", c)
 		if !jar.domainMatch(host, c.Domain) {
-			trace("    wrong domain %s", c.Domain)
+			tracef("    wrong domain %s", c.Domain)
 			continue
 		}
 		if !pathMatch(path, c.Path) {
-			trace("    wrong path %s", c.Path)
+			tracef("    wrong path %s", c.Path)
 			continue
 		}
 		if c.HttpOnly && !(u.Scheme == "http" || u.Scheme == "https") {
-			trace("    wrong protocol %s for HttpOnly", u.Scheme)
+			tracef("    wrong protocol %s for HttpOnly", u.Scheme)
 			continue
 		}
 		if c.Secure && u.Scheme != "https" {
-			trace("    not secure protocol %s for Secure cookie", u.Scheme)
+			tracef("    not secure protocol %s for Secure cookie", u.Scheme)
 			continue
 		}
 		if expiredOrDeleted(c) {
 			tbd = append(tbd, i)
 		}
-		trace("    --> okay")
+		tracef("    --> okay")
 		list = append(list, c)
 	}
 
 	// Remove expired cookies from list
 	if len(tbd) > 0 {
-		trace("Will remove %d expired cookies from jar.", len(tbd))
+		tracef("Will remove %d expired cookies from jar.", len(tbd))
 		jar.mutex.Lock()
 		for i, idx := range tbd {
 			jar.cookies = append(jar.cookies[:idx-i], jar.cookies[idx+1-i:]...)
@@ -208,11 +208,11 @@ func (jar *CookieJar) Select(u *url.URL) (cookies []*http.Cookie) {
 	m := make(map[string]*http.Cookie)
 	for _, c := range list {
 		if ac, ok := m[c.Name]; ok {
-			trace("Same-name-cookie: %s", c.Name)
+			tracef("Same-name-cookie: %s", c.Name)
 			if len(c.Path) > len(ac.Path) {
 				// this one is more specific and should be used
 				m[c.Name] = c
-				trace("  use more specific %v", c)
+				tracef("  use more specific %v", c)
 			}
 		} else {
 			m[c.Name] = c

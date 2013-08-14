@@ -1,8 +1,8 @@
 package suite
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"html"
 	"http"
 	"os"

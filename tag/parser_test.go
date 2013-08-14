@@ -1,9 +1,9 @@
 package tag
 
 import (
-	"testing"
 	"fmt"
 	"strings"
+	"testing"
 )
 
 var testStructureHtml = `<html>

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"fmt"
-	"url"
+	"net/url"
 )
 
 // Return p percentil of pre-sorted integer data. 0 <= p <= 100.

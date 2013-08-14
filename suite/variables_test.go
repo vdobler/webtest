@@ -1,11 +1,10 @@
 package suite
 
 import (
-	"http"
 	"fmt"
+	"http"
 	"testing"
 )
-
 
 func TestNextPart(t *testing.T) {
 	var nextPartER [][4]string = [][4]string{[4]string{"Hallo", "Hallo", "", ""},
@@ -59,12 +58,12 @@ func TestNowValue(t *testing.T) {
 			switch m {
 			case 'f':
 				if now[i] != then[i] {
-					t.Errorf("'%s' %s: Pos %d: got '%c' expected '%c'.", 
+					t.Errorf("'%s' %s: Pos %d: got '%c' expected '%c'.",
 						now, x.d, i, now[i], then[i])
 				}
 			case 'C':
 				if now[i] == then[i] {
-					t.Errorf("'%s' '%s': Pos %d: unchanged '%c': %s", 
+					t.Errorf("'%s' '%s': Pos %d: unchanged '%c': %s",
 						now, x.d, i, now[i], then)
 				}
 			default:
@@ -76,4 +75,3 @@ func TestNowValue(t *testing.T) {
 		}
 	}
 }
-

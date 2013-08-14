@@ -1,7 +1,7 @@
 package tag
 
 import (
-	"os"
+	"errors"
 	"regexp"
 	"strings"
 )
@@ -60,17 +60,17 @@ func (rc RegexpContent) String() string {
 //   - strings with * or ? characters (e.g. "some*vlue") --> Patterm
 //   - starts and ends with / (e.g. "/the (cat|dog) .*/") --> Regexp
 //   - all other  --> Fixed String
-func MakeContent(cntnt string) (Content, os.Error) {
+func MakeContent(cntnt string) (Content, error) {
 	if len(cntnt) > 2 && cntnt[0] == '/' && cntnt[len(cntnt)-1] == '/' {
 		if rexp, err := regexp.Compile(cntnt[1 : len(cntnt)-1]); err == nil {
 			return RegexpContent{rexp}, nil
 		} else {
-			error("Malformed regular expression: %s", err.String())
+			errorf("Malformed regular expression: %s", err.Error())
 			return nil, err
 		}
 	} else if strings.Index(cntnt, "*") != -1 || strings.Index(cntnt, "?") != -1 {
 		if _, err := Match(cntnt, cntnt); err != nil {
-			error("Malformed pattern: %s", err.String())
+			errorf("Malformed pattern: %s", err.Error())
 			return nil, err
 		}
 		return PatternContent{cntnt}, nil
@@ -179,8 +179,8 @@ func validId(s string) bool {
 }
 
 // Decompose texttual tag specification spec into a TagSpec.
-// Returns nil on error.  
-func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
+// Returns nil on error.
+func ParseSimpleTagSpec(spec string) (ts *TagSpec, err error) {
 	// fmt.Printf("Parsing: " + spec)
 	ts = new(TagSpec)
 	ts.Attr = make(map[string]Content)
@@ -197,7 +197,7 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 			spec, cntnt = trim(spec[:i]), trim(spec[i+4:])
 			ts.Content, err = MakeContent(cntnt)
 		} else {
-			return nil, os.NewError("Ambigous == in spec.")
+			return nil, errors.New("Ambigous == in spec.")
 		}
 	} else if strings.Index(spec, "=D=") != -1 {
 		ts.Deep = true
@@ -208,7 +208,7 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 			spec, cntnt = trim(spec[:i]), trim(spec[i+5:])
 			ts.Content, err = MakeContent(cntnt)
 		} else {
-			return nil, os.NewError("Ambigous =D= in spec.")
+			return nil, errors.New("Ambigous =D= in spec.")
 		}
 	} else {
 		ts.Content = nil
@@ -219,11 +219,11 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 
 	f := strings.Fields(spec)
 	if len(f) == 0 {
-		return nil, os.NewError("No tag given in tagspec.")
+		return nil, errors.New("No tag given in tagspec.")
 	}
 	tagname := strings.ToLower(f[0])
 	if !validId(tagname) {
-		return nil, os.NewError("No valid tagname given: " + f[0])
+		return nil, errors.New("No valid tagname given: " + f[0])
 	}
 	ts.Name = tagname
 
@@ -243,7 +243,7 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 			cntnt, err = MakeContent(val) // err later (dont err for classes)
 		}
 		if !validId(atr) {
-			return nil, os.NewError("Not valid attribute name: " + atr)
+			return nil, errors.New("Not valid attribute name: " + atr)
 		}
 		if atr == "class" {
 			if expected {
@@ -257,7 +257,7 @@ func ParseSimpleTagSpec(spec string) (ts *TagSpec, err os.Error) {
 			}
 			if expected {
 				if _, ok := ts.Attr[atr]; ok {
-					return nil, os.NewError("Required attribute specified twice: " + atr)
+					return nil, errors.New("Required attribute specified twice: " + atr)
 				}
 				ts.Attr[atr] = cntnt
 			} else {
@@ -286,8 +286,8 @@ func indentDepth(s string) (d int) {
 }
 
 // Parse a textual tagspec into internal struct.
-func ParseTagSpec(spec string) (ts *TagSpec, err os.Error) {
-	trace("Parsing TagSpec: %s", spec)
+func ParseTagSpec(spec string) (ts *TagSpec, err error) {
+	tracef("Parsing TagSpec: %s", spec)
 	lines := strings.Split(spec, "\n")
 	ts, err = ParseSimpleTagSpec(lines[0])
 	if err != nil {
@@ -315,10 +315,10 @@ func ParseTagSpec(spec string) (ts *TagSpec, err os.Error) {
 
 // The single-return-but-panicing version of ParseTagSpec().
 func MustParseTagSpec(spec string) (ts *TagSpec) {
-	var err os.Error
+	var err error
 	ts, err = ParseTagSpec(spec)
 	if err != nil {
-		panic("Wrong tagspec: " + err.String())
+		panic("Wrong tagspec: " + err.Error())
 	}
 	return
 }

@@ -1,8 +1,8 @@
 package tag
 
 import (
-	"testing"
 	_ "fmt"
+	"testing"
 	// "strings"
 )
 

@@ -9,7 +9,7 @@ import (
 )
 
 // Return filesize of file path, -1 on error and 0 for nonexisting files.
-func filesize(path string) (s int64, err os.Error) {
+func filesize(path string) (s int64, err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		s = -1
@@ -21,7 +21,7 @@ func filesize(path string) (s int64, err os.Error) {
 		s = -1
 		return
 	}
-	return fi.Size, nil
+	return fi.Size(), nil
 }
 
 func determinLogfileSize(logs []LogCondition, test *Test) map[string]int64 {
@@ -34,9 +34,9 @@ func determinLogfileSize(logs []LogCondition, test *Test) map[string]int64 {
 			continue
 		}
 		s, err := filesize(log.Path)
-		trace("Filesize of %s = %d", log.Path, logfilesize[log.Path])
+		tracef("Filesize of %s = %d", log.Path, logfilesize[log.Path])
 		if err != nil {
-			test.Error(log.Id, "Cannot read "+log.Path, err.String())
+			test.Error(log.Id, "Cannot read "+log.Path, err.Error())
 		}
 		logfilesize[log.Path] = s
 	}
@@ -78,14 +78,14 @@ func dumpBody(body []byte, title, url_, ct string) {
 	for i := 0; i < 1000; i++ {
 		fname = fmt.Sprintf("%s.%03d.%s", name, i, ext)
 		_, err := os.Stat(fname)
-		if e, ok := err.(*os.PathError); ok && e.Error == os.ENOENT {
+		if e, ok := err.(*os.PathError); ok && e == os.ErrNotExist {
 			break
 		}
 	}
 
 	file, err := os.Create(fname)
 	if err != nil {
-		error("Cannot dump body to file '%s': %s.", fname, err.String())
+		errorf("Cannot dump body to file '%s': %s.", fname, err.Error())
 	} else {
 		defer file.Close()
 		file.Write(body)

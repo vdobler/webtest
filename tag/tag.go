@@ -33,7 +33,7 @@ most of the possibilities
 Only specified classes, attributes and content is considered when finding
 tags in a html/xml document. E.g.:
     "p lang=en"
-will match any p-tag with lang="en" regardless of any other classes, 
+will match any p-tag with lang="en" regardless of any other classes,
 attributes and content of the p-tag.
 
 Values for attributes may be ommitted: Such test just check wether the
@@ -81,8 +81,8 @@ Some example
 package tag
 
 import (
+	"code.google.com/p/go.net/html"
 	"fmt"
-	"html"
 	"log"
 	"os"
 )
@@ -94,32 +94,32 @@ func init() {
 	logger = log.New(os.Stderr, "Tag     ", log.Ldate|log.Ltime)
 }
 
-func error(f string, m ...interface{}) {
+func errorf(f string, m ...interface{}) {
 	if LogLevel >= 1 {
 		logger.Print("*ERROR* " + fmt.Sprintf(f, m...))
 	}
 }
-func warn(f string, m ...interface{}) {
+func warnf(f string, m ...interface{}) {
 	if LogLevel >= 2 {
 		logger.Print("*WARN * " + fmt.Sprintf(f, m...))
 	}
 }
-func info(f string, m ...interface{}) {
+func infof(f string, m ...interface{}) {
 	if LogLevel >= 3 {
 		logger.Print("*INFO * " + fmt.Sprintf(f, m...))
 	}
 }
-func debug(f string, m ...interface{}) {
+func debugf(f string, m ...interface{}) {
 	if LogLevel >= 4 {
 		logger.Print("*DEBUG* " + fmt.Sprintf(f, m...))
 	}
 }
-func trace(f string, m ...interface{}) {
+func tracef(f string, m ...interface{}) {
 	if LogLevel >= 5 {
 		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
 	}
 }
-func supertrace(f string, m ...interface{}) {
+func supertracef(f string, m ...interface{}) {
 	if LogLevel >= 6 {
 		logger.Print("*TRACE* " + fmt.Sprintf(f, m...))
 	}
@@ -151,7 +151,7 @@ func containsAttr(attr []html.Attribute, name string, cntnt Content) bool {
 
 // Check if ts matches the tag node
 func Matches(ts *TagSpec, node *Node) bool {
-	supertrace("Trying node: " + node.String())
+	supertracef("Trying node: " + node.String())
 
 	// Tag Name
 	if node.Name != ts.Name {
@@ -159,36 +159,36 @@ func Matches(ts *TagSpec, node *Node) bool {
 	}
 
 	if LogLevel != 5 {
-		debug("Trying node: " + node.String())
+		debugf("Trying node: " + node.String())
 	}
 	// Tag Attributes
 	for name, cntnt := range ts.Attr {
-		debug("  Checking needed attribute '%s' = %v", name, cntnt)
+		debugf("  Checking needed attribute '%s' = %v", name, cntnt)
 		if !containsAttr(node.Attr, name, cntnt) {
-			debug("    --> missing")
+			debugf("    --> missing")
 			return false
 		}
 	}
 	for name, cntnt := range ts.XAttr {
-		debug("  Checking forbidden attribute %s", name)
+		debugf("  Checking forbidden attribute %s", name)
 		if containsAttr(node.Attr, name, cntnt) {
-			debug("    --> present")
+			debugf("    --> present")
 			return false
 		}
 	}
 
 	// Classes
 	for _, c := range ts.Classes {
-		debug("  Checking needed class %s", c)
+		debugf("  Checking needed class %s", c)
 		if !containsClass(c, node.class) {
-			debug("    --> missing")
+			debugf("    --> missing")
 			return false
 		}
 	}
 	for _, c := range ts.XClasses {
-		debug("  Checking forbidden class %s", c)
+		debugf("  Checking forbidden class %s", c)
 		if containsClass(c, node.class) {
-			debug("    --> present")
+			debugf("    --> present")
 			return false
 		}
 	}
@@ -202,9 +202,9 @@ func Matches(ts *TagSpec, node *Node) bool {
 			nc = node.Text
 		}
 
-		debug("  Checking for content %#v", nc)
+		debugf("  Checking for content %#v", nc)
 		if !ts.Content.Matches(nc) {
-			debug("    --> mismatch")
+			debugf("    --> mismatch")
 			return false
 		}
 	}
@@ -213,7 +213,7 @@ func Matches(ts *TagSpec, node *Node) bool {
 	ci := 0 // next child to test
 	numSubs, numChilds := len(ts.Sub), len(node.Child)
 	for si := 0; si < numSubs; si++ {
-		debug("  Checking subnode %d", si)
+		debugf("  Checking subnode %d", si)
 		found := false
 		remaining := numSubs - si - 1
 		for ; ci < numChilds-remaining; ci++ { // only test childs which are not needed for remaining subspecs
@@ -226,14 +226,14 @@ func Matches(ts *TagSpec, node *Node) bool {
 		}
 	}
 
-	debug("==> found")
+	debugf("==> found")
 	return true
 }
 
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.
 func FindTag(ts *TagSpec, root *Node) *Node {
-	debug("FindTag: " + ts.String())
+	debugf("FindTag: " + ts.String())
 	node := findTag(ts, root)
 
 	return node
@@ -254,7 +254,7 @@ func findTag(ts *TagSpec, node *Node) *Node {
 
 // Find all non-nested tags under node which matches the given TagSpec ts.
 func FindAllTags(ts *TagSpec, node *Node) []*Node {
-	debug("FindAllTags: " + ts.String())
+	debugf("FindAllTags: " + ts.String())
 	list := make([]*Node, 0, 10)
 	findAllTags(ts, node, &list)
 	return list
@@ -274,7 +274,7 @@ func findAllTags(ts *TagSpec, node *Node, lp *[]*Node) {
 // Find the first tag under node which matches the given TagSpec ts.
 // If node matches, node will be returned. If no match is found nil is returned.
 func CountTag(ts *TagSpec, node *Node) (n int) {
-	debug("CountTag: " + ts.String())
+	debugf("CountTag: " + ts.String())
 	return countTag(ts, node)
 }
 

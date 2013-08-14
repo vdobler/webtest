@@ -2,13 +2,13 @@ package suite
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	"http"
 	"io"
-	"os"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
-	"url"
 
 	"github.com/vdobler/webtest/tag"
 )
@@ -26,7 +26,7 @@ type ParserError struct {
 	cause string
 }
 
-func (pe ParserError) String() string {
+func (pe ParserError) Error() string {
 	return pe.cause
 }
 
@@ -63,7 +63,7 @@ func (p *Parser) okay() bool {
 }
 
 // Read a line from the Reader
-func (p *Parser) nextLine() (line string, err os.Error) {
+func (p *Parser) nextLine() (line string, err error) {
 	var isprefix bool
 	var by []byte
 	var str string
@@ -119,7 +119,7 @@ func deescape(str string) string {
 	return str
 }
 
-func dequote(str string) (string, os.Error) {
+func dequote(str string) (string, error) {
 	if len(str) < 2 {
 		return str, nil
 	}
@@ -148,12 +148,12 @@ func (p *Parser) readMap(m *map[string]string) {
 			val = s
 		}
 		(*m)[key] = val
-		trace("Added to map (line %d): %s: %s", p.i, key, val)
+		tracef("Added to map (line %d): %s: %s", p.i, key, val)
 	}
 }
 
 // parse smth like  "name:domain:path:Secure ~= value", line must be trimmed
-func parseCookie(key, host string) (name, domain, path, field string, err os.Error) {
+func parseCookie(key, host string) (name, domain, path, field string, err error) {
 	cls := strings.Split(key, ":")
 	name = cls[0]
 	switch len(cls) {
@@ -169,7 +169,7 @@ func parseCookie(key, host string) (name, domain, path, field string, err os.Err
 		}
 	case 1:
 	default:
-		err = os.NewError("Too many ':' in cookie definition.")
+		err = errors.New("Too many ':' in cookie definition.")
 		return
 	}
 
@@ -178,7 +178,7 @@ func parseCookie(key, host string) (name, domain, path, field string, err os.Err
 		path = "/"
 	}
 	if path[0] != '/' {
-		err = os.NewError(fmt.Sprintf("Illegal path '%s' in cookie.", path))
+		err = fmt.Errorf("Illegal path '%s' in cookie.", path)
 		return
 	}
 	if domain == "" {
@@ -188,7 +188,7 @@ func parseCookie(key, host string) (name, domain, path, field string, err os.Err
 	return
 }
 
-// 
+//
 func (p *Parser) readCookieCond(host string) (cc []Condition) {
 	cc = make([]Condition, 0, 10)
 	for p.i < len(p.line)-1 {
@@ -202,7 +202,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 
 		name, domain, path, field, err := parseCookie(key, host)
 		if err != nil {
-			p.error("%s", err.String())
+			p.error("%s", err.Error())
 			continue
 		}
 		switch field {
@@ -218,7 +218,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 		cond.Op = op
 		dval, err := dequote(value)
 		if err != nil {
-			p.error("Cannot parse string '%s': %s", value, err.String())
+			p.error("Cannot parse string '%s': %s", value, err.Error())
 		} else {
 			value = dval
 		}
@@ -229,7 +229,7 @@ func (p *Parser) readCookieCond(host string) (cc []Condition) {
 	return
 }
 
-// 
+//
 func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 	for p.i < len(p.line)-1 {
 		done, _, key, _, value := p.nextStuff([]string{":="})
@@ -238,7 +238,7 @@ func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 		}
 		name, domain, path, field, err := parseCookie(key, host)
 		if err != nil {
-			p.error("%s.", err.String())
+			p.error("%s.", err.Error())
 			continue
 		}
 		if field != "" && field != "secure" {
@@ -247,7 +247,7 @@ func (p *Parser) readSendCookies(jar *CookieJar, host string) {
 		}
 		dval, err := dequote(value)
 		if err != nil {
-			p.error("Cannot parse string '%s': %s", value, err.String())
+			p.error("Cannot parse string '%s': %s", value, err.Error())
 		} else {
 			value = dval
 		}
@@ -287,7 +287,7 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		case "both", "body":
 			n = 3
 		default:
-			var err os.Error
+			var err error
 			n, err = strconv.Atoi(val)
 			if err != nil {
 				p.error("Cannot convert %s to integer.", val)
@@ -298,28 +298,28 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 		switch key {
 		case "Repeat":
 			if n > 100 {
-				warn("More then 100 repetitions on line %d.", p.i)
+				warnf("More then 100 repetitions on line %d.", p.i)
 			}
 		case "Tries":
 			if n <= 0 {
-				warn("Setting Tries to value <= 0 is unsensical line %d.", p.i)
+				warnf("Setting Tries to value <= 0 is unsensical line %d.", p.i)
 			}
 		case "Keep-Cookies", "Abort":
 			if n != 0 && n != 1 {
-				warn("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", p.i)
+				warnf("Keep-Cookies and Abort accept only 0 and 1 as value on line %d.", p.i)
 			}
 		case "Dump":
 			if n < 0 || n > 3 {
-				warn("Dump accepts only 0, 1 and 2 as value (was %s=%d) on line %d.", val, n, p.i)
+				warnf("Dump accepts only 0, 1 and 2 as value (was %s=%d) on line %d.", val, n, p.i)
 			}
 		}
 		(*m)[key] = n
-		trace("Added to settings-map (line %d): %s: %s", p.i, key, val)
+		tracef("Added to settings-map (line %d): %s: %s", p.i, key, val)
 	}
 }
 
 // Split line at spaces into fields. Quotes can be used to hold together a
-// filed containing spaces. E.g. 
+// filed containing spaces. E.g.
 // 		cat dog "foo bar" fish "mouse" shark
 // would yield
 //		cat
@@ -328,7 +328,7 @@ func (p *Parser) readSettingMap(m *map[string]int) {
 //		fisch
 //		mouse
 //		shark
-func StringList(line string) (list []string, err os.Error) {
+func StringList(line string) (list []string, err error) {
 
 	for len(line) > 0 {
 		var quoted bool
@@ -409,26 +409,26 @@ func (p *Parser) readMultiMap(m *map[string][]string) {
 		if val == "" {
 			list = []string{}
 		} else {
-			var err os.Error
+			var err error
 			list, err = StringList(val)
 			if err != nil {
-				p.error("Cannot decode '%s': %s.", val, err.String())
+				p.error("Cannot decode '%s': %s.", val, err.Error())
 				continue
 			}
 		}
 		(*m)[key] = list
-		trace("Added to mulit map (line %d): key: %v", p.i, key, list)
+		tracef("Added to mulit map (line %d): key: %v", p.i, key, list)
 	}
 }
 
 // Parse strings like "[:10]" or "[50:-2]" into a Range.
-func parseRange(s string) (r Range, err os.Error) {
+func parseRange(s string) (r Range, err error) {
 	if s == "" {
 		return
 	}
 
 	if !hp(s, "[") || !hs(s, "]") {
-		err = os.NewError("Missing [ or ].")
+		err = errors.New("Missing [ or ].")
 		return
 	}
 	s = s[1 : len(s)-1]
@@ -445,7 +445,7 @@ func parseRange(s string) (r Range, err os.Error) {
 	// fmt.Printf("s='%s'  ss = %#v\n", s, ss)
 	if len(ss) != 2 {
 
-		err = os.NewError("Missing or multiple :")
+		err = errors.New("Missing or multiple :")
 		return
 	}
 
@@ -468,7 +468,7 @@ func parseRange(s string) (r Range, err os.Error) {
 	return
 }
 
-// Read a list of shell conditions 
+// Read a list of shell conditions
 func (p *Parser) readShellCond() [][]string {
 	var list [][]string = make([][]string, 0, 3)
 
@@ -486,7 +486,7 @@ func (p *Parser) readShellCond() [][]string {
 		line = trim(line)
 		args, err := StringList(line)
 		if err != nil {
-			p.error("Unable to parse command '%s': %s", line, err.String())
+			p.error("Unable to parse command '%s': %s", line, err.Error())
 			continue
 		}
 		list = append(list, args)
@@ -576,7 +576,7 @@ func (p *Parser) readCond(mode int) []Condition {
 			// optional range
 			if rs != "" {
 				if rg, err := parseRange(rs); err != nil {
-					p.error("Unable to parse range '%s': %s", rs, err.String())
+					p.error("Unable to parse range '%s': %s", rs, err.Error())
 					continue
 				} else {
 					rng = rg
@@ -586,7 +586,7 @@ func (p *Parser) readCond(mode int) []Condition {
 			if key == "Bin" {
 				v := strings.ToLower(strings.Replace(val, " ", "", -1))
 				if len(v)%2 == 1 {
-					warn("Odd number of nibbles in binary value on line %d. Will discard last nibble.", p.i)
+					warnf("Odd number of nibbles in binary value on line %d. Will discard last nibble.", p.i)
 					v = v[:len(v)-2]
 				}
 				n := len(v) / 2
@@ -604,18 +604,18 @@ func (p *Parser) readCond(mode int) []Condition {
 		}
 
 		var dval string
-		var err os.Error
+		var err error
 		if dval, err = dequote(val); err != nil {
 			p.error("Cannot parse string '%s': %s", val, err)
 			continue
 		}
-		//fmt.Printf("\nvvvvvvvvvvvvvvvvvvvvvvvvvvv\nOrig=%s\nValu=%s\nDeqt=%s\n^^^^^^^^^^^^^^^^^^^^^^\n", 
+		//fmt.Printf("\nvvvvvvvvvvvvvvvvvvvvvvvvvvv\nOrig=%s\nValu=%s\nDeqt=%s\n^^^^^^^^^^^^^^^^^^^^^^\n",
 		//	p.line[p.i], val, dval)
 
 		id := fmt.Sprintf("%s:%d", p.name, p.i)
 		cond := Condition{Key: key, Op: op, Val: dval, Neg: neg, Id: id, Range: rng}
 		list = append(list, cond)
-		trace("Added to condition (line %d): %s", p.i, cond.String())
+		tracef("Added to condition (line %d): %s", p.i, cond.String())
 	}
 	return list
 }
@@ -651,7 +651,7 @@ func (p *Parser) readValidation() []string {
 
 		// id := fmt.Sprintf("%s:%d", p.name, p.i)
 		list = append(list, line)
-		trace("Added to validation (line %d): %s", p.i, line)
+		tracef("Added to validation (line %d): %s", p.i, line)
 	}
 	return list
 }
@@ -667,30 +667,30 @@ func (p *Parser) readLogCond() []LogCondition {
 			return list
 		}
 
-		var err os.Error
+		var err error
 		if val, err = dequote(val); err != nil {
-			error("Malformed string '%s': %s", val, err.String())
+			errorf("Malformed string '%s': %s", val, err.Error())
 			continue
 		}
 		id := fmt.Sprintf("%s:%d", p.name, p.i)
 		cond := LogCondition{Path: key, Op: op, Val: val, Neg: neg, Id: id}
 		list = append(list, cond)
-		trace("Added to condition (line %d): %s", p.i, cond.String())
+		tracef("Added to condition (line %d): %s", p.i, cond.String())
 	}
 	return list
 }
 
 // Helper to extract count an spec from strings like ">= 5  a href=/index.html"
 // off is the number of charactes to strip before trying to read an int.
-func numStr(line string, off int) (n int, spec string, err os.Error) {
-	trace("line = %s, off = %d", line, off)
+func numStr(line string, off int) (n int, spec string, err error) {
+	tracef("line = %s, off = %d", line, off)
 	beg := line[:off]
 	line = trim(line[off:])
 	i := firstSpace(line)
 	if i < 0 {
 		i = strings.Index(line, "[")
 		if i < 0 {
-			err = os.NewError(fmt.Sprintf("Missing space after %s", beg))
+			err = errors.New(fmt.Sprintf("Missing space after %s", beg))
 			return
 		}
 	}
@@ -699,7 +699,7 @@ func numStr(line string, off int) (n int, spec string, err os.Error) {
 		return
 	}
 	spec = trim(line[i:])
-	trace("n=%d, spec=%s", n, spec)
+	tracef("n=%d, spec=%s", n, spec)
 	return
 }
 
@@ -726,7 +726,7 @@ func (p *Parser) readTagCond() []TagCondition {
 		cond := TagCondition{}
 		cond.Id = fmt.Sprintf("%s:%d", p.name, p.i)
 		var spec string
-		var err os.Error
+		var err error
 
 		if false {
 		} else if hp(line, "!=") {
@@ -770,24 +770,24 @@ func (p *Parser) readTagCond() []TagCondition {
 			spec = line
 		}
 		if err != nil {
-			p.error("Unable to determin count: %s", err.String())
+			p.error("Unable to determin count: %s", err.Error())
 			continue
 		}
 
 		spec = trim(spec)
 		if hp(spec, "[") { // multiline tag spec
-			trace("Multiline tag spec")
+			tracef("Multiline tag spec")
 			spec = ""
 			for p.i < len(p.line)-1 {
 				p.i++
 				line := p.line[p.i]
-				trace("Next line: %s", line)
+				tracef("Next line: %s", line)
 				if !hp(line, "\t") {
 					p.error("Nonindented line in multiline tag spec.")
 					break
 				}
 				if hs(trim(line), "]") {
-					trace("End of multiline tag spec found in line %d.", p.i)
+					tracef("End of multiline tag spec found in line %d.", p.i)
 					break
 				}
 				if spec == "" {
@@ -796,7 +796,7 @@ func (p *Parser) readTagCond() []TagCondition {
 					spec += "\n"
 				}
 				spec += line
-				supertrace("Spec now: '%#v'", spec)
+				supertracef("Spec now: '%#v'", spec)
 			}
 			// fmt.Printf("\n-------------------\n%s\n----------------------\n", spec)
 		}
@@ -804,9 +804,9 @@ func (p *Parser) readTagCond() []TagCondition {
 		if ts, err := tag.ParseTagSpec(spec); err == nil {
 			cond.Spec = *ts
 			list = append(list, cond)
-			trace("Added to tag condition (line %d): %s", p.i, cond.String())
+			tracef("Added to tag condition (line %d): %s", p.i, cond.String())
 		} else {
-			p.error("Problems parsing tagspec %#v: %s", spec, err.String())
+			p.error("Problems parsing tagspec %#v: %s", spec, err.Error())
 		}
 	}
 	return list
@@ -827,11 +827,11 @@ func (p *Parser) readGetPost(line string) (method, u string) {
 	}
 
 	if i := strings.Index(u, "#"); i != -1 {
-		warn("URL may not contain fragment (#-part) in line %d.", p.i)
+		warnf("URL may not contain fragment (#-part) in line %d.", p.i)
 		u = u[:i]
 	}
 	if _, ue := url.Parse(u); ue != nil {
-		p.error("Malformed url '%s': %s", u, ue.String())
+		p.error("Malformed url '%s': %s", u, ue.Error())
 	}
 	return
 }
@@ -854,7 +854,7 @@ func noGetWithFile(test *Test, p *Parser) {
 }
 
 // Parse the suite.
-func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
+func (p *Parser) ReadSuite() (suite *Suite, err error) {
 	p.readLines()
 
 	var test *Test
@@ -876,7 +876,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 				} else {
 					noGetWithFile(test, p)
 					suite.Test = append(suite.Test, *test)
-					trace("Append test to suite: \n%s", test.String())
+					tracef("Append test to suite: \n%s", test.String())
 					test = nil
 				}
 				first = false
@@ -895,7 +895,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 			p.i++
 			line = p.line[p.i]
 			if !hp(line, "---------") {
-				error("Title lower border missing")
+				errorf("Title lower border missing")
 				continue
 			}
 			continue
@@ -962,7 +962,7 @@ func (p *Parser) ReadSuite() (suite *Suite, err os.Error) {
 	if test != nil {
 		noGetWithFile(test, p)
 		suite.Test = append(suite.Test, *test)
-		trace("Append test to suite: \n%s", test.String())
+		tracef("Append test to suite: \n%s", test.String())
 
 	}
 

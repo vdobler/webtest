@@ -1,18 +1,20 @@
 package suite
 
 import (
-	"fmt"
-	"strings"
-	"os"
-	"http"
-	"io"
 	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"mime"
 	"mime/multipart"
+	"net/http"
+	"net/http/httputil"
 	"net/textproto"
-	"time"
+	"net/url"
+	"os"
 	"path"
-	"url"
+	"strings"
+	"time"
 )
 
 func init() {
@@ -33,7 +35,7 @@ func readBody(r io.ReadCloser) []byte {
 		io.Copy(&bb, r)
 		r.Close()
 	}
-	trace("Read body with len = %d.", bb.Len())
+	tracef("Read body with len = %d.", bb.Len())
 	return bb.Bytes()
 }
 
@@ -41,14 +43,14 @@ func readBody(r io.ReadCloser) []byte {
 func shouldRedirect(statusCode int) bool {
 	switch statusCode {
 	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect:
-		trace("Status code = %d: will redirect.", statusCode)
+		tracef("Status code = %d: will redirect.", statusCode)
 		return true
 	}
-	trace("Status code = %d: wont redirect.", statusCode)
+	tracef("Status code = %d: wont redirect.", statusCode)
 	return false
 }
 
-func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, err os.Error) {
+func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, err error) {
 	return
 
 }
@@ -57,15 +59,15 @@ func postWrapper(c *http.Client, t *Test) (r *http.Response, finalURL string, er
 func addHeadersAndCookies(req *http.Request, t *Test) {
 	for k, v := range t.Header {
 		if k == "Cookie" {
-			trace("Should not send Cookies in HEADER: skipped")
+			tracef("Should not send Cookies in HEADER: skipped")
 		} else {
-			trace("added %s = %s", k, v)
+			tracef("added %s = %s", k, v)
 			req.Header.Set(k, v)
 		}
 	}
 
 	for _, cookie := range t.Jar.Select(req.URL) {
-		trace("Will send cookie %s=%s", cookie.Name, cookie.Value)
+		tracef("Will send cookie %s=%s", cookie.Name, cookie.Value)
 		req.AddCookie(cookie)
 	}
 }
@@ -73,13 +75,13 @@ func addHeadersAndCookies(req *http.Request, t *Test) {
 // Dump request req in wire format to dump if non nil.
 func dumpReq(req *http.Request, dump io.Writer) {
 	if dump != nil {
-		rd, err := http.DumpRequest(req, true)
+		rd, err := httputil.DumpRequest(req, true)
 		if err == nil {
 			dump.Write(rd)
 			dump.Write([]byte("\r\n\r\n--------------------------------------------------------------------------------------\r\n"))
 			dump.Write([]byte("--------------------------------------------------------------------------------------\r\n\r\n\r\n"))
 		} else {
-			error("Cannot dump request: %s", err.String())
+			errorf("Cannot dump request: %s", err.Error())
 		}
 	}
 }
@@ -87,13 +89,13 @@ func dumpReq(req *http.Request, dump io.Writer) {
 // Dump response in wire format to dump if non nil.
 func dumpRes(res *http.Response, dump io.Writer) {
 	if dump != nil {
-		rd, err := http.DumpResponse(res, true)
+		rd, err := httputil.DumpResponse(res, true)
 		if err == nil {
 			dump.Write(rd)
 			dump.Write([]byte("\r\n\r\n======================================================================================\r\n"))
 			dump.Write([]byte("======================================================================================\r\n\r\n\r\n"))
 		} else {
-			error("Cannot dump response: %s", err.String())
+			errorf("Cannot dump response: %s", err.Error())
 		}
 	}
 }
@@ -123,46 +125,46 @@ func dumpRes(res *http.Response, dump io.Writer) {
 
 */
 
-// 
+//
 func valid(cookie *http.Cookie) bool {
 	if cookie.MaxAge < 0 {
-		trace("Cookie %s has MaxAge < 0.", cookie.Name)
+		tracef("Cookie %s has MaxAge < 0.", cookie.Name)
 		return false
 	}
 
-	if cookie.Expires.Year != 0 {
-		if cookie.Expires.Seconds() < time.UTC().Seconds() {
-			trace("Cookie %s has expired.", cookie.Name)
+	if cookie.Expires.Year() != 0 {
+		if cookie.Expires.Before(time.Now()) {
+			tracef("Cookie %s has expired.", cookie.Name)
 			return false
 		}
 	}
 
-	trace("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(http.TimeFormat))
+	tracef("Cookie %s valid: MaxAge = %d, Expires = %s", cookie.Name, cookie.MaxAge, cookie.Expires.Format(http.TimeFormat))
 	return true
 }
 
 // A client which does not follow any redirects.
 var nonfollowingClient http.Client = http.Client{
 	Transport: nil,
-	CheckRedirect: func(req *http.Request, via []*http.Request) os.Error {
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) > 0 {
-			return os.NewError("WE DONT FOLLOW")
+			return errors.New("WE DONT FOLLOW")
 		}
 		return nil
 	},
 }
 
-func redirectChecker(req *http.Request, via []*http.Request) os.Error {
+func redirectChecker(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
-		return os.NewError("stopped after 10 redirects")
+		return errors.New("stopped after 10 redirects")
 	}
 	return nil
 }
 
 // Perform the request and follow up to 10 redirects.
 // All cookie setting are collected, the final URL is reported.
-func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
-	info("%s %s", ireq.Method, ireq.URL.String())
+func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err error) {
+	infof("%s %s", ireq.Method, ireq.URL.String())
 
 	var base *url.URL
 
@@ -199,7 +201,7 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 		dumpReq(req, t.Dump)
 		urlStr = req.URL.String()
 		if r, err = nonfollowingClient.Do(req); err != nil {
-			if strings.HasSuffix(err.String(), "WE DONT FOLLOW") {
+			if strings.HasSuffix(err.Error(), "WE DONT FOLLOW") {
 				err = nil
 			} else {
 				return
@@ -222,7 +224,7 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 				r.Body.Close()
 			}
 			if urlStr = r.Header.Get("Location"); urlStr == "" {
-				err = os.NewError(fmt.Sprintf("%d response missing Location header", r.StatusCode))
+				err = fmt.Errorf("%d response missing Location header", r.StatusCode)
 				break
 			}
 			base = req.URL
@@ -239,7 +241,7 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 }
 
 // Perform a GET request for the test t.
-func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
+func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err error) {
 	var testurl = t.Url // <-- Patched
 
 	if len(t.Param) > 0 {
@@ -263,7 +265,7 @@ func Get(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, er
 		return
 	}
 
-	debug("Will get from %s", req.URL.String())
+	debugf("Will get from %s", req.URL.String())
 	r, finalUrl, cookies, err = DoAndFollow(req, t)
 	return
 }
@@ -275,7 +277,7 @@ func hasFile(param *map[string][]string) bool {
 			continue
 		}
 		if strings.HasPrefix(v[0], "@file:") {
-			trace("File to upload present.")
+			tracef("File to upload present.")
 			return true
 		}
 	}
@@ -294,11 +296,11 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 		}
 		if len(v) > 0 {
 			for _, vv := range v {
-				trace("Added parameter %s with value '%s' to request body.", n, vv)
+				tracef("Added parameter %s with value '%s' to request body.", n, vv)
 				mpwriter.WriteField(n, vv)
 			}
 		} else {
-			trace("Adding empty parameter %s to request body.", n)
+			tracef("Adding empty parameter %s to request body.", n)
 			mpwriter.WriteField(n, "")
 		}
 	}
@@ -309,7 +311,7 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 			continue // allready written
 		}
 		filename := v[0][6:]
-		trace("Adding file '%s' as %s to request body.", filename, n)
+		tracef("Adding file '%s' as %s to request body.", filename, n)
 		var ct string = "application/octet-stream"
 		if i := strings.LastIndex(filename, "."); i != -1 {
 			ct = mime.TypeByExtension(filename[i:])
@@ -330,14 +332,14 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 		// fw, err := mpwriter.CreateFormFile(n, basename)
 
 		if err != nil {
-			warn("Cannot write file multipart: ", err.String())
+			warnf("Cannot write file multipart: ", err.Error())
 			continue
 		}
 
 		file, err := os.Open(filename)
 		defer file.Close()
 		if err != nil {
-			warn("Cannot read from file '%s': %s.", filename, err.String())
+			warnf("Cannot read from file '%s': %s.", filename, err.Error())
 			continue
 		}
 		io.Copy(fw, file)
@@ -347,11 +349,11 @@ func multipartBody(param *map[string][]string) (*bytes.Buffer, string) {
 	return body, mpwriter.Boundary()
 }
 
-// PostForm issues a POST to the specified URL, 
+// PostForm issues a POST to the specified URL,
 // with data's keys and values urlencoded as the request body.
 //
 // Caller should close r.Body when done reading from it.
-func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err os.Error) {
+func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, err error) {
 	var body *bytes.Buffer
 	var contentType string
 	if hasFile(&t.Param) || t.Method == "POST:mp" {
@@ -378,7 +380,7 @@ func Post(t *Test) (r *http.Response, finalUrl string, cookies []*http.Cookie, e
 	req.Header.Set("Content-Type", contentType)
 	addHeadersAndCookies(req, t)
 
-	debug("Will post to %s", req.URL.String())
+	debugf("Will post to %s", req.URL.String())
 
 	r, finalUrl, cookies, err = DoAndFollow(req, t)
 	return
@@ -388,4 +390,4 @@ type nopCloser struct {
 	io.Reader
 }
 
-func (nopCloser) Close() os.Error { return nil }
+func (nopCloser) Close() error { return nil }

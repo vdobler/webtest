@@ -1,8 +1,8 @@
 package stat
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
 
 func TestIntSixval(t *testing.T) {

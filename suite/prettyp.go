@@ -31,7 +31,7 @@ func quote(s string, containedSpacesNeedQuotes bool) string {
 	return fmt.Sprintf("%#v", s)
 }
 
-// Prety print a map m with title. 
+// Prety print a map m with title.
 func formatMap(title string, m *map[string]string) (f string) {
 	if len(*m) == 0 {
 		return
@@ -209,7 +209,7 @@ func formatCommand(title string, cmd [][]string) (f string) {
 	return
 }
 
-// Pretty print a list of log conditions. 
+// Pretty print a list of log conditions.
 func formatLogCond(lc []LogCondition) (f string) {
 	if len(lc) == 0 {
 		return

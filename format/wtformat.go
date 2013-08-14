@@ -6,14 +6,14 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 	"time"
-	"path"
 
 	"github.com/vdobler/webtest/suite"
 )

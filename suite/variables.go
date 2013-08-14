@@ -1,8 +1,8 @@
 package suite
 
 import (
-	"http"
-	"rand"
+	"math/rand"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,7 +12,7 @@ import (
 )
 
 // Random for RAND sections
-var Random *rand.Rand = rand.New(rand.NewSource(time.Seconds()))
+var Random *rand.Rand = rand.New(rand.NewSource(time.Now().Unix()))
 
 // Global CONST variables
 var Const map[string]string = map[string]string{}
@@ -54,7 +54,7 @@ func nextPart(str string) (pre, vn, rest string) {
 func randomVar(list []string) string {
 	n := len(list)
 	r := Random.Intn(n)
-	trace("Will use %d from list of %d.", r, n)
+	tracef("Will use %d from list of %d.", r, n)
 	return list[r]
 }
 
@@ -85,7 +85,7 @@ func varValueFallback(v string, test, global, orig *Test) (value string) {
 	} else if seq, ok := global.Seq[v]; ok {
 		value = nextVar(seq, v, global)
 	} else {
-		error("Cannot find value for variable '%s'!", v)
+		errorf("Cannot find value for variable '%s'!", v)
 	}
 
 	return
@@ -95,20 +95,20 @@ func varValueFallback(v string, test, global, orig *Test) (value string) {
 func varValue(v string, test, orig *Test) (value string) {
 	if val, ok := test.Const[v]; ok {
 		value = val
-		trace("Using const '%s' for var '%s'.", val, v)
+		tracef("Using const '%s' for var '%s'.", val, v)
 	} else if rnd, ok := test.Rand[v]; ok {
 		value = randomVar(rnd)
-		trace("Using random '%s' for var '%s'.", value, v)
+		tracef("Using random '%s' for var '%s'.", value, v)
 	} else if seq, ok := test.Seq[v]; ok {
 		value = nextVar(seq, v, orig)
 	} else {
-		error("Cannot find value for variable '%s'!", v)
+		errorf("Cannot find value for variable '%s'!", v)
 	}
 
 	return
 }
 
-// Compute value for NOW variable adjusted by rel (e.g. "+1minute-3hours") and return it as utc/local 
+// Compute value for NOW variable adjusted by rel (e.g. "+1minute-3hours") and return it as utc/local
 // time formated as tf.
 func nowValue(rel, tf string, utc bool) string {
 	rel = strings.Replace(rel, " ", "", -1)
@@ -118,7 +118,7 @@ func nowValue(rel, tf string, utc bool) string {
 
 	var ds, dm, dy int64 // total delta for seconds, month and years
 	for _, delta := range all {
-		n, _ := strconv.Atoi64(delta[2])
+		n, _ := strconv.ParseInt(delta[2], 10, 64)
 		if delta[1] == "-" {
 			n = -n
 		}
@@ -138,19 +138,16 @@ func nowValue(rel, tf string, utc bool) string {
 		case "year":
 			dy += n
 		default:
-			error("Oooops: Unknown NOW modifier '%s'. Ignored.", delta[3])
+			errorf("Oooops: Unknown NOW modifier '%s'. Ignored.", delta[3])
 		}
 	}
-	var t *time.Time
-	if utc {
-		t = time.SecondsToUTC(time.UTC().Seconds() + ds)
-	} else {
-		t = time.SecondsToLocalTime(time.LocalTime().Seconds() + ds)
-	}
-
 	dy, dm = dy+(dm/12), dm%12
-	t.Month += int(dm)
-	t.Year += dy
+	t := time.Now().Add(time.Duration(ds) * time.Second)
+	loc := time.UTC
+	if !utc {
+		loc = t.Location()
+	}
+	t = time.Date(t.Year()+int(dy), t.Month()+time.Month(dm), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), loc)
 
 	return t.Format(tf)
 }
@@ -165,7 +162,7 @@ func substitute(str string, test, global, orig *Test) string {
 	var val string
 	if v, ok := orig.Vars[vn]; ok {
 		val = v
-		trace("Reusing '%s' for var '%s'.", val, vn)
+		tracef("Reusing '%s' for var '%s'.", val, vn)
 	} else {
 		if strings.HasPrefix(vn, "NOW") && (len(vn) == 3 || !isLetter(vn[3])) {
 			tf := http.TimeFormat
@@ -184,7 +181,7 @@ func substitute(str string, test, global, orig *Test) string {
 		}
 		orig.Vars[vn] = val // Save value for further use in this test
 	}
-	trace("Will use '%s' as value for var %s.", val, vn)
+	tracef("Will use '%s' as value for var %s.", val, vn)
 	return pre + val + substitute(post, test, global, orig)
 }
 
@@ -197,7 +194,7 @@ func substituteTagContent(ts *tag.TagSpec, test, global, orig *Test) {
 			if nc, err := tag.MakeContent(ncs); err == nil {
 				ts.Content = nc
 			} else {
-				error("Tag AA text content or attribute value is malformed after variable substitution! %s\nocs=%s\nncs=%s", err.String(), ocs, ncs)
+				errorf("Tag AA text content or attribute value is malformed after variable substitution! %s\nocs=%s\nncs=%s", err.Error(), ocs, ncs)
 			}
 		}
 	}
@@ -224,7 +221,7 @@ func substituteVariables(test, global, orig *Test) {
 	}
 
 	for k, vl := range test.Param {
-		trace("Param %s: %v", k, vl)
+		tracef("Param %s: %v", k, vl)
 		sl := make([]string, len(vl))
 		for i, v := range vl {
 			sl[i] = substitute(v, test, global, orig)
@@ -232,7 +229,7 @@ func substituteVariables(test, global, orig *Test) {
 		test.Param[k] = sl
 	}
 
-	trace("Replacing tag content")
+	tracef("Replacing tag content")
 	for i, tc := range test.Tag {
 		if tc.Spec.Content != nil {
 			ocs := tc.Spec.Content.String()
@@ -241,12 +238,12 @@ func substituteVariables(test, global, orig *Test) {
 				if nc, err := tag.MakeContent(ncs); err == nil {
 					test.Tag[i].Spec.Content = nc
 				} else {
-					error("Tag text content or attribute value is malformed after variable substitution! %s", err.String())
+					errorf("Tag text content or attribute value is malformed after variable substitution! %s", err.Error())
 				}
 			}
 		}
 		for j, subts := range tc.Spec.Sub {
-			trace("Replacing sub tag content %d", j)
+			tracef("Replacing sub tag content %d", j)
 			substituteTagContent(subts, test, global, orig)
 		}
 	}

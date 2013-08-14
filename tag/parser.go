@@ -2,11 +2,11 @@ package tag
 
 import (
 	"bytes"
+	"code.google.com/p/go.net/html"
+	"encoding/xml"
 	"fmt"
-	"html"
-	"os"
+	"io"
 	"strings"
-	"xml"
 )
 
 const (
@@ -14,7 +14,7 @@ const (
 )
 
 // Node represents (kinda) node in the DOM of the parsed html.
-// Main differences are Node.Text which contains the (unescaped) text 
+// Main differences are Node.Text which contains the (unescaped) text
 // content of the node whereas Child does not contain TextNodes.
 type Node struct {
 	Parent *Node
@@ -125,8 +125,8 @@ func prepareClasses(node *Node) {
 	}
 }
 
-// Normalize whitespace in t: 
-//  - replace each tab, newline cariage return and html-spaces (nbsp, ensp, emsp, thinsp) with a single space, 
+// Normalize whitespace in t:
+//  - replace each tab, newline cariage return and html-spaces (nbsp, ensp, emsp, thinsp) with a single space,
 //  - collaps multiple spaces to one
 //  - trim result.
 func cleanText(s string) string {
@@ -158,7 +158,7 @@ func removeJavascript(h string) string {
 				h = a + b[j+9:]
 			} else {
 				// this should not happen iff html/javascript is halfway decent...
-				warn("Html is completely broken...")
+				warnf("Html is completely broken...")
 				h = a
 				break
 			}
@@ -170,10 +170,10 @@ func removeJavascript(h string) string {
 
 // Parse the given html and return the root node of the document.
 // Parsing starts at the first StartToken and will ignore other stuff.
-func ParseHtml(h string) (root *Node, err os.Error) {
-	trace("%s", h)
+func ParseHtml(h string) (root *Node, err error) {
+	tracef("%s", h)
 	r := strings.NewReader(h)
-	parser := xml.NewParser(r)
+	parser := xml.NewDecoder(r)
 	parser.Strict = false
 	parser.AutoClose = xml.HTMLAutoClose
 	parser.Entity = xml.HTMLEntity
@@ -181,32 +181,32 @@ func ParseHtml(h string) (root *Node, err os.Error) {
 		var tok xml.Token
 		tok, err = parser.Token()
 		if err != nil {
-			error("Cannot find start node of html! %s", err.String())
+			errorf("Cannot find start node of html! %s", err.Error())
 			return
 		}
 		switch tok.(type) {
 		case xml.StartElement:
-			debug("Starting parsing from %v", tok)
+			debugf("Starting parsing from %v", tok)
 			root, err = parse(tok, parser, nil)
-			if err != nil && strings.HasPrefix(err.String(), "Javascript: ") {
+			if err != nil && strings.HasPrefix(err.Error(), "Javascript: ") {
 				h = removeJavascript(h)
-				debug("Retrying parsing html without javascript.")
+				debugf("Retrying parsing html without javascript.")
 				root, err = ParseHtml(h) // last try...
 			}
-			trace("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
-			trace("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
+			tracef("=========== Parser ==========\nConstructed Structure: \n" + root.HtmlRep(0))
+			tracef("\n----------------------------\nRe-Constructed Html: \n" + root.Html() + "\n===============================")
 			return
 		}
 	}
 	return
 }
 
-func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.Error) {
+func parse(tok xml.Token, parser *xml.Decoder, parent *Node) (node *Node, err error) {
 	node = new(Node)
 	node.Parent = parent
 	st, _ := tok.(xml.StartElement)
 	node.Name = st.Name.Local
-	trace("parsing tag %s", node.Name)
+	tracef("parsing tag %s", node.Name)
 	node.Attr = []html.Attribute{}
 	for _, attr := range st.Attr {
 		a := html.Attribute{Key: attr.Name.Local, Val: attr.Value}
@@ -220,12 +220,12 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.
 		var tok xml.Token
 		tok, err = parser.Token()
 		if err != nil {
-			if err == os.EOF {
+			if err == io.EOF {
 				err = nil
 				break
 			}
 			if node.Name == "script" {
-				err = os.NewError("Javascript: " + err.String())
+				err = fmt.Errorf("Javascript: %s", err.Error())
 			}
 			return
 		}
@@ -266,6 +266,6 @@ func parse(tok xml.Token, parser *xml.Parser, parent *Node) (node *Node, err os.
 
 	prepareClasses(node)
 
-	trace("Made Node: " + node.String() + "\n")
+	tracef("Made Node: " + node.String() + "\n")
 	return
 }

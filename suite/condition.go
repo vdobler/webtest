@@ -3,7 +3,6 @@ package suite
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,7 +26,7 @@ const (
 
 type TagCondition struct {
 	Spec  tag.TagSpec
-	Cond  int    // one from TagExpected, ... CountGreaterEqual		
+	Cond  int    // one from TagExpected, ... CountGreaterEqual
 	Count int    // used for Count... Cond only
 	Id    string // used for error reporting if failed
 }
@@ -122,33 +121,33 @@ func (c *LogCondition) String() (s string) {
 func atoi(s, line string, fallback int) int {
 	i, err := strconv.Atoi(s)
 	if err != nil {
-		error("Cannot convert '%s' to integer (line %d).", s, line)
+		errorf("Cannot convert '%s' to integer (line %d).", s, line)
 		i = fallback
 	}
 	return i
 }
 
 func toNumber(a, b, line string) (n, m int64) {
-	var ae, be os.Error
+	var ae, be error
 	// Plain numbers
-	n, ae = strconv.Atoi64(a)
-	m, be = strconv.Atoi64(b)
+	n, ae = strconv.ParseInt(a, 10, 64)
+	m, be = strconv.ParseInt(b, 10, 64)
 	if ae == nil && be == nil {
-		trace("Converted '%s' and '%s' to %d and %d.", a, b, n, m)
+		tracef("Converted '%s' and '%s' to %d and %d.", a, b, n, m)
 		return
 	}
 
 	// Timestamps according to RFC1123
-	var at, bt *time.Time
+	var at, bt time.Time
 	at, ae = time.Parse(time.RFC1123, a)
 	bt, be = time.Parse(time.RFC1123, b)
 	if ae == nil && be == nil {
-		n, m = at.Seconds(), bt.Seconds()
+		n, m = at.Unix(), bt.Unix()
 		return
 	}
 
 	// Something is wrong
-	error("Unable to convert both '%s' and '%s' to number with same method on line %s.", a, b, line)
+	errorf("Unable to convert both '%s' and '%s' to number with same method on line %s.", a, b, line)
 	n, m = int64(len(a)), int64(len(b))
 	return
 }
@@ -224,7 +223,7 @@ func (cond *Condition) Fullfilled(v string) (ans bool, was string) {
 		if rexp, err := regexp.Compile(cond.Val); err == nil {
 			ans = (rexp.FindStringIndex(v) != nil)
 		} else {
-			error("Invalid regexp in condition '%s': %s", cond.String(), err.String())
+			errorf("Invalid regexp in condition '%s': %s", cond.String(), err.Error())
 		}
 		was = snippet(v, 10) + "[...]" + snippet(v, -10)
 	default:
@@ -245,7 +244,7 @@ func hexToBytes(hex string) []byte {
 		fmt.Sscanf(hex[2*i:2*i+2], "%x", &c) // Input sanitisation and error handling happens during parsing
 		b[i] = c
 	}
-	supertrace("hexToBytes('%s') --> %#v", hex, b)
+	supertracef("hexToBytes('%s') --> %#v", hex, b)
 	return b
 }
 
@@ -264,7 +263,6 @@ func bound(b, n int) int {
 	return 0
 }
 
-
 // Retunr first n (if n>0) or last n (if n<0) of s.
 func binsnippet(s []byte, n int) string {
 	var snip []byte
@@ -280,7 +278,7 @@ func binsnippet(s []byte, n int) string {
 		}
 		snip = s[len(s)-n:]
 	}
-	
+
 	t := ""
 	for _, b := range snip {
 		t = fmt.Sprintf("%s %02x", t, b)
@@ -323,12 +321,12 @@ func (cond *Condition) BinFullfilled(v []byte) (ans bool, was string) {
 		ans = (bytes.Index(v, val) != -1)
 		was = binsnippet(v, 8) + " ... " + binsnippet(v, -8)
 	default:
-		error("Condition operator '%s' (%s) not implemented.", cond.Op, cond.Id)
+		errorf("Condition operator '%s' (%s) not implemented.", cond.Op, cond.Id)
 	}
 	if cond.Neg {
 		ans = !ans
 	}
-	return 
+	return
 }
 
 // String represnetation of condition c.

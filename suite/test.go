@@ -2,31 +2,26 @@ package suite
 
 import (
 	"encoding/base64"
-	"exec"
+	"errors"
 	"fmt"
-	"http"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"regexp"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/vdobler/webtest/tag"
-	"url"
+	"net/url"
 )
 
 var (
 	BenchTolerance float32 = 1.3 // 30% of test may fail during benchmarking without aborting the benchmark.
 )
-
-type Error string
-
-func (e Error) String() string {
-	return string(e)
-}
 
 // Test collects all information about one test to perform, that is one URL fetched
 // and conditions tested.
@@ -48,7 +43,7 @@ type Test struct {
 	Const      map[string]string   // const variables
 	Rand       map[string][]string // random varibales
 	Seq        map[string][]string // sequence variables
-	SeqCnt     map[string]int      // internal stuff for sequnece variables 
+	SeqCnt     map[string]int      // internal stuff for sequnece variables
 	Vars       map[string]string   // internal stuff for variables
 	Result     []Result            // list of pass/fails reports
 	Body       []byte              // body of last non-failing response
@@ -79,11 +74,11 @@ func (status TestStatus) String() string {
 
 // Result encapsulates information about a performed check in a test.
 type Result struct {
-	Id     string // id of test/check e.g. "Line 64: Tag a href=" or "Line 12: Txt _= Hello" 
+	Id     string // id of test/check e.g. "Line 64: Tag a href=" or "Line 12: Txt _= Hello"
 	Status TestStatus
 
 	// Short reason
-	// For failures: "missing", "forbidden", "wrong value", "wrong count" 
+	// For failures: "missing", "forbidden", "wrong value", "wrong count"
 	// For errors: "bad test", "cannot connect", "cannot parse"
 	Cause string
 
@@ -177,13 +172,14 @@ func (t *Test) Passed(text string) {
 func (t *Test) Error(id, cause, text string) {
 	t.Result = append(t.Result, Result{Id: id, Status: TestErrored, Cause: cause, Message: text})
 }
+
 /****
-func (t *Test) Info(text string)   { 
-	t.Result = append(t.Result, Result{Id: "", Status: TestFailed, Cause: "", Message: text}) 
+func (t *Test) Info(text string)   {
+	t.Result = append(t.Result, Result{Id: "", Status: TestFailed, Cause: "", Message: text})
 	t.Result = append(t.Result, "       "+text) }
 *****/
 
-// Return number of executed (total), passed and failed tests. 
+// Return number of executed (total), passed and failed tests.
 func (t *Test) Stat() (passed, failed, errors int) {
 	for _, result := range t.Result {
 		switch result.Status {
@@ -261,12 +257,12 @@ func (t *Test) MaxTime() int     { return t.getSetting("Max-Time") }
 // Look for name in cookies. Return index if found and -1 otherwise.
 // Looup happens from behind as last setting wins in browser.
 func cookieIndex(cookies []*http.Cookie, name, domain, path string) int {
-	trace("Looking for recieved cookie %s:%s:%s", name, domain, path)
+	tracef("Looking for recieved cookie %s:%s:%s", name, domain, path)
 	for i := len(cookies) - 1; i >= 0; i-- {
 		c := cookies[i]
-		trace("  compare with %s:%s:%s", c.Name, c.Domain, c.Path)
+		tracef("  compare with %s:%s:%s", c.Name, c.Domain, c.Path)
 		if c.Name == name && strings.HasSuffix(domain, c.Domain) && strings.HasPrefix(path, c.Path) {
-			trace("    --> found")
+			tracef("    --> found")
 			return i
 		}
 	}
@@ -279,7 +275,7 @@ func cookieIndex(cookies []*http.Cookie, name, domain, path string) int {
 //   Expires is set and before NOW()
 //   Value is empty
 func testCookieDeletion(orig *Test, c *http.Cookie, cond Condition) {
-	trace("Test for deletion of cookie '%s' (neg=%t)", c.Name, cond.Neg)
+	tracef("Test for deletion of cookie '%s' (neg=%t)", c.Name, cond.Neg)
 	if cond.Neg {
 		orig.Error(cond.Id, "Bad test",
 			"You cannot test on 'not deletion' of cookie in\n"+cond.String())
@@ -287,8 +283,8 @@ func testCookieDeletion(orig *Test, c *http.Cookie, cond Condition) {
 	}
 
 	// Reliable deleted == Max-Age: 0 AND Expired in the past
-	if c.MaxAge < 0 && c.Expires.Year != 0 && c.Expires.Seconds() < time.UTC().Seconds() && c.Value == "" {
-		trace("  Properly deleted")
+	if c.MaxAge < 0 && c.Expires.Year() != 0 && c.Expires.Before(time.Now()) && c.Value == "" {
+		tracef("  Properly deleted")
 		orig.Passed(cond.Id + " " + cond.String())
 	} else {
 		cause := ""
@@ -298,13 +294,13 @@ func testCookieDeletion(orig *Test, c *http.Cookie, cond Condition) {
 		if c.Value != "" {
 			cause += " Value '" + c.Value + "' given."
 		}
-		if c.Expires.Year == 0 {
+		if c.Expires.Year() == 0 {
 			cause += " Expires not set."
-		} else if c.Expires.Seconds() >= time.UTC().Seconds() {
+		} else if c.Expires.After(time.Now()) {
 			cause += fmt.Sprintf(" Wrong Expires '%s'.",
 				c.Expires.Format(http.TimeFormat))
 		}
-		trace("  Not properly deleted %s", cause)
+		tracef("  Not properly deleted %s", cause)
 		orig.Failed(cond.Id, "Cookie not deleted", cause+"\nin\n"+cond.String())
 	}
 }
@@ -312,7 +308,7 @@ func testCookieDeletion(orig *Test, c *http.Cookie, cond Condition) {
 // Test response header and (set-)cookies.
 func testHeader(resp *http.Response, cookies []*http.Cookie, t, orig *Test) {
 	if len(t.RespCond) > 0 {
-		debug("Testing Header")
+		debugf("Testing Header")
 		for _, c := range t.RespCond {
 			cs := c.Info("resp")
 			v := resp.Header.Get(c.Key)
@@ -326,7 +322,7 @@ func testHeader(resp *http.Response, cookies []*http.Cookie, t, orig *Test) {
 	}
 
 	if len(t.CookieCond) > 0 {
-		debug("Testing Cookies")
+		debugf("Testing Cookies")
 		domain := stripPort(resp.Request.URL.Host)
 		for _, cc := range t.CookieCond {
 			cc.Key = strings.Replace(cc.Key, "{CURRENT}", domain, 1)
@@ -388,7 +384,7 @@ func testSingleCookie(orig *Test, cc Condition, cookies []*http.Cookie) {
 // Test response body.
 func testBody(body []byte, t, orig *Test) {
 	if len(t.BodyCond) > 0 {
-		debug("Testing Body")
+		debugf("Testing Body")
 	} else {
 		return
 	}
@@ -397,7 +393,7 @@ func testBody(body []byte, t, orig *Test) {
 		cs := c.Info("body")
 		switch c.Key {
 		case "Txt":
-			trace("Text Matching '%s'", c.String())
+			tracef("Text Matching '%s'", c.String())
 			if ok, was := c.Fullfilled(string(body)); !ok {
 				orig.Failed(c.Id, "Txt Failed",
 					fmt.Sprintf("%s\nTesting for %s\nBut got: %s", c.Id, c.String(), was))
@@ -406,8 +402,8 @@ func testBody(body []byte, t, orig *Test) {
 			}
 		case "Bin":
 			if ok, was := c.BinFullfilled(body); !ok {
-				orig.Failed(c.Id, "Bin Failed", 
-					fmt.Sprintf("%s\nTesting for %s\nBut got: %s",c.Id, c.String(), was))
+				orig.Failed(c.Id, "Bin Failed",
+					fmt.Sprintf("%s\nTesting for %s\nBut got: %s", c.Id, c.String(), was))
 			} else {
 				orig.Passed(cs)
 			}
@@ -421,7 +417,7 @@ func testBody(body []byte, t, orig *Test) {
 // Perform tag test on response body.
 func testTags(t, orig *Test, doc *tag.Node) {
 	if len(t.Tag) > 0 {
-		debug("Testing Tags")
+		debugf("Testing Tags")
 	} else {
 		return
 	}
@@ -494,7 +490,7 @@ func testTags(t, orig *Test, doc *tag.Node) {
 			}
 			orig.Passed(cs)
 		default:
-			error("Unkown type of test %d (%s). Ignored.", tc.Cond, tc.Id)
+			errorf("Unkown type of test %d (%s). Ignored.", tc.Cond, tc.Id)
 		}
 	}
 }
@@ -505,7 +501,7 @@ var ValidUrls = map[string]bool{}
 // If url is considered checkable (and is parsable) an http.URL is returned; else nil.
 func shallCheckUrl(url_ string, base *url.URL) *url.URL {
 	if strings.HasPrefix(url_, "#") || strings.HasPrefix(strings.ToLower(url_), "mailto:") {
-		trace("Will not check plain page anchors or mailto links in %s", url_)
+		tracef("Will not check plain page anchors or mailto links in %s", url_)
 		return nil
 	}
 	if j := strings.Index(url_, "#"); j != -1 {
@@ -513,13 +509,13 @@ func shallCheckUrl(url_ string, base *url.URL) *url.URL {
 	}
 	pu, err := url.Parse(url_)
 	if err != nil {
-		error("Cannot parse url " + url_)
+		errorf("Cannot parse url " + url_)
 		return nil
 	}
 	if !pu.IsAbs() {
 		u, e := base.Parse(url_)
 		if e != nil {
-			error("Cannot parse %s relative to %s.", url_, base.String())
+			errorf("Cannot parse %s relative to %s.", url_, base.String())
 			return nil
 		}
 		return u
@@ -540,7 +536,7 @@ func testLinkValidation(t, orig *Test, cond []string, doc *tag.Node, resp *http.
 		orig.Error(checkId, "nil document", "maybe html unparsable or wrong content type")
 		return
 	}
-	trace("Validating links")
+	tracef("Validating links")
 
 	baseUrl, _ := url.Parse(base)     // Should not fail!
 	urls := make(map[string]bool, 50) // keys are urls to prevent doubles
@@ -580,7 +576,7 @@ func testLinkValidation(t, orig *Test, cond []string, doc *tag.Node, resp *http.
 	failures := "Bad Links:"
 	for url_, _ := range urls {
 		if _, ok := ValidUrls[url_]; ok {
-			warn("Will not retest " + url_)
+			warnf("Will not retest " + url_)
 		}
 		test := tmpl.Copy()
 		test.Url = url_
@@ -590,7 +586,7 @@ func testLinkValidation(t, orig *Test, cond []string, doc *tag.Node, resp *http.
 		_, _, err := test.RunSingle(nil, false) // no Global needed stuff has been added from t
 		if err != nil {
 			pass = false
-			failures += "\n" + fmt.Sprintf("Cannot access `%s': %s", test.Url, err.String())
+			failures += "\n" + fmt.Sprintf("Cannot access `%s': %s", test.Url, err.Error())
 			continue
 		}
 		if _, failed, _ := test.Stat(); failed > 0 {
@@ -618,10 +614,10 @@ func testLinkValidation(t, orig *Test, cond []string, doc *tag.Node, resp *http.
 // Check if html is valid html
 func testHtmlValidation(t, orig, global *Test, body string) {
 	checkId := "HTML Validation"
-	trace("Validating HTML")
+	tracef("Validating HTML")
 	f, err := ioutil.TempFile("", "htmlvalid")
 	if err != nil {
-		orig.Error(checkId, "Cannot open temp file", err.String())
+		orig.Error(checkId, "Cannot open temp file", err.Error())
 		return
 	}
 	name := f.Name()
@@ -654,7 +650,7 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 		Val: "Valid", Id: "X-W3C-Validator-Status"}}
 	_, valbody, verr := test.RunSingle(nil, false) // no global, plain request
 	if verr != nil {
-		orig.Error(checkId, "Cannot access W3C validator", verr.String())
+		orig.Error(checkId, "Cannot access W3C validator", verr.Error())
 		return
 	}
 	if _, failed, _ := test.Stat(); failed > 0 {
@@ -662,8 +658,8 @@ func testHtmlValidation(t, orig, global *Test, body string) {
 		failures := "Invalid HTML:"
 		doc, err := tag.ParseHtml(string(valbody))
 		if err != nil {
-			warn("Cannot parse response from W3C validator: " + err.String())
-			// orig.Error(checkId, "Cannot parse response from W3C validator", err.String())
+			warnf("Cannot parse response from W3C validator: " + err.Error())
+			// orig.Error(checkId, "Cannot parse response from W3C validator", err.Error())
 		} else {
 			fts := tag.MustParseTagSpec("li class=msg_err\n  em\n  span class=msg")
 			for _, en := range tag.FindAllTags(fts, doc) {
@@ -700,7 +696,7 @@ func addMissingHeader(test, global *map[string]string) {
 	for k, v := range *global {
 		if _, ok := (*test)[k]; !ok {
 			(*test)[k] = v
-			trace("Adding missing header %s: %s", k, v)
+			tracef("Adding missing header %s: %s", k, v)
 		}
 	}
 }
@@ -729,7 +725,7 @@ func addMissingCond(test, global []Condition) []Condition {
 			continue
 		} // do not overwrite
 		test = append(test, cond)
-		trace("Adding response condition '%s'", cond.String())
+		tracef("Adding response condition '%s'", cond.String())
 	}
 	return test
 }
@@ -737,7 +733,7 @@ func addMissingCond(test, global []Condition) []Condition {
 // Add all body conditions from global to test.
 func addAllCond(test, global []Condition) []Condition {
 	for _, cond := range global {
-		trace("Adding body condition '%s'", cond.String())
+		tracef("Adding body condition '%s'", cond.String())
 		test = append(test, cond)
 	}
 	return test
@@ -745,12 +741,13 @@ func addAllCond(test, global []Condition) []Condition {
 
 // Prepare the test: Add new stuff from global
 func prepareTest(t, global *Test) *Test {
-	debug("Preparing test '%s' (global %t).", t.Title, (global != nil))
+	debugf("Preparing test '%s' (global %t).", t.Title, (global != nil))
 
 	// Clear map of variable values: new run, new values (overkill for consts)
-	for k, _ := range t.Vars {
+	t.Vars = make(map[string]string)
+	/* for k, _ := range t.Vars {
 		t.Vars[k] = "", false
-	}
+	}*/
 
 	// deep copy
 	test := t.Copy()
@@ -759,7 +756,7 @@ func prepareTest(t, global *Test) *Test {
 	test.Url = substitute(test.Url, test, global, t)
 	u, ue := url.Parse(test.Url)
 	if ue != nil {
-		test.Failed(test.Title, "Malformed URL", "Malformed URL:\n"+ue.String())
+		test.Failed(test.Title, "Malformed URL", "Malformed URL:\n"+ue.Error())
 		return test
 	}
 
@@ -777,7 +774,7 @@ func prepareTest(t, global *Test) *Test {
 		encoded := make([]byte, enc.EncodedLen(len(uc)))
 		enc.Encode(encoded, []byte(uc))
 		test.Header["Authorization"] = "Basic " + string(encoded)
-		test.Header["Basic-Authorization"] = "", false
+		delete(test.Header, "Basic-Authorization")
 		// delete(test.Header, "Basic-Authorization")
 	}
 
@@ -789,7 +786,7 @@ func prepareTest(t, global *Test) *Test {
 	}
 
 	test.Dump = t.Dump
-	supertrace("Test to execute = \n%s", test.String())
+	supertracef("Test to execute = \n%s", test.String())
 	return test
 }
 
@@ -806,7 +803,7 @@ func parsableBody(resp *http.Response) bool {
 			return true
 		}
 	}
-	info("Response body is not considered parsable")
+	infof("Response body is not considered parsable")
 	return false
 }
 
@@ -833,7 +830,7 @@ func (test *Test) init() {
 func (test *Test) Run(global *Test) {
 
 	if test.Repeat() == 0 {
-		info("Test '%s' is disabled.", test.Title)
+		infof("Test '%s' is disabled.", test.Title)
 		return
 	}
 
@@ -848,7 +845,7 @@ func (test *Test) Run(global *Test) {
 		}
 		file, err := os.OpenFile(fname, os.O_WRONLY|os.O_CREATE|mode, 0666)
 		if err != nil {
-			error("Cannot dump to file '%s': %s.", fname, err.String())
+			errorf("Cannot dump to file '%s': %s.", fname, err.Error())
 		} else {
 			defer file.Close()
 			test.Dump = file
@@ -857,18 +854,18 @@ func (test *Test) Run(global *Test) {
 
 	reps := test.Repeat()
 	for i := 1; i <= reps; i++ {
-		info("Test '%s': Round %d of %d.", test.Title, i, reps)
+		infof("Test '%s': Round %d of %d.", test.Title, i, reps)
 		test.RunSingle(global, false)
 	}
 
-	info("Test '%s': %s", test.Title, test.Status())
+	infof("Test '%s': %s", test.Title, test.Status())
 	return
 }
 
 // Execute test, but do not test conditions. Usefull as background task in loadtesting.
 func (test *Test) RunWithoutTest(global *Test) {
 	if test.Repeat() == 0 {
-		info("Test no '%s' is disabled.", test.Title)
+		infof("Test no '%s' is disabled.", test.Title)
 		return
 	}
 
@@ -881,13 +878,13 @@ func (test *Test) RunWithoutTest(global *Test) {
 }
 
 // Benchmark test.
-func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err os.Error) {
+func (test *Test) Bench(global *Test, count int) (durations []int, failures int, err error) {
 	test.init()
 	test.Dump = nil // prevent dumping during benchmarking
 	test.Validation = nil
 
 	if count < 5 {
-		warn("Cannot benchmark with less than 5 rounds. Will use 5.")
+		warnf("Cannot benchmark with less than 5 rounds. Will use 5.")
 		count = 5
 	}
 
@@ -896,15 +893,15 @@ func (test *Test) Bench(global *Test, count int) (durations []int, failures int,
 
 	for okay < count {
 		if float32(total) > BenchTolerance*float32(count) {
-			info("Too many errors for %d: %f > %f", count, float32(total), BenchTolerance*float32(count))
-			err = Error("Too many failures/errors during benching")
+			infof("Too many errors for %d: %f > %f", count, float32(total), BenchTolerance*float32(count))
+			err = errors.New("Too many failures/errors during benching")
 			return
 		}
-		info("Bench '%s':", test.Title)
+		infof("Bench '%s':", test.Title)
 		dur, _, e := test.RunSingle(global, false)
 		total++
 		if e != nil {
-			warn("Failure during bench")
+			warnf("Failure during bench")
 		} else {
 			durations[okay] = dur
 			okay++
@@ -943,7 +940,7 @@ func executeShellCmd(cmdline []string) (e int, s string) {
 	cmd := exec.Command(cmdline[0], cmdline[1:]...)
 	if err := cmd.Start(); err != nil {
 		e = -9999
-		s = fmt.Sprintf("Cannot start %s: %s", cmdline[0], err.String())
+		s = fmt.Sprintf("Cannot start %s: %s", cmdline[0], err.Error())
 		return
 	}
 	err := cmd.Wait()
@@ -951,14 +948,14 @@ func executeShellCmd(cmdline []string) (e int, s string) {
 		e, s = 0, ""
 		return
 	}
-	if wm, ok := err.(*os.Waitmsg); ok {
-		e = wm.ExitStatus()
-		s = wm.String()
+	if wm, ok := err.(*exec.ExitError); ok {
+		e = -9997
+		s = wm.Error()
 		return
 	}
 
 	e = -9998
-	s = err.String()
+	s = err.Error()
 	return
 }
 
@@ -968,30 +965,30 @@ func checkLog(test *Test, file *os.File, log LogCondition, origsize int64) {
 	case "~=", "/=", "_=", "=_":
 		os, err := file.Seek(origsize, 0)
 		if err != nil || os != origsize {
-			test.Error(log.Id, "Cannot seek in "+log.Path, err.String())
+			test.Error(log.Id, "Cannot seek in "+log.Path, err.Error())
 			return
 		}
 		buf, err := ioutil.ReadAll(file)
 		if err != nil {
-			test.Error(log.Id, "Cannot read from "+log.Path, err.String())
+			test.Error(log.Id, "Cannot read from "+log.Path, err.Error())
 			return
 		}
 		checkLogContent(test, buf, log)
 	case "<", "<=", ">", ">=":
 		fi, err := file.Stat()
 		if err != nil {
-			test.Error(log.Id, "Cannot get Fileinfo", err.String())
+			test.Error(log.Id, "Cannot get Fileinfo", err.Error())
 			return
 		}
-		delta := fi.Size - origsize
+		delta := (fi.Size()) - origsize
 		if delta < 0 {
 			test.Error(log.Id, "Logfile shrinked", "Maybe log rotated?")
 			return
 		}
-		expected, err := strconv.Atoi64(log.Val)
+		expected, err := strconv.ParseInt(log.Val, 10, 64)
 		if err != nil {
 			test.Error(log.Id, "Bad test.",
-				fmt.Sprintf("Cannot convert '%s' to int: %s", log.Val, err.String()))
+				fmt.Sprintf("Cannot convert '%s' to int: %s", log.Val, err.Error()))
 			return
 		}
 		checkLogSize(test, log, delta, expected)
@@ -1028,7 +1025,7 @@ func checkLogSize(test *Test, log LogCondition, delta, expected int64) {
 // check content added to log file.
 func checkLogContent(test *Test, buf []byte, log LogCondition) {
 	txt := string(buf)
-	trace("Checking %s on: %s", log.String(), txt)
+	tracef("Checking %s on: %s", log.String(), txt)
 	found := false
 	switch log.Op {
 	case "~=":
@@ -1036,7 +1033,7 @@ func checkLogContent(test *Test, buf []byte, log LogCondition) {
 	case "/=":
 		re, err := regexp.Compile(log.Val)
 		if err != nil {
-			test.Error(log.Id, "Bad Test", "Unparsable regexp: "+err.String())
+			test.Error(log.Id, "Bad Test", "Unparsable regexp: "+err.Error())
 			return
 		}
 		found = re.Find(buf) != nil
@@ -1059,12 +1056,12 @@ func checkLogContent(test *Test, buf []byte, log LogCondition) {
 	}
 
 	if !found && !log.Neg {
-		trace("Not found")
+		tracef("Not found")
 		test.Failed(log.Id, "Missing in log", fmt.Sprintf("%s\nMissing '%s' [%s] in:\n%s",
 			log.Id, log.Val, log.Op, txt))
 		return
 	} else if found && log.Neg {
-		trace("Found")
+		tracef("Found")
 		test.Failed(log.Id, "Forbidden in log", fmt.Sprintf("%s\nForbidden '%s' [%s] in:\n%s",
 			log.Id, log.Val, log.Op, txt))
 		return
@@ -1076,7 +1073,7 @@ func checkLogContent(test *Test, buf []byte, log LogCondition) {
 // Perform a single run of the test.  Return duration for server response in ms,
 // recieved body or error.  If request itself failed, then err is non nil and contains the reason.
 // Logs the results of the tests in Result field.
-func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []byte, err os.Error) {
+func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []byte, err error) {
 	ti := prepareTest(test, global)
 
 	// Before Commands and log file initialisation
@@ -1088,23 +1085,23 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 					fmt.Sprintf("Failure %d", rv),
 					msg)
 				duration = 0
-				err = os.NewError("Failed BEFORE command")
+				err = errors.New("Failed BEFORE command")
 				return
 			}
 		}
-		trace("Number of logfile tests: %d", len(ti.Log))
+		tracef("Number of logfile tests: %d", len(ti.Log))
 		logfilesize = determinLogfileSize(ti.Log, test)
 	}
 
 	tries := ti.Tries()
 	var tryCnt int
 	for {
-		starttime := time.Nanoseconds()
+		starttime := time.Now()
 		var (
 			response *http.Response
 			url_     string
 			cookies  []*http.Cookie
-			reqerr   os.Error
+			reqerr   error
 		)
 
 		if ti.Method == "GET" {
@@ -1112,30 +1109,29 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 		} else if ti.Method == "POST" || ti.Method == "POST:mp" {
 			response, url_, cookies, reqerr = Post(ti)
 		}
-		endtime := time.Nanoseconds()
-		duration = int((endtime - starttime) / 1e6) // in milliseconds (ms)
+		duration = int(time.Since(starttime) / time.Millisecond)
 
 		if reqerr != nil {
-			test.Error("Request", "Failed Request", reqerr.String())
-			err = Error("Error: " + reqerr.String())
+			test.Error("Request", "Failed Request", reqerr.Error())
+			err = fmt.Errorf("Error: %s", reqerr.Error())
 		} else {
 			body = performChecks(test, ti, global, response, cookies, url_, duration, skipTests)
 		}
 
 		if test.Sleep() > 0 {
-			trace("Sleeping for %d seconds.", test.Sleep())
-			time.Sleep(1000000 * int64(test.Sleep()))
+			tracef("Sleeping for %d seconds.", test.Sleep())
+			time.Sleep(time.Duration(test.Sleep()) + time.Millisecond)
 		}
 
 		tryCnt++
 		_, failed, _ := test.Stat()
-		// fmt.Printf(">>> %s tryCnt: %d,  tries: %d, failed: %d  [%s]\n", test.Title, tryCnt, tries, failed, test.Status()) 
+		// fmt.Printf(">>> %s tryCnt: %d,  tries: %d, failed: %d  [%s]\n", test.Title, tryCnt, tries, failed, test.Status())
 		if tryCnt >= tries || failed == 0 {
 			break
 		}
 		// clear Result and start over
 		test.Result = test.Result[0:0]
-		// fmt.Printf("\n-----\n%s: %s\n=========\n", test.Title, test.Status()) 
+		// fmt.Printf("\n-----\n%s: %s\n=========\n", test.Title, test.Status())
 
 	}
 
@@ -1156,7 +1152,7 @@ func (test *Test) RunSingle(global *Test, skipTests bool) (duration int, body []
 			}
 			file, err := os.Open(log.Path)
 			if err != nil {
-				test.Error(log.Id, "Cannot open "+log.Path, err.String())
+				test.Error(log.Id, "Cannot open "+log.Path, err.Error())
 				continue
 			}
 			checkLog(test, file, log, logfilesize[log.Path])
@@ -1178,13 +1174,13 @@ func hasLinkValidation(cond []string) bool {
 	return false
 }
 
-// Main function to perform test on the response: cookies, header, body, tags, and timing. 
+// Main function to perform test on the response: cookies, header, body, tags, and timing.
 func performChecks(test, ti, global *Test, response *http.Response, cookies []*http.Cookie,
-url_ string, duration int, skipTests bool) (body []byte) {
+	url_ string, duration int, skipTests bool) (body []byte) {
 
 	body = readBody(response.Body)
 
-	trace("Recieved cookies: %v", cookies)
+	tracef("Recieved cookies: %v", cookies)
 	if len(cookies) > 0 && test.KeepCookies() == 1 && global != nil {
 		if global.Jar == nil {
 			global.Jar = NewCookieJar()
@@ -1192,7 +1188,7 @@ url_ string, duration int, skipTests bool) (body []byte) {
 
 		u, _ := url.Parse(url_)
 		for _, c := range cookies {
-			trace("Updating cookie %s in global jar.", c.Name)
+			tracef("Updating cookie %s in global jar.", c.Name)
 			global.Jar.Update(*c, u.Host)
 		}
 	}
@@ -1216,14 +1212,14 @@ url_ string, duration int, skipTests bool) (body []byte) {
 	var doc *tag.Node
 	if len(ti.Tag) > 0 || hasLinkValidation(ti.Validation) {
 		if parsableBody(response) {
-			var e os.Error
+			var e error
 			doc, e = tag.ParseHtml(string(body))
 			if e != nil {
-				test.Error("Tag/Validation", "HTML unparsable", e.String())
-				error("Problems parsing html: " + e.String())
+				test.Error("Tag/Validation", "HTML unparsable", e.Error())
+				errorf("Problems parsing html: " + e.Error())
 			}
 		} else {
-			error("Unparsable body ")
+			errorf("Unparsable body ")
 			test.Error("Tag/Validation", "Body considered unparsable.", "")
 		}
 	}
