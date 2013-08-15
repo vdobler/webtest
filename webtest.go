@@ -860,15 +860,25 @@ func stressChartUrl(data []suite.StressResult) (url string) {
 	url = "http://chart.googleapis.com/chart?cht=lxy&chs=500x300&chxs=0,676767,11.5,0,lt,676767&chxt=x,y,r"
 	url += "&chls=2|2|2&chco=0000FF,00FF00,FF0000&chm=s,000000,0,-1,4|s,000000,1,-1,4|s,000000,2,-1,4"
 	url += "&chdlp=b&chdl=Max+RT|Avg+RT|Err+Rate"
+
+	// Determine maximum load and response time and round properly
 	var mrt int64 = -1
+	var mld int = -1
 	for _, d := range data {
 		if d.MaxRT > mrt {
 			mrt = d.MaxRT
 		}
+		if d.Load > mld {
+			mld = d.Load
+		}
 	}
 	mrt = 100 * ((mrt + 99) / 100)
+	mld = 10 * ((mld + 9) / 10)
+	if mld < 10 {
+		mld = 10
+	}
 
-	url += fmt.Sprintf("&chxr=1,0,%d", mrt)
+	url += fmt.Sprintf("&chxr=1,0,%d|0,0,%d", mrt, mld)
 
 	var chd string = "&chd=t:"
 	var maxd string
@@ -882,7 +892,7 @@ func stressChartUrl(data []suite.StressResult) (url string) {
 			avgd += ","
 			errd += ","
 		}
-		ld += fmt.Sprintf("%d", d.Load)
+		ld += fmt.Sprintf("%d", int(100*d.Load/mld))
 		maxd += fmt.Sprintf("%d", int(100*d.MaxRT/mrt))
 		avgd += fmt.Sprintf("%d", int(100*d.AvgRT/mrt))
 		errd += fmt.Sprintf("%d", int(100*d.Fail/d.Total))
