@@ -156,6 +156,7 @@ type StressResult struct {
 	MinRT int64 // minimum response time in ms
 	Total int   // total number of tests performed
 	RT    []int
+	Detail map[string][]int // maps Test.Title to response times in ms.
 }
 
 // Perform reps runs of s while running load of load parallel background request taken from bg.
@@ -170,6 +171,7 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 	result.MaxRT = math.MinInt64
 	result.MinRT = math.MaxInt64
 	result.Load = load
+	result.Detail = make(map[string][]int)
 
 	for rep := 1; rep <= reps; rep++ {
 		infof("Repetition %d of %d of test suite:", rep, reps)
@@ -185,6 +187,7 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 
 			rt := int64(duration)
 			result.RT = append(result.RT, int(rt))
+			result.Detail[t.Title] = append(result.Detail[t.Title], int(rt))
 			passed, failed, errored := tc.Stat()
 			total := passed + failed
 
