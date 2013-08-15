@@ -57,6 +57,8 @@ import (
 	"github.com/vdobler/webtest/tag"
 )
 
+var statLevels = []int{0, 25, 50, 67, 75, 80, 90, 95, 98, 100}
+
 // General operation modes and overall settings
 var checkOnly bool = false
 var testmode bool = true
@@ -464,6 +466,8 @@ func benchmark(suites []*suite.Suite) {
 	boxChart.YRange.Label = "Response Time [ms]"
 	boxChart.YRange.MinMode.Fixed = true
 	boxChart.YRange.MinMode.Value = 0
+	boxChart.YRange.MaxMode.Fixed = false
+	boxChart.YRange.TicSetting.Delta = 0
 	boxChart.XRange.Category = []string{}
 	boxChart.NextDataSet("Response Times", chart.AutoStyle(0, false))
 
@@ -508,9 +512,12 @@ func benchmark(suites []*suite.Suite) {
 				cnt++
 				histogram.AddData(t.Title, fdur, chart.Style{})
 
-				min, lq, med, avg, uq, max := stat.SixvalInt(dur, 25)
-				result += fmt.Sprintf("%s:  min= %-4d , 25= %-4d , med= %-4d , avg= %-4d , 75= %-4d , max= %4d (in ms, %d runs, %d failures)\n",
-					abbrTitle, min, lq, med, avg, uq, max, len(dur), f)
+				result += fmt.Sprintf("%s:  ", abbrTitle)
+				p := stat.DistributionInt(dur, statLevels)
+				for i, lev := range statLevels {
+					result += fmt.Sprintf("%d%% < %-4d ", lev, p[i])
+				}
+				result += fmt.Sprintf("(#%d F%d)\n", len(dur), f)
 				charts += stat.HistogramChartUrlInt(dur, t.Title, "Response Time [ms]") + "\n"
 			}
 		}
@@ -775,10 +782,17 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 		if plainRespTime == -1 {
 			plainRespTime = result.AvgRT
 		}
-		text += fmt.Sprintf("Load %3d: Response Time %5d / %5d / %5d (min/avg/max). Status %2d / %2d / %2d (err/pass/fail). %2d / %2d (tests/checks).\n",
+		text += fmt.Sprintf("Load %3d: Response Time %5d / %5d / %5d (min/avg/max). Status %2d / %2d / %2d (err/pass/fail). %2d / %2d (tests/checks).\n              ",
 			load, result.MinRT, result.AvgRT, result.MaxRT, result.Err, result.Pass, result.Fail, result.N, result.Total)
-		fmt.Printf(stressChartUrl(data))
-		fmt.Printf(text)
+
+		p := stat.DistributionInt(result.RT, statLevels)
+		for i, lev := range statLevels {
+			text += fmt.Sprintf("%d%%<%d  ", lev, p[i])
+		}
+		text += "\n"
+
+		fmt.Print(stressChartUrl(data))
+		fmt.Print(text)
 		if result.Err > 0 {
 			infof("Test Error: Aborting Stresstest.")
 			break
@@ -815,8 +829,8 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 		time.Sleep(time.Duration(rampSleep) * time.Millisecond)
 	}
 
-	fmt.Printf(stressChartUrl(data))
-	fmt.Printf(text)
+	fmt.Print(stressChartUrl(data))
+	fmt.Print(text)
 }
 
 //  Perform stresstest.

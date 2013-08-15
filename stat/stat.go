@@ -107,6 +107,14 @@ func SixvalInt(data []int, p int) (min, lq, med, avg, uq, max int) {
 	return
 }
 
+func DistributionInt(data []int, levels []int) (p []int) {
+	sort.Ints(data)
+	for _, q := range levels {
+		p = append(p,PercentilInt(data, q))
+	}
+	return p
+}
+
 // Compute minimum, p percentil, median, average, 100-p percentil and maximum of values in data.
 func SixvalFloat64(data []float64, p int) (min, lq, med, avg, uq, max float64) {
 	n := len(data)
