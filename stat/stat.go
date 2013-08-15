@@ -110,7 +110,7 @@ func SixvalInt(data []int, p int) (min, lq, med, avg, uq, max int) {
 func DistributionInt(data []int, levels []int) (p []int) {
 	sort.Ints(data)
 	for _, q := range levels {
-		p = append(p,PercentilInt(data, q))
+		p = append(p, PercentilInt(data, q))
 	}
 	return p
 }

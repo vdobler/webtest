@@ -773,9 +773,11 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper) {
 	var text string = "============================ Stresstest Results ==================================\n"
 	var data []suite.StressResult = make([]suite.StressResult, 0, 5)
 
+	// Warmup of server: Make sure chaches are hot.
+	s.Stresstest(bg, 0, 1, 10)
+
 	for {
-		infof("Stresstesting with background load of %d || requests.", load)
-		runtime.GC()
+		warnf("Stresstesting with background load of %d || requests.", load)
 		result := s.Stresstest(bg, load, rampRep, rampSleep)
 		data = append(data, result)
 

@@ -12,6 +12,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -154,7 +155,7 @@ type StressResult struct {
 	MaxRT int64 // maximum response time in ms
 	MinRT int64 // minimum response time in ms
 	Total int   // total number of tests performed
-	RT []int
+	RT    []int
 }
 
 // Perform reps runs of s while running load of load parallel background request taken from bg.
@@ -179,6 +180,7 @@ func (s *Suite) Stresstest(bg *Suite, load, reps int, rampSleep int64) (result S
 			}
 			time.Sleep(time.Duration(rampSleep) * time.Millisecond)
 			tc := t.Copy()
+			runtime.GC()
 			duration, _, _ := tc.RunSingle(s.Global, false)
 
 			rt := int64(duration)
