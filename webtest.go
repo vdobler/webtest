@@ -318,8 +318,6 @@ func globalInitialization() {
 		fmt.Fprintf(os.Stderr, "Illegal argument to dump.")
 		os.Exit(2)
 	}
-
-	runtime.GOMAXPROCS(2) // use more than one thread
 }
 
 // Main method for webtest.
