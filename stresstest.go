@@ -2,22 +2,22 @@ package main
 
 import (
 	"fmt"
-	"image/color"
-	"math"
-	"os"
-	"time"
-
 	"github.com/ajstarks/svgo"
 	"github.com/vdobler/chart"
 	"github.com/vdobler/chart/svgg"
 	"github.com/vdobler/webtest/stat"
 	"github.com/vdobler/webtest/suite"
+	"image/color"
+	"math"
+	"os"
+	"sort"
+	"time"
 )
 
 var statLevels = []int{0, 25, 50, 67, 75, 80, 90, 95, 98, 100}
 
 // Real stresstest: Ramp up load until "collaps".
-func stressramp(bg, s *suite.Suite, stepper suite.Stepper, name string) {
+func stressramp(bg, s *suite.Suite, stepper suite.Stepper, name, bgname string) {
 	var load int = 0
 	var lastRespTime int64 = -1
 	var plainRespTime int64 = -1
@@ -85,7 +85,7 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper, name string) {
 	fmt.Print(stressChartUrl(data))
 	fmt.Print(text)
 
-	writeStressHistograms(data, name)
+	writeStressHistograms(data, name, bgname)
 }
 
 //  Perform stresstest.
@@ -107,7 +107,8 @@ func stresstest(bgfilename, testfilename string) {
 	}
 
 	// perform increasing stresstests
-	stressramp(background, testsuite, suite.ConstantStep{rampStart, rampStep}, testfilename)
+	stressramp(background, testsuite, suite.ConstantStep{rampStart, rampStep},
+		testfilename, bgfilename)
 }
 
 // Generate Google chart for stresstest results.
@@ -192,8 +193,10 @@ func beautifulX(maxRT, step float64) (float64, float64) {
 	return maxRT, step
 }
 
-// save multiplot of histograms to filename
-func writeStressHistograms(data []suite.StressResult, name string) {
+// Save multiplot of histograms as SVG to file name.
+// Construct a grid of histogram with the columns a test in the testsuite
+// and a row per background load.
+func writeStressHistograms(data []suite.StressResult, name, bgname string) {
 	numLoads := len(data)
 	numTests := len(data[0].Detail)
 
@@ -210,6 +213,12 @@ func writeStressHistograms(data []suite.StressResult, name string) {
 	step := maxRT / 4
 	maxRT, step = beautifulX(maxRT, step)
 
+	tests := []string{}
+	for t, _ := range data[0].Detail {
+		tests = append(tests, t)
+	}
+	sort.Strings(tests)
+
 	// A histogram
 	now := time.Now()
 	filename := outputPath + "stresstest_" + now.Format("2006-01-02_15-04-05") + ".svg"
@@ -220,28 +229,24 @@ func writeStressHistograms(data []suite.StressResult, name string) {
 	}
 	thesvg := svg.New(file)
 
-	width, height := svgLeft+svgWidth*numTests, svgTop*svgHeight*numLoads+20
+	width, height := svgLeft+svgWidth*numTests, svgTop+svgHeight*numLoads+20
 	thesvg.Start(width, height)
 	thesvg.Title("Response Times")
 	thesvg.Rect(0, 0, width, height, "fill: #ffffff")
-	title := fmt.Sprintf("Distribution of response times in ms (suite: %s, date: %s)",
-		name, now.Format("Mon 2. Jan. 2006 15:04:05"))
+	title := fmt.Sprintf("Distribution of response times in ms (suite: %s; bg: %s; %d samples; finished: %s)",
+		name, bgname, len(data[0].Detail[tests[0]]), now.Format("Mon 2. Jan. 2006 15:04:05"))
 	thesvg.Text(20, svgTop/2, title, "",
 		"text-anchor: begin; font-size: 20;")
 
-	tests := []string{}
-	k := 0
-	for t, _ := range data[0].Detail {
-		tests = append(tests, t)
-		thesvg.Text(20+svgLeft+k*svgWidth, svgTop-2, t, "",
+	for k, name := range tests {
+		thesvg.Text(20+svgLeft+k*svgWidth, svgTop-2, name, "",
 			"text-anchor: begin; font-size: 14;")
-		k++
 	}
 
 	white := color.RGBA{255, 255, 255, 255}
 	for i := range data {
 		thesvg.Text(svgLeft-10, svgTop+svgHeight*i+0.5*svgHeight,
-			fmt.Sprintf("%d || Req", data[i].Load), "",
+			fmt.Sprintf("%d || Req", data[i].Load+1), "",
 			"text-anchor: end; font-size: 14;")
 		for j, t := range tests {
 			showTime, hd := false, 0
@@ -266,7 +271,7 @@ func plotHistogram(g chart.Graphics, data []int, maxRT, step float64, showTime b
 	style := chart.Style{LineColor: grey, FillColor: grey}
 	var histogram chart.HistChart
 
-	// Show frequencies
+	// Y-axis shows frequencies with fixed range [0:100]
 	histogram.Counts = false
 	histogram.YRange.MinMode.Fixed = true
 	histogram.YRange.MinMode.Value = 0
@@ -276,10 +281,7 @@ func plotHistogram(g chart.Graphics, data []int, maxRT, step float64, showTime b
 	histogram.YRange.TicSetting.Tics = 1
 	histogram.YRange.TicSetting.Delta = 25
 
-	histogram.Kernel = chart.BisquareKernel
-	histogram.BinWidth = float64(maxRT) / 10
-	histogram.AddDataInt("", data, style)
-
+	// X-axis
 	histogram.XRange.MinMode.Fixed = true
 	histogram.XRange.MinMode.Value = 0
 	histogram.XRange.MaxMode.Fixed = true
@@ -287,6 +289,20 @@ func plotHistogram(g chart.Graphics, data []int, maxRT, step float64, showTime b
 	histogram.XRange.TicSetting.Tics = 1
 	histogram.XRange.TicSetting.Delta = step
 	histogram.XRange.TicSetting.HideLabels = !showTime
+
+	bins := 10
+	if len(data) <= 10 {
+		bins = 5
+	} else if len(data) <= 20 {
+		bins = 10
+	} else if len(data) <= 30 {
+		bins = 15
+	} else {
+		bins = 20
+	}
+	histogram.Kernel = chart.BisquareKernel
+	histogram.BinWidth = maxRT / float64(bins)
+	histogram.AddDataInt("", data, style)
 
 	histogram.Plot(g)
 }
