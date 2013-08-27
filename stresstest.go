@@ -31,6 +31,7 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper, name, bgname string) 
 		warnf("Stresstesting with background load of %d || requests.", load)
 		result := s.Stresstest(bg, load, rampRep, rampSleep)
 		data = append(data, result)
+		saveStresstestData(data, name)
 
 		if plainRespTime == -1 {
 			plainRespTime = result.AvgRT
@@ -86,6 +87,25 @@ func stressramp(bg, s *suite.Suite, stepper suite.Stepper, name, bgname string) 
 	fmt.Print(text)
 
 	writeStressHistograms(data, name, bgname)
+}
+
+func saveStresstestData(data []suite.StressResult, name string) {
+	now := time.Now()
+	filename := outputPath + "stresstest_" + now.Format("2006-01-02_15-04-05") + ".txt"
+	file, err := os.Create(filename)
+	if err != nil {
+		errorf("Cannot write to %q: %s", filename, err.Error())
+		return
+	}
+	defer file.Close()
+	file.WriteString("Load,Test,RespTime\n")
+	for _, d := range data {
+		for name, rts := range d.Detail {
+			for _, rt := range rts {
+				fmt.Fprintf(file, "%d,%s,%d\n", d.Load, name, rt)
+			}
+		}
+	}
 }
 
 //  Perform stresstest.
