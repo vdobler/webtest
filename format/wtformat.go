@@ -22,7 +22,7 @@ import (
 func checkSuite(filename string) bool {
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("Cannot read from '%s': %s\n", filename, err.String())
+		fmt.Printf("Cannot read from '%s': %s\n", filename, err.Error())
 		return false
 	}
 	defer file.Close()
@@ -30,7 +30,7 @@ func checkSuite(filename string) bool {
 	parser := suite.NewParser(file, basename)
 	_, serr := parser.ReadSuite()
 	if serr != nil {
-		fmt.Printf("Problems parsing '%s': %s\n", filename, serr.String())
+		fmt.Printf("Problems parsing '%s': %s\n", filename, serr.Error())
 		return false
 	}
 	return true
@@ -58,7 +58,7 @@ func makeHeader(filename string) string {
 `
 	basename := quoteSpecial(path.Base(filename))
 	filename = quoteSpecial(filename)
-	date := time.LocalTime().Format("02. Jan 2006, 15:04")
+	date := time.Now().Format("02. Jan 2006, 15:04")
 	return fmt.Sprintf(texf, basename, filename, date)
 }
 
@@ -469,12 +469,12 @@ func formatFile(filename string) bool {
 	}
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("Cannot read from '%s': %s\n", filename, err.String())
+		fmt.Printf("Cannot read from '%s': %s\n", filename, err.Error())
 		return false
 	}
 	buf, err := ioutil.ReadAll(file)
 	if err != nil {
-		fmt.Printf("Cannot read from %s: %s", filename, err.String())
+		fmt.Printf("Cannot read from %s: %s", filename, err.Error())
 		return false
 	}
 	file.Close()
@@ -492,7 +492,7 @@ func formatFile(filename string) bool {
 	filename += ".tex"
 	ofile, err := os.Create(filename)
 	if err != nil {
-		fmt.Printf("Cannot create file '%s': %s\n", filename, err.String())
+		fmt.Printf("Cannot create file '%s': %s\n", filename, err.Error())
 		return false
 	}
 	defer ofile.Close()
