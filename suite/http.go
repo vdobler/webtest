@@ -235,7 +235,11 @@ func DoAndFollow(ireq *http.Request, t *Test) (r *http.Response, finalUrl string
 	}
 
 	method := ireq.Method
-	err = &url.Error{method[0:1] + strings.ToLower(method[1:]), urlStr, err}
+	err = &url.Error{
+		OP:  method[0:1] + strings.ToLower(method[1:]),
+		URL: urlStr,
+		Err: err,
+	}
 	return
 
 }

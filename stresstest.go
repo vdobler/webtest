@@ -2,16 +2,17 @@ package main
 
 import (
 	"fmt"
-	"github.com/ajstarks/svgo"
-	"github.com/vdobler/chart"
-	"github.com/vdobler/chart/svgg"
-	"github.com/vdobler/webtest/stat"
-	"github.com/vdobler/webtest/suite"
 	"image/color"
 	"math"
 	"os"
 	"sort"
 	"time"
+
+	"github.com/ajstarks/svgo"
+	"github.com/vdobler/chart"
+	"github.com/vdobler/chart/svgg"
+	"github.com/vdobler/webtest/stat"
+	"github.com/vdobler/webtest/suite"
 )
 
 var statLevels = []int{0, 25, 50, 67, 75, 80, 90, 95, 98, 100}
@@ -127,7 +128,7 @@ func stresstest(bgfilename, testfilename string) {
 	}
 
 	// perform increasing stresstests
-	stressramp(background, testsuite, suite.ConstantStep{rampStart, rampStep},
+	stressramp(background, testsuite, suite.ConstantStep{Start: rampStart, Step: rampStep},
 		testfilename, bgfilename)
 }
 

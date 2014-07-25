@@ -146,16 +146,16 @@ func bgnoise(n int, bg *Suite, kill chan bool) {
 
 // Structure to collect results from a stresstest run.
 type StressResult struct {
-	Load  int   // number of parallel background requests
-	N     int   // total number of tests and repetitions
-	Pass  int   // number of passed tests
-	Fail  int   // number of failed tests
-	Err   int   // number errors (e.g. unable to connect)
-	AvgRT int64 // average response time in ms
-	MaxRT int64 // maximum response time in ms
-	MinRT int64 // minimum response time in ms
-	Total int   // total number of tests performed
-	RT    []int
+	Load   int   // number of parallel background requests
+	N      int   // total number of tests and repetitions
+	Pass   int   // number of passed tests
+	Fail   int   // number of failed tests
+	Err    int   // number errors (e.g. unable to connect)
+	AvgRT  int64 // average response time in ms
+	MaxRT  int64 // maximum response time in ms
+	MinRT  int64 // minimum response time in ms
+	Total  int   // total number of tests performed
+	RT     []int
 	Detail map[string][]int // maps Test.Title to response times in ms.
 }
 

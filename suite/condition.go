@@ -121,7 +121,7 @@ func (c *LogCondition) String() (s string) {
 func atoi(s, line string, fallback int) int {
 	i, err := strconv.Atoi(s)
 	if err != nil {
-		errorf("Cannot convert '%s' to integer (line %d).", s, line)
+		errorf("Cannot convert '%s' to integer (line %q).", s, line)
 		i = fallback
 	}
 	return i
@@ -254,11 +254,10 @@ func bound(b, n int) int {
 			return b
 		}
 		return n
-	} else {
-		if n+b <= n && n+b >= 0 {
-			return n + b
-		}
-		return 0
+	}
+
+	if n+b <= n && n+b >= 0 {
+		return n + b
 	}
 	return 0
 }
